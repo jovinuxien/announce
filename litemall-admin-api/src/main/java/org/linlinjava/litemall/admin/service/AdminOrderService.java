@@ -74,20 +74,21 @@ public class AdminOrderService {
     }
 
     /**
-     * 订单退款
+     * Order Refund
      * <p>
-     * 1. 检测当前订单是否能够退款;
-     * 2. 微信退款操作;
-     * 3. 设置订单退款确认状态；
-     * 4. 订单商品库存回库。
+     * 1. Check if the current order is eligible for refund;
+     * 2. Perform WeChat refund operation;
+     * 3. Set the order refund confirmation status;
+     * 4. Return the order goods inventory to stock.
      * <p>
      * TODO
-     * 虽然接入了微信退款API，但是从安全角度考虑，建议开发者删除这里微信退款代码，采用以下两步走步骤：
-     * 1. 管理员登录微信官方支付平台点击退款操作进行退款
-     * 2. 管理员登录litemall管理后台点击退款操作进行订单状态修改和商品库存回库
+     * Although the WeChat refund API has been integrated, for security reasons,
+     * it is recommended that developers delete the WeChat refund code here and adopt the following two-step process:
+     * 1. Administrator logs into the WeChat official payment platform to perform the refund operation
+     * 2. Administrator logs into the litemall management backend to perform order status modification and return goods inventory to stock
      *
-     * @param body 订单信息，{ orderId：xxx }
-     * @return 订单退款操作结果
+     * @param body Order information, { orderId: xxx }
+     * @return Result of the order refund operation
      */
     @Transactional
     public Object refund(String body) {

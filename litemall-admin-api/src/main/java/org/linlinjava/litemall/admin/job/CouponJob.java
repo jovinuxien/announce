@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 检测优惠券过期情况
+ * Check for expired coupons
  */
 @Component
 public class CouponJob {
@@ -27,13 +27,15 @@ public class CouponJob {
     private LitemallCouponUserService couponUserService;
 
     /**
-     * 每隔一个小时检查
+     * Checks every hour.
      * TODO
-     * 注意，因为是相隔一个小时检查，因此导致优惠券真正超时时间可能比设定时间延迟1个小时
+     * Note: Since the check occurs every hour, the actual expiration time of the coupon may be delayed by up to one hour from the set time.
      */
     @Scheduled(fixedDelay = 60 * 60 * 1000)
     public void checkCouponExpired() {
-        logger.info("系统开启任务检查优惠券是否已经过期");
+
+        //logger.info("系统开启任务检查优惠券是否已经过期");
+        logger.info("The system starts a task to check if coupons have expired.");
 
         List<LitemallCoupon> couponList = couponService.queryExpired();
         for (LitemallCoupon coupon : couponList) {
@@ -47,7 +49,7 @@ public class CouponJob {
             couponUserService.update(couponUser);
         }
 
-        logger.info("系统结束任务检查优惠券是否已经过期");
+        logger.info("The system performs a final check to determine if any coupons have expired.");
     }
 
 }

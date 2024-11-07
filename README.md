@@ -1,76 +1,78 @@
-# litemall
+ English Translation:
 
-又一个小商场系统。
+# Litemall
 
-litemall = Spring Boot后端 + Vue管理员前端 + 微信小程序用户前端 + Vue用户移动端
+Another mini-mall system.
 
-* [文档](https://linlinjava.gitbook.io/litemall)
-* [贡献](https://linlinjava.gitbook.io/litemall/contribute)
+Litemall = Spring Boot backend + Vue admin frontend + WeChat mini-program user frontend + Vue mobile user frontend
+
+* [Documentation](https://linlinjava.gitbook.io/litemall)
+* [Contribute](https://linlinjava.gitbook.io/litemall/contribute)
 * [FAQ](https://linlinjava.gitbook.io/litemall/faq)
 * [API](https://linlinjava.gitbook.io/litemall/api)
 
-## 项目代码
+## Project Code
 
-* [码云](https://gitee.com/linlinjava/litemall)
+* [Gitee](https://gitee.com/linlinjava/litemall)
 * [GitHub](https://github.com/linlinjava/litemall)
 
-## 项目架构
+## Project Architecture
 ![](./doc/pics/readme/project-structure.png)
 
-## 技术栈
+## Technology Stack
 
 > 1. Spring Boot
 > 2. Vue
-> 3. 微信小程序
+> 3. WeChat mini-program
 
 ![](doc/pics/readme/technology-stack.png)
 
-## 功能
+## Features
 
-### 小商城功能
+### Mini Mall Features
 
-* 首页
-* 专题列表、专题详情
-* 分类列表、分类详情
-* 品牌列表、品牌详情
-* 新品首发、人气推荐
-* 优惠券列表、优惠券选择
-* 团购
-* 搜索
-* 商品详情、商品评价、商品分享
-* 购物车
-* 下单
-* 订单列表、订单详情、订单售后
-* 地址、收藏、足迹、意见反馈
-* 客服
+# Homepage
+# Topic list and topic details
+# Category list and category details
+# Brand list and brand details
+# New releases and popular recommendations
+# Coupon list and coupon selection
+# Group buying
+# Search
+# Product details, product reviews, product sharing
+# Shopping cart
+# Place order
+# Order list, order details, order after-sales
+# Address management, favorites, browsing history, feedback
+# Customer service
 
-### 管理平台功能
+### Admin Platform Features
 
-* 会员管理
-* 商城管理
-* 商品管理
-* 推广管理
-* 系统管理
-* 配置管理
-* 统计报表
+# Member management
+# Mall management
+# Product management
+# Promotion management
+# System management
+# Configuration management
+# Statistics and reporting
 
-## 快速启动
+## Quick Start
 
-1. 配置最小开发环境：
+1. Set up the minimum development environment:
     * [MySQL](https://dev.mysql.com/downloads/mysql/)
-    * [JDK1.8或以上](http://www.oracle.com/technetwork/java/javase/overview/index.html)
+    * [JDK 1.8 or higher](http://www.oracle.com/technetwork/java/javase/overview/index.html)
     * [Maven](https://maven.apache.org/download.cgi)
-    * [Nodejs](https://nodejs.org/en/download/)
-    * [微信开发者工具](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)
+    * [Node.js](https://nodejs.org/en/download/)
+    * [WeChat Developer Tools](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)
     
-2. 数据库依次导入litemall-db/sql下的数据库文件
-    * litemall_schema.sql
-    * litemall_table.sql
-    * litemall_data.sql
+2. Import database files in `litemall-db/sql` in the following order:
+    * `litemall_schema.sql`
+    * `litemall_table.sql`
+    * `litemall_data.sql`
 
-3. 启动小商场和管理后台的后端服务
+3. Start backend services for both the mini-mall and the admin panel:
 
-    打开命令行，输入以下命令
+    Open the command line and enter the following commands:
     ```bash
     cd litemall
     mvn install
@@ -78,135 +80,134 @@ litemall = Spring Boot后端 + Vue管理员前端 + 微信小程序用户前端 
     java -Dfile.encoding=UTF-8 -jar litemall-all/target/litemall-all-0.1.0-exec.jar
     ```
     
-4. 启动管理后台前端
+4. Start the admin panel frontend:
 
-    打开命令行，输入以下命令
-    ```bash
-    cd litemall/litemall-admin
-    npm install --registry=https://registry.npm.taobao.org
-    npm run dev
-    ```
-    此时，浏览器打开，输入网址`http://localhost:9527`, 此时进入管理后台登录页面。
+    Open the command line and enter:
     
-5. 启动小商城前端
+    # cd litemall/litemall-admin
+    # npm install --registry=https://registry.npm.taobao.org
+    # npm run dev
    
-   这里存在两套小商场前端litemall-wx和renard-wx，开发者可以分别导入和测试：
+    Then, open your browser and go to `http://localhost:9527` to access the admin login page.
+    
+5. Start the mini-mall frontend:
    
-   1. 微信开发工具导入litemall-wx项目;
-   2. 项目配置，启用“不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书”
-   3. 点击“编译”，即可在微信开发工具预览效果；
-   4. 也可以点击“预览”，然后手机扫描登录（但是手机需开启调试功能）。
+   There are two mini-mall frontend options: `litemall-wx` and `renard-wx`, which developers can import and test separately:
+   
+   1. Import the `litemall-wx` project into the WeChat Developer Tools.
+   2. In project settings, enable "Do not validate legitimate domains, web-view (business domains), TLS versions, and HTTPS certificates."
+   3. Click "Compile" to preview the project in the WeChat Developer Tools.
+   4. Alternatively, click "Preview," then scan to log in with your phone (ensure that debugging is enabled on the phone).
       
-   注意：
-   > 这里只是最简启动方式，而小商场的微信登录、微信支付等功能需开发者设置才能运行，
-   > 更详细方案请参考[文档](https://linlinjava.gitbook.io/litemall/project)。
+   **Note**:
+   > This is a basic startup method. WeChat login, WeChat payment, and other features require additional setup by the developer. For more detailed instructions, see the [documentation](https://linlinjava.gitbook.io/litemall/project).
 
-6. 启动轻商城前端
+6. Start the Lite Mall frontend:
 
-    打开命令行，输入以下命令
+    Open the command line and enter:
     ```bash
     cd litemall/litemall-vue
     npm install --registry=https://registry.npm.taobao.org
     npm run dev
     ```
-    此时，浏览器（建议采用chrome 手机模式）打开，输入网址`http://localhost:6255`, 此时进入轻商场。
+    Then, open your browser (using Chrome in mobile mode is recommended) and go to `http://localhost:6255` to access Lite Mall.
 
-    注意：
-    > 现在功能很不稳定，处在开发阶段。
+    **Note**:
+    > Features are currently unstable as this version is still under development.
         
-## 开发计划
+## Development Roadmap
 
-当前版本[v1.8.0](https://linlinjava.gitbook.io/litemall/changelog)
+Current version: [v1.8.0](https://linlinjava.gitbook.io/litemall/changelog)
 
-目前项目开发中，存在诸多不足，以下是目前规划的开发计划。
+The project is still in development, and there are many areas for improvement. Below is the current roadmap:
 
-V 1.0.0 完成以下目标：
+### V 1.0.0 Goals:
 
-1. 除了部分功能（如优惠券等），小商城的优化和改进基本结束；
-2. 管理后台基本实现所有表的CRUD操作；
-3. 后端服务能够对参数进行检验。
+1. Complete the optimization and improvement of mini-mall (except for certain features like coupons).
+2. Implement CRUD operations for all tables in the admin panel.
+3. Add parameter validation in backend services.
 
-V 2.0.0 完成以下目标：
+### V 2.0.0 Goals:
 
-1. 小商城和管理后台完成所有基本业务；
-2. 管理后台实现统计功能、日志功能、权限功能；
-3. 业务代码和细节代码进行调整优化；
-4. 轻商城的开发；
+1. Complete all basic business functions for mini-mall and admin panel.
+2. Add statistics, logging, and permission features in the admin panel.
+3. Optimize business and detail code.
+4. Develop Lite Mall.
 
-V 3.0.0 完成以下目标：
+### V 3.0.0 Goals:
 
-1. 管理后台一些辅助功能
-2. 后端服务加强安全功能、配置功能
-3. 缓存功能以及优化一些性能
+1. Add auxiliary functions to the admin panel.
+2. Enhance security and configuration features in backend services.
+3. Implement caching and optimize performance.
 
-## 警告
+## Warning
 
-> 1. 本项目仅用于学习练习
-> 2. 本项目还不完善，仍处在开发中，不承担任何使用后果
-> 3. 本项目代码开源[MIT](./LICENSE)，项目文档采用 [署名-禁止演绎 4.0 国际协议许可](https://creativecommons.org/licenses/by-nd/4.0/deed.zh)
+> 1. This project is for learning and practice purposes only.
+> 2. The project is not fully developed and is still in progress; use at your own risk.
+> 3. The source code is open-source under the [MIT](./LICENSE) license. Documentation is licensed under the [Creative Commons Attribution-NoDerivatives 4.0 International License](https://creativecommons.org/licenses/by-nd/4.0/deed.en).
 
-## 致谢
+## Acknowledgments
 
-本项目基于或参考以下项目：
+This project is based on or references the following projects:
 
 1. [nideshop-mini-program](https://github.com/tumobi/nideshop-mini-program)
 
-   项目介绍：基于Node.js+MySQL开发的开源微信小程序商城（微信小程序）
+   **Project Description**: An open-source WeChat mini-program mall based on Node.js and MySQL.
 
-   项目参考：
+   **Reference**:
    
-   1. litemall项目数据库基于nideshop-mini-program项目数据库；
-   2. litemall项目的litemall-wx模块基于nideshop-mini-program开发。
+   1. The `litemall` project database is based on the `nideshop-mini-program` database.
+   2. The `litemall-wx` module in this project is developed based on `nideshop-mini-program`.
 
 2. [vue-element-admin](https://github.com/PanJiaChen/vue-element-admin)
   
-   项目介绍： 一个基于Vue和Element的后台集成方案
-  
-   项目参考：litemall项目的litemall-admin模块的前端框架基于vue-element-admin项目修改扩展。
+   **Project Description**: An admin integration solution based on Vue and Element.
+
+   **Reference**: The `litemall-admin` module frontend framework in `litemall` was adapted from `vue-element-admin`.
 
 3. [mall-admin-web](https://github.com/macrozheng/mall-admin-web)
 
-   项目介绍：mall-admin-web是一个电商后台管理系统的前端项目，基于Vue+Element实现。
+   **Project Description**: `mall-admin-web` is a frontend project for an e-commerce admin system based on Vue and Element.
 
-   项目参考：litemall项目的litemall-admin模块的一些页面布局样式参考了mall-admin-web项目。
+   **Reference**: Some page layouts in `litemall-admin` are based on `mall-admin-web`.
 
 4. [biu](https://github.com/CaiBaoHong/biu)
 
-   项目介绍：管理后台项目开发脚手架，基于vue-element-admin和springboot搭建，前后端分离方式开发和部署。
+   **Project Description**: A scaffolding for admin projects based on `vue-element-admin` and Spring Boot, using a front-end and back-end separation.
 
-   项目参考：litemall项目的权限管理功能参考了biu项目。
+   **Reference**: The permission management feature in `litemall` was inspired by `biu`.
 
 5. [vant--mobile-mall](https://github.com/qianzhaoy/vant--mobile-mall)
 
-   项目介绍：基于有赞 vant 组件库的移动商城。
+   **Project Description**: A mobile mall based on the Vant component library.
 
-   项目参考：litemall项目的litemall-vue模块基于vant--mobile-mall项目开发。
+   **Reference**: The `litemall-vue` module in `litemall` was developed based on `vant--mobile-mall`.
 
-## 推荐
+## Recommendations
 
 1. [Flutter_Mall](https://github.com/youxinLu/mall)
    
-   项目介绍：Flutter_Mall是一款Flutter开源在线商城应用程序。
+   **Project Description**: Flutter_Mall is an open-source online mall application built with Flutter.
    
 2. [Taro_Mall](https://github.com/jiechud/taro-mall)
 
-    项目介绍：Taro_Mall是一款多端开源在线商城应用程序，后台是基于litemall基础上进行开发，前端采用Taro框架编写。
+    **Project Description**: Taro_Mall is a multi-platform online mall application. The backend is developed based on `litemall`, and the frontend is written using the Taro framework.
 
 
-## 问题
+## Questions
 
 ![](doc/pics/readme/qq4.png)
 
- * 开发者有问题或者好的建议可以用Issues反馈交流，请给出详细信息
- * 在开发交流群中应讨论开发、业务和合作问题
- * 如果真的需要QQ群里提问，请在提问前先完成以下过程：
-    * 请仔细阅读本项目文档，特别是是[**FAQ**](https://linlinjava.gitbook.io/litemall/faq)，查看能否解决；
-    * 请阅读[提问的智慧](https://github.com/ryanhanwu/How-To-Ask-Questions-The-Smart-Way/blob/master/README-zh_CN.md)；
-    * 请百度或谷歌相关技术；
-    * 请查看相关技术的官方文档，例如微信小程序的官方文档；
-    * 请提问前尽可能做一些DEBUG或者思考分析，然后提问时给出详细的错误相关信息以及个人对问题的理解。
+ * If you have questions or suggestions, please use Issues to provide feedback. Include detailed information.
+ * Group discussions should focus on development, business, and collaboration topics.
+ * If asking questions in the QQ group, please complete the following steps first:
+    * Carefully read the project documentation, especially the [**FAQ**](https://linlinjava.gitbook.io/litemall/faq), to see if it resolves your question.
+    * Read [How to Ask Questions the Smart Way](https://github.com/ryanhanwu/How-To-Ask-Questions-The-Smart-Way/blob/master/README-zh_CN.md).
+    * Search relevant technology using Baidu or Google.
+    * Check the official documentation for related technologies, such as the official WeChat mini-program documentation.
+    * Debug or analyze your issue as much as possible before asking. When asking, provide detailed error information and your understanding of the problem.
 
 ## License
 
-[MIT](https://github.com/linlinjava/litemall/blob/master/LICENSE)
+[MIT](https://github.com/linlinjava/litemall/blob/master/LICENSE)  
 Copyright (c) 2018-present linlinjava

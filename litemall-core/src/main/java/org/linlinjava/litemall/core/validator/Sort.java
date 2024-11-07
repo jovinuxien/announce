@@ -14,7 +14,8 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Documented
 @Constraint(validatedBy = SortValidator.class)
 public @interface Sort {
-    String message() default "排序字段不支持";
+    //String message() default "排序字段不支持";
+    String message() default "Sorting field not supported.";
 
     String[] accepts() default {"add_time", "id"};
 

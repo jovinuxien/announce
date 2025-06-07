@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 意见反馈服务
+ *Feedback service
  *
  * @author Yogeek
  * @date 2018/8/25 14:10
@@ -50,7 +50,7 @@ public class WxFeedbackController {
             feedback.setPicUrls(new String[0]);
         }
 
-        // 测试手机号码是否正确
+        // Test whether the mobile phone number is correct
         String mobile = feedback.getMobile();
         if (StringUtils.isEmpty(mobile)) {
             return ResponseUtil.badArgument();
@@ -62,11 +62,11 @@ public class WxFeedbackController {
     }
 
     /**
-     * 添加意见反馈
+     *Add feedback
      *
-     * @param userId   用户ID
-     * @param feedback 意见反馈
-     * @return 操作结果
+     * @param userId user ID
+     * @param feedback feedback
+     * @return operation result
      */
     @PostMapping("submit")
     public Object submit(@LoginUser Integer userId, @RequestBody LitemallFeedback feedback) {
@@ -83,7 +83,7 @@ public class WxFeedbackController {
         feedback.setId(null);
         feedback.setUserId(userId);
         feedback.setUsername(username);
-        //状态默认是0，1表示状态已发生变化
+        //The default status is 0, 1 means the status has changed
         feedback.setStatus(1);
         feedbackService.add(feedback);
 

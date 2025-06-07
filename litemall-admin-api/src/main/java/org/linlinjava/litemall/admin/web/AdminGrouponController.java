@@ -2,7 +2,7 @@ package org.linlinjava.litemall.admin.web;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.admin.task.GrouponRuleExpiredTask;
 import org.linlinjava.litemall.admin.util.AdminResponseCode;
@@ -45,8 +45,8 @@ public class AdminGrouponController {
     @Autowired
     private TaskService taskService;
 
-    @RequiresPermissions("admin:groupon:read")
-    @RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "详情")
+    //@RequiresPermissions("admin:groupon:read")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "详情")
     @GetMapping("/listRecord")
     public Object listRecord(String grouponRuleId,
                              @RequestParam(defaultValue = "1") Integer page,
@@ -77,8 +77,8 @@ public class AdminGrouponController {
         return ResponseUtil.okList(groupons, grouponList);
     }
 
-    @RequiresPermissions("admin:groupon:list")
-    @RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "查询")
+    //@RequiresPermissions("admin:groupon:list")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "查询")
     @GetMapping("/list")
     public Object list(String goodsId,
                        @RequestParam(defaultValue = "1") Integer page,
@@ -110,8 +110,8 @@ public class AdminGrouponController {
         return null;
     }
 
-    @RequiresPermissions("admin:groupon:update")
-    @RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "编辑")
+    //@RequiresPermissions("admin:groupon:update")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallGrouponRules grouponRules) {
         Object error = validate(grouponRules);
@@ -143,8 +143,8 @@ public class AdminGrouponController {
         return ResponseUtil.ok();
     }
 
-    @RequiresPermissions("admin:groupon:create")
-    @RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "添加")
+    //@RequiresPermissions("admin:groupon:create")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "添加")
     @PostMapping("/create")
     public Object create(@RequestBody LitemallGrouponRules grouponRules) {
         Object error = validate(grouponRules);
@@ -175,8 +175,8 @@ public class AdminGrouponController {
         return ResponseUtil.ok(grouponRules);
     }
 
-    @RequiresPermissions("admin:groupon:delete")
-    @RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "删除")
+    //@RequiresPermissions("admin:groupon:delete")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "团购管理"}, button = "删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallGrouponRules grouponRules) {
         Integer id = grouponRules.getId();

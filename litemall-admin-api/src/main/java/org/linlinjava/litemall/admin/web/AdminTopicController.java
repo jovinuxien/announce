@@ -1,9 +1,11 @@
 package org.linlinjava.litemall.admin.web;
 
-import io.swagger.models.auth.In;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.core.util.JacksonUtil;
 import org.linlinjava.litemall.core.util.ResponseUtil;
@@ -28,6 +30,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/admin/topic")
 @Validated
+@Tag(name = "Admin Role Management", description = "Apis for management admin roles")
 public class AdminTopicController {
     private final Log logger = LogFactory.getLog(AdminTopicController.class);
 
@@ -36,9 +39,11 @@ public class AdminTopicController {
     @Autowired
     private LitemallGoodsService goodsService;
 
-    @RequiresPermissions("admin:topic:list")
-    @RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "查询")
+    //@RequiresPermissions("admin:topic:list")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "查询")
     @GetMapping("/list")
+    @Operation(summary = "list roles", description = "Get a list roles with pagination and sorting" )
+    @SecurityRequirement(name = "apiKey")
     public Object list(String title, String subtitle,
                        @RequestParam(defaultValue = "1") Integer page,
                        @RequestParam(defaultValue = "10") Integer limit,
@@ -64,8 +69,8 @@ public class AdminTopicController {
         return null;
     }
 
-    @RequiresPermissions("admin:topic:create")
-    @RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "添加")
+    //@RequiresPermissions("admin:topic:create")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "添加")
     @PostMapping("/create")
     public Object create(@RequestBody LitemallTopic topic) {
         Object error = validate(topic);
@@ -76,8 +81,8 @@ public class AdminTopicController {
         return ResponseUtil.ok(topic);
     }
 
-    @RequiresPermissions("admin:topic:read")
-    @RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "详情")
+    //@RequiresPermissions("admin:topic:read")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "详情")
     @GetMapping("/read")
     public Object read(@NotNull Integer id) {
         LitemallTopic topic = topicService.findById(id);
@@ -94,8 +99,8 @@ public class AdminTopicController {
         return ResponseUtil.ok(data);
     }
 
-    @RequiresPermissions("admin:topic:update")
-    @RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "编辑")
+    //@RequiresPermissions("admin:topic:update")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallTopic topic) {
         Object error = validate(topic);
@@ -108,16 +113,16 @@ public class AdminTopicController {
         return ResponseUtil.ok(topic);
     }
 
-    @RequiresPermissions("admin:topic:delete")
-    @RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "删除")
+    //@RequiresPermissions("admin:topic:delete")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallTopic topic) {
         topicService.deleteById(topic.getId());
         return ResponseUtil.ok();
     }
 
-    @RequiresPermissions("admin:topic:batch-delete")
-    @RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "批量删除")
+    //@RequiresPermissions("admin:topic:batch-delete")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "专题管理"}, button = "批量删除")
     @PostMapping("/batch-delete")
     public Object batchDelete(@RequestBody String body) {
         List<Integer> ids = JacksonUtil.parseIntegerList(body, "ids");

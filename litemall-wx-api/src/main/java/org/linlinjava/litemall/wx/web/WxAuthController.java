@@ -249,20 +249,20 @@ public class WxAuthController {
 
         List<LitemallUser> userList = userService.queryByUsername(username);
         if (userList.size() > 0) {
-            return ResponseUtil.fail(AUTH_NAME_REGISTERED, "用户名已注册");
+            return ResponseUtil.fail(AUTH_NAME_REGISTERED, "Username has been registered");
         }
 
         userList = userService.queryByMobile(mobile);
         if (userList.size() > 0) {
-            return ResponseUtil.fail(AUTH_MOBILE_REGISTERED, "手机号已注册");
+            return ResponseUtil.fail(AUTH_MOBILE_REGISTERED, "Mobile phone number has been registered");
         }
         if (!RegexUtil.isMobileSimple(mobile)) {
-            return ResponseUtil.fail(AUTH_INVALID_MOBILE, "手机号格式不正确");
+            return ResponseUtil.fail(AUTH_INVALID_MOBILE, "The phone number format is incorrect");
         }
         //判断验证码是否正确
         String cacheCode = CaptchaCodeManager.getCachedCaptcha(mobile);
         if (cacheCode == null || cacheCode.isEmpty() || !cacheCode.equals(code)) {
-            return ResponseUtil.fail(AUTH_CAPTCHA_UNMATCH, "验证码错误");
+            return ResponseUtil.fail(AUTH_CAPTCHA_UNMATCH, "Verification code error");
         }
 
         String openId = "";
@@ -274,7 +274,7 @@ public class WxAuthController {
                 openId = result.getOpenid();
             } catch (Exception e) {
                 e.printStackTrace();
-                return ResponseUtil.fail(AUTH_OPENID_UNACCESS, "openid 获取失败");
+                return ResponseUtil.fail(AUTH_OPENID_UNACCESS, "openid Failed to obtain");
             }
             userList = userService.queryByOpenid(openId);
             if (userList.size() > 1) {
@@ -285,7 +285,7 @@ public class WxAuthController {
                 String checkUsername = checkUser.getUsername();
                 String checkPassword = checkUser.getPassword();
                 if (!checkUsername.equals(openId) || !checkPassword.equals(openId)) {
-                    return ResponseUtil.fail(AUTH_OPENID_BINDED, "openid已绑定账号");
+                    return ResponseUtil.fail(AUTH_OPENID_BINDED, "openid Account has been bound\n");
                 }
             }
         }
@@ -351,12 +351,12 @@ public class WxAuthController {
         }
 
         if (!notifyService.isSmsEnable()) {
-            return ResponseUtil.fail(AUTH_CAPTCHA_UNSUPPORT, "小程序后台验证码服务不支持");
+            return ResponseUtil.fail(AUTH_CAPTCHA_UNSUPPORT, "Mini Program backend verification code service does not support");
         }
         String code = CharUtil.getRandomNum(6);
         boolean successful = CaptchaCodeManager.addToCache(phoneNumber, code);
         if (!successful) {
-            return ResponseUtil.fail(AUTH_CAPTCHA_FREQUENCY, "验证码未超时1分钟，不能发送");
+            return ResponseUtil.fail(AUTH_CAPTCHA_FREQUENCY, "The verification code has not timed out for 1 minute，Can't send");
         }
         notifyService.notifySmsTemplate(phoneNumber, NotifyType.CAPTCHA, new String[]{code});
 
@@ -391,14 +391,14 @@ public class WxAuthController {
         //判断验证码是否正确
         String cacheCode = CaptchaCodeManager.getCachedCaptcha(mobile);
         if (cacheCode == null || cacheCode.isEmpty() || !cacheCode.equals(code))
-            return ResponseUtil.fail(AUTH_CAPTCHA_UNMATCH, "验证码错误");
+            return ResponseUtil.fail(AUTH_CAPTCHA_UNMATCH, "Verification code error\n");
 
         List<LitemallUser> userList = userService.queryByMobile(mobile);
         LitemallUser user = null;
         if (userList.size() > 1) {
             return ResponseUtil.serious();
         } else if (userList.size() == 0) {
-            return ResponseUtil.fail(AUTH_MOBILE_UNREGISTERED, "手机号未注册");
+            return ResponseUtil.fail(AUTH_MOBILE_UNREGISTERED, "Mobile phone number not registered\n");
         } else {
             user = userList.get(0);
         }
@@ -445,7 +445,7 @@ public class WxAuthController {
         //判断验证码是否正确
         String cacheCode = CaptchaCodeManager.getCachedCaptcha(mobile);
         if (cacheCode == null || cacheCode.isEmpty() || !cacheCode.equals(code))
-            return ResponseUtil.fail(AUTH_CAPTCHA_UNMATCH, "验证码错误");
+            return ResponseUtil.fail(AUTH_CAPTCHA_UNMATCH, "Verification code error");
 
         List<LitemallUser> userList = userService.queryByMobile(mobile);
         LitemallUser user = null;
@@ -553,7 +553,6 @@ public class WxAuthController {
         data.put("avatar", user.getAvatar());
         data.put("gender", user.getGender());
         data.put("mobile", user.getMobile());
-
         return ResponseUtil.ok(data);
     }
 }

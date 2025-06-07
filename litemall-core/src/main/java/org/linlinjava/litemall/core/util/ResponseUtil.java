@@ -7,50 +7,50 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 响应操作结果
+ *Response to operation results
  * <pre>
- *  {
- *      errno： 错误码，
- *      errmsg：错误消息，
- *      data：  响应数据
- *  }
+ * {
+ *     errno: error code,
+ *     errmsg: error message,
+ *     data: response data
+ * }
  * </pre>
  *
  * <p>
- * 错误码：
+ * Error code:
  * <ul>
- * <li> 0，成功；
- * <li> 4xx，前端错误，说明前端开发者需要重新了解后端接口使用规范：
+ * <li> 0, success;
+ * <li> 4xx, front-end error, indicating that front-end developers need to re-understand the back-end interface usage specifications:
  * <ul>
- * <li> 401，参数错误，即前端没有传递后端需要的参数；
- * <li> 402，参数值错误，即前端传递的参数值不符合后端接收范围。
+ * <li> 401, parameter error, that is, the front end does not pass the parameters required by the back end;
+ * <li> 402, parameter value error, that is, the parameter value passed by the front end does not meet the range received by the back end.
  * </ul>
- * <li> 5xx，后端错误，除501外，说明后端开发者应该继续优化代码，尽量避免返回后端错误码：
+ * <li> 5xx, backend error, except 501, indicates that backend developers should continue to optimize the code and try to avoid returning backend error codes:
  * <ul>
- * <li> 501，验证失败，即后端要求用户登录；
- * <li> 502，系统内部错误，即没有合适命名的后端内部错误；
- * <li> 503，业务不支持，即后端虽然定义了接口，但是还没有实现功能；
- * <li> 504，更新数据失效，即后端采用了乐观锁更新，而并发更新时存在数据更新失效；
- * <li> 505，更新数据失败，即后端数据库更新失败（正常情况应该更新成功）。
+ * <li> 501, verification failed, that is, the backend requires the user to log in;
+ * <li> 502, internal system error, that is, there is no appropriately named backend internal error;
+ * <li> 503, the business is not supported, that is, although the backend defines the interface, it has not yet implemented the function;
+ * <li> 504, the update data is invalid, that is, the backend adopts optimistic lock update, and there is data update failure during concurrent updates;
+ * <li> 505, failed to update data, that is, the back-end database update failed (normally the update should be successful).
  * </ul>
- * <li> 6xx，小商城后端业务错误码，
- * 具体见litemall-admin-api模块的AdminResponseCode。
- * <li> 7xx，管理后台后端业务错误码，
- * 具体见litemall-wx-api模块的WxResponseCode。
+ * <li> 6xx, small mall back-end business error code,
+ * For details, see AdminResponseCode of litemall-admin-api module.
+ * <li> 7xx, management background backend business error code,
+ * For details, see WxResponseCode of litemall-wx-api module.
  * </ul>
  */
 public class ResponseUtil {
     public static Object ok() {
         Map<String, Object> obj = new HashMap<String, Object>();
         obj.put("errno", 0);
-        obj.put("errmsg", "成功");
+        obj.put("errmsg", "success");
         return obj;
     }
 
     public static Object ok(Object data) {
         Map<String, Object> obj = new HashMap<String, Object>();
         obj.put("errno", 0);
-        obj.put("errmsg", "成功");
+        obj.put("errmsg", "success");
         obj.put("data", data);
         return obj;
     }
@@ -98,7 +98,7 @@ public class ResponseUtil {
     public static Object fail() {
         Map<String, Object> obj = new HashMap<String, Object>();
         obj.put("errno", -1);
-        obj.put("errmsg", "错误");
+        obj.put("errmsg", "mistake");
         return obj;
     }
 
@@ -118,35 +118,35 @@ public class ResponseUtil {
     }
 
     public static Object badArgument() {
-        return fail(401, "参数不对");
+        return fail(401, "Wrong parameters");
     }
 
     public static Object badArgumentValue() {
-        return fail(402, "参数值不对");
+        return fail(402, "Parameter value is wrong");
     }
 
     public static Object unlogin() {
-        return fail(501, "请登录");
+        return fail(501, "Please log in");
     }
 
     public static Object serious() {
-        return fail(502, "系统内部错误");
+        return fail(502, "System internal error");
     }
 
     public static Object unsupport() {
-        return fail(503, "业务不支持");
+        return fail(503, "Business does not support");
     }
 
     public static Object updatedDateExpired() {
-        return fail(504, "更新数据已经失效");
+        return fail(504, "Update data has expired");
     }
 
     public static Object updatedDataFailed() {
-        return fail(505, "更新数据失败");
+        return fail(505, "Failed to update data");
     }
 
     public static Object unauthz() {
-        return fail(506, "无操作权限");
+        return fail(506, "No operation permission");
     }
 }
 

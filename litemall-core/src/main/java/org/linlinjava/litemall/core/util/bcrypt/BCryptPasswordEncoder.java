@@ -17,6 +17,7 @@ package org.linlinjava.litemall.core.util.bcrypt;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
 import java.util.regex.Pattern;
@@ -29,6 +30,8 @@ import java.util.regex.Pattern;
  *
  * @author Dave Syer
  */
+
+@Component
 public class BCryptPasswordEncoder {
     private final Log logger = LogFactory.getLog(getClass());
     private final int strength;

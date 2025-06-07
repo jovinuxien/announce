@@ -1,12 +1,12 @@
 package org.linlinjava.litemall.admin.shiro;
 
 
-import org.apache.shiro.authc.*;
+/*import org.apache.shiro.authc.*;
 import org.apache.shiro.authz.AuthorizationException;
 import org.apache.shiro.authz.AuthorizationInfo;
 import org.apache.shiro.authz.SimpleAuthorizationInfo;
 import org.apache.shiro.realm.AuthorizingRealm;
-import org.apache.shiro.subject.PrincipalCollection;
+import org.apache.shiro.subject.PrincipalCollection;*/
 import org.linlinjava.litemall.core.util.bcrypt.BCryptPasswordEncoder;
 import org.linlinjava.litemall.db.domain.LitemallAdmin;
 import org.linlinjava.litemall.db.service.LitemallAdminService;
@@ -24,9 +24,9 @@ import java.util.Set;
  * 下面三个Autowired注解需要配合Lazy注解使用，否则会导致这三个service相关的事务失效。
  * https://gitee.com/linlinjava/litemall/issues/I3I94X#note_4809495
  */
-public class AdminAuthorizingRealm extends AuthorizingRealm {
+//public class AdminAuthorizingRealm extends AuthorizingRealm {
 
-    @Autowired
+  /*  @Autowired
     @Lazy
     private LitemallAdminService adminService;
     @Autowired
@@ -36,8 +36,8 @@ public class AdminAuthorizingRealm extends AuthorizingRealm {
     @Lazy
     private LitemallPermissionService permissionService;
 
-    @Override
-    protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
+    @Override*/
+   /* protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
         if (principals == null) {
             throw new AuthorizationException("PrincipalCollection method argument cannot be null.");
         }
@@ -60,16 +60,18 @@ public class AdminAuthorizingRealm extends AuthorizingRealm {
         String password = new String(upToken.getPassword());
 
         if (StringUtils.isEmpty(username)) {
-            throw new AccountException("用户名不能为空");
+           // throw new AccountException("用户名不能为空");
+            throw new AccountException("Username cannot be empty");
         }
         if (StringUtils.isEmpty(password)) {
-            throw new AccountException("密码不能为空");
+            throw new AccountException("Password cannot be empty");
         }
 
         List<LitemallAdmin> adminList = adminService.findAdmin(username);
         Assert.state(adminList.size() < 2, "同一个用户名存在两个账户");
         if (adminList.size() == 0) {
-            throw new UnknownAccountException("找不到用户（" + username + "）的帐号信息");
+             //throw new UnknownAccountException("找不到用户（" + username + "）的帐号信息");
+             throw new UnknownAccountException("Account information for user (" + username + ") not found");
         }
         LitemallAdmin admin = adminList.get(0);
 
@@ -79,6 +81,6 @@ public class AdminAuthorizingRealm extends AuthorizingRealm {
         }
 
         return new SimpleAuthenticationInfo(admin, password, getName());
-    }
+    }*/
 
-}
+//}

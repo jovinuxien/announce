@@ -3,16 +3,16 @@ package org.linlinjava.litemall.admin.web;
 import com.google.code.kaptcha.Producer;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.SecurityUtils;
+/*import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.AuthenticationException;
 import org.apache.shiro.authc.LockedAccountException;
 import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.authz.annotation.RequiresAuthentication;
-import org.apache.shiro.subject.Subject;
+import org.apache.shiro.subject.Subject;*/
 import org.linlinjava.litemall.admin.service.LogHelper;
 import org.linlinjava.litemall.admin.util.Permission;
-import org.linlinjava.litemall.admin.util.PermissionUtil;
+//import org.linlinjava.litemall.admin.util.PermissionUtil;
 import org.linlinjava.litemall.core.util.IpUtil;
 import org.linlinjava.litemall.core.util.JacksonUtil;
 import org.linlinjava.litemall.core.util.ResponseUtil;
@@ -40,7 +40,7 @@ import static org.linlinjava.litemall.admin.util.AdminResponseCode.*;
 @RestController
 @RequestMapping("/admin/auth")
 @Validated
-public class AdminAuthController {
+public class    AdminAuthController {
     private final Log logger = LogFactory.getLog(AdminAuthController.class);
 
     @Autowired
@@ -103,7 +103,7 @@ public class AdminAuthController {
 //            return ResponseUtil.fail(ADMIN_INVALID_KAPTCHA, "验证码不正确", doKaptcha(request));
 //        }
 
-        Subject currentUser = SecurityUtils.getSubject();
+      /*  Subject currentUser = SecurityUtils.getSubject();
         try {
             currentUser.login(new UsernamePasswordToken(username, password));
         } catch (UnknownAccountException uae) {
@@ -117,8 +117,8 @@ public class AdminAuthController {
             logHelper.logAuthFail("登录", "认证失败");
             return ResponseUtil.fail(ADMIN_INVALID_ACCOUNT, "认证失败");
         }
-
-        currentUser = SecurityUtils.getSubject();
+*/
+        /*currentUser = SecurityUtils.getSubject();
         LitemallAdmin admin = (LitemallAdmin) currentUser.getPrincipal();
         admin.setLastLoginIp(IpUtil.getIpAddr(request));
         admin.setLastLoginTime(LocalDateTime.now());
@@ -133,14 +133,15 @@ public class AdminAuthController {
 
         Map<Object, Object> result = new HashMap<Object, Object>();
         result.put("token", currentUser.getSession().getId());
-        result.put("adminInfo", adminInfo);
+        result.put("adminInfo", adminInfo);*/
+        Map<Object, Object> result = new HashMap<Object, Object>();
         return ResponseUtil.ok(result);
     }
 
     /*
      *
      */
-    @RequiresAuthentication
+  /*  @RequiresAuthentication
     @PostMapping("/logout")
     public Object logout() {
         Subject currentUser = SecurityUtils.getSubject();
@@ -148,11 +149,11 @@ public class AdminAuthController {
         logHelper.logAuthSucceed("退出");
         currentUser.logout();
         return ResponseUtil.ok();
-    }
+    }*/
 
 
-    @RequiresAuthentication
-    @GetMapping("/info")
+    //@RequiresAuthentication
+    /*@GetMapping("/info")
     public Object info() {
         Subject currentUser = SecurityUtils.getSubject();
         LitemallAdmin admin = (LitemallAdmin) currentUser.getPrincipal();
@@ -217,4 +218,6 @@ public class AdminAuthController {
     public Object page403() {
         return ResponseUtil.unauthz();
     }
+}
+     */
 }

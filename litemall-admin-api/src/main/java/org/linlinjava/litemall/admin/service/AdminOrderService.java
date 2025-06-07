@@ -110,16 +110,16 @@ public class AdminOrderService {
             return ResponseUtil.badArgumentValue();
         }
 
-        // 如果订单不是退款状态，则不能退款
+        // If the order is not in refund status, it cannot be refunded
         if (!order.getOrderStatus().equals(OrderUtil.STATUS_REFUND)) {
-            return ResponseUtil.fail(ORDER_CONFIRM_NOT_ALLOWED, "订单不能确认收货");
+            return ResponseUtil.fail(ORDER_CONFIRM_NOT_ALLOWED, "Order cannot be confirmed for receipt");
         }
 
-        // 微信退款
+        // WeChat refund
         WxPayRefundRequest wxPayRefundRequest = new WxPayRefundRequest();
         wxPayRefundRequest.setOutTradeNo(order.getOrderSn());
         wxPayRefundRequest.setOutRefundNo("refund_" + order.getOrderSn());
-        // 元转成分
+        // Yuanzhuan component
         Integer totalFee = order.getActualPrice().multiply(new BigDecimal(100)).intValue();
         wxPayRefundRequest.setTotalFee(totalFee);
         wxPayRefundRequest.setRefundFee(totalFee);
@@ -129,68 +129,69 @@ public class AdminOrderService {
             wxPayRefundResult = wxPayService.refund(wxPayRefundRequest);
         } catch (WxPayException e) {
             logger.error(e.getMessage(), e);
-            return ResponseUtil.fail(ORDER_REFUND_FAILED, "订单退款失败");
+            return ResponseUtil.fail(ORDER_REFUND_FAILED, "Order refund failed");
         }
         if (!wxPayRefundResult.getReturnCode().equals("SUCCESS")) {
             logger.warn("refund fail: " + wxPayRefundResult.getReturnMsg());
-            return ResponseUtil.fail(ORDER_REFUND_FAILED, "订单退款失败");
+            return ResponseUtil.fail(ORDER_REFUND_FAILED, "Order refund failed");
         }
         if (!wxPayRefundResult.getResultCode().equals("SUCCESS")) {
             logger.warn("refund fail: " + wxPayRefundResult.getReturnMsg());
-            return ResponseUtil.fail(ORDER_REFUND_FAILED, "订单退款失败");
+            return ResponseUtil.fail(ORDER_REFUND_FAILED, "Order refund failed\n");
         }
 
         LocalDateTime now = LocalDateTime.now();
-        // 设置订单取消状态
+        // Set order cancellation status
         order.setOrderStatus(OrderUtil.STATUS_REFUND_CONFIRM);
         order.setEndTime(now);
-        // 记录订单退款相关信息
+        // Record order refund related information
         order.setRefundAmount(order.getActualPrice());
-        order.setRefundType("微信退款接口");
+        order.setRefundType("WeChat refund interface\n");
         order.setRefundContent(wxPayRefundResult.getRefundId());
         order.setRefundTime(now);
         if (orderService.updateWithOptimisticLocker(order) == 0) {
-            throw new RuntimeException("更新数据已失效");
+            throw new RuntimeException("Update data has expired\n");
         }
 
-        // 商品货品数量增加
+        // Increase in quantity of goods
         List<LitemallOrderGoods> orderGoodsList = orderGoodsService.queryByOid(orderId);
         for (LitemallOrderGoods orderGoods : orderGoodsList) {
             Integer productId = orderGoods.getProductId();
             Short number = orderGoods.getNumber();
             if (productService.addStock(productId, number) == 0) {
-                throw new RuntimeException("商品货品库存增加失败");
+                throw new RuntimeException("Product inventory increase failed\n");
             }
         }
 
-        // 返还优惠券
+        // Return coupon
         List<LitemallCouponUser> couponUsers = couponUserService.findByOid(orderId);
         for (LitemallCouponUser couponUser: couponUsers) {
-            // 优惠券状态设置为可使用
+            // Coupon status is set to available
             couponUser.setStatus(CouponUserConstant.STATUS_USABLE);
             couponUser.setUpdateTime(LocalDateTime.now());
             couponUserService.update(couponUser);
         }
 
-        //TODO 发送邮件和短信通知，这里采用异步发送
-        // 退款成功通知用户, 例如“您申请的订单退款 [ 单号:{1} ] 已成功，请耐心等待到账。”
-        // 注意订单号只发后6位
+        //TODO Send email and SMS notifications, asynchronous sending is used here
+        // Notify the user of a successful refund,
+        // for example, "The order refund you applied for [order number: {1}] has been successful, please wait patiently for the payment to arrive.”
+        // Please note that only the last 6 digits of the order number are sent.
         notifyService.notifySmsTemplate(order.getMobile(), NotifyType.REFUND,
                 new String[]{order.getOrderSn().substring(8, 14)});
 
-        logHelper.logOrderSucceed("退款", "订单编号 " + order.getOrderSn());
+        logHelper.logOrderSucceed("Refund", "order number " + order.getOrderSn());
         return ResponseUtil.ok();
     }
 
     /**
-     * 发货
-     * 1. 检测当前订单是否能够发货
-     * 2. 设置订单发货状态
+     * Shipping
+     * 1. Check whether the current order can be shipped
+     * 2. Set order shipping status
      *
-     * @param body 订单信息，{ orderId：xxx, shipSn: xxx, shipChannel: xxx }
-     * @return 订单操作结果
-     * 成功则 { errno: 0, errmsg: '成功' }
-     * 失败则 { errno: XXX, errmsg: XXX }
+     * @param body Order information，{ orderId：xxx, shipSn: xxx, shipChannel: xxx }
+     * @return Order operation results
+     * success rule { errno: 0, errmsg: '成功' }
+     * Failure { errno: XXX, errmsg: XXX }
      */
     public Object ship(String body) {
         Integer orderId = JacksonUtil.parseInteger(body, "orderId");
@@ -205,9 +206,9 @@ public class AdminOrderService {
             return ResponseUtil.badArgument();
         }
 
-        // 如果订单不是已付款状态，则不能发货
+        // If the order is not in paid status，cannot be shipped
         if (!order.getOrderStatus().equals(OrderUtil.STATUS_PAY)) {
-            return ResponseUtil.fail(ORDER_CONFIRM_NOT_ALLOWED, "订单不能确认收货");
+            return ResponseUtil.fail(ORDER_CONFIRM_NOT_ALLOWED, "Order cannot be confirmed for receipt");
         }
 
         order.setOrderStatus(OrderUtil.STATUS_SHIP);
@@ -218,24 +219,24 @@ public class AdminOrderService {
             return ResponseUtil.updatedDateExpired();
         }
 
-        //TODO 发送邮件和短信通知，这里采用异步发送
-        // 发货会发送通知短信给用户:          *
-        // "您的订单已经发货，快递公司 {1}，快递单 {2} ，请注意查收"
+        //TODO Send email and SMS notifications，Asynchronous sending is used here
+        // A notification text message will be sent to the user when the shipment is shipped.:          *
+        // "Your order has been shipped，courier company {1}，Express order {2} ，Please pay attention to check"
         notifyService.notifySmsTemplate(order.getMobile(), NotifyType.SHIP, new String[]{shipChannel, shipSn});
 
-        logHelper.logOrderSucceed("发货", "订单编号 " + order.getOrderSn());
+        logHelper.logOrderSucceed("Shipping", "order number " + order.getOrderSn());
         return ResponseUtil.ok();
     }
 
     /**
-     * 删除订单
-     * 1. 检测当前订单是否能够删除
-     * 2. 删除订单
+     * Delete order
+     * 1. Check whether the current order can be deleted
+     * 2. Delete order
      *
-     * @param body 订单信息，{ orderId：xxx }
-     * @return 订单操作结果
-     * 成功则 { errno: 0, errmsg: '成功' }
-     * 失败则 { errno: XXX, errmsg: XXX }
+     * @param body Order information，{ orderId：xxx }
+     * @return Order operation results
+     * success rule { errno: 0, errmsg: '成功' }
+     * Failure { errno: XXX, errmsg: XXX }
      */
     public Object delete(String body) {
         Integer orderId = JacksonUtil.parseInteger(body, "orderId");
@@ -249,23 +250,23 @@ public class AdminOrderService {
         if (!status.equals(OrderUtil.STATUS_CANCEL) && !status.equals(OrderUtil.STATUS_AUTO_CANCEL) &&
                 !status.equals(OrderUtil.STATUS_CONFIRM) &&!status.equals(OrderUtil.STATUS_AUTO_CONFIRM) &&
                 !status.equals(OrderUtil.STATUS_REFUND_CONFIRM)) {
-            return ResponseUtil.fail(ORDER_DELETE_FAILED, "订单不能删除");
+            return ResponseUtil.fail(ORDER_DELETE_FAILED, "Order cannot be deleted");
         }
-        // 删除订单
+        // Delete order
         orderService.deleteById(orderId);
-        // 删除订单商品
+        // Delete order items
         orderGoodsService.deleteByOrderId(orderId);
-        logHelper.logOrderSucceed("删除", "订单编号 " + order.getOrderSn());
+        logHelper.logOrderSucceed("delete", "order number " + order.getOrderSn());
         return ResponseUtil.ok();
     }
 
     /**
-     * 回复订单商品
+     * Reply to order items
      *
-     * @param body 订单信息，{ orderId：xxx }
-     * @return 订单操作结果
-     * 成功则 { errno: 0, errmsg: '成功' }
-     * 失败则 { errno: XXX, errmsg: XXX }
+     * @param body Order information，{ orderId：xxx }
+     * @return Order operation results
+     * success rule { errno: 0, errmsg: 'success' }
+     * Failure { errno: XXX, errmsg: XXX }
      */
     public Object reply(String body) {
         Integer commentId = JacksonUtil.parseInteger(body, "commentId");
@@ -278,7 +279,7 @@ public class AdminOrderService {
             return ResponseUtil.badArgument();
         }
         if (!StringUtils.isEmpty(comment.getAdminContent())) {
-            return ResponseUtil.fail(ORDER_REPLY_EXIST, "订单商品已回复！");
+            return ResponseUtil.fail(ORDER_REPLY_EXIST, "The order has been replied！");
         }
         String content = JacksonUtil.parseString(body, "content");
         if (StringUtils.isEmpty(content)) {
@@ -305,13 +306,13 @@ public class AdminOrderService {
             return ResponseUtil.badArgument();
         }
         if (!order.getOrderStatus().equals(OrderUtil.STATUS_CREATE)) {
-            return ResponseUtil.fail(ORDER_PAY_FAILED, "当前订单状态不支持线下收款");
+            return ResponseUtil.fail(ORDER_PAY_FAILED, "The current order status does not support offline collection.");
         }
 
         order.setActualPrice(actualPrice);
         order.setOrderStatus(OrderUtil.STATUS_PAY);
         if (orderService.updateWithOptimisticLocker(order) == 0) {
-            return WxPayNotifyResponse.fail("更新数据已失效");
+            return WxPayNotifyResponse.fail("Update data has expired");
         }
 
         return ResponseUtil.ok();

@@ -15,5 +15,12 @@ logging:
     org.linlinjava.litemall.wx:  DEBUG
     org.linlinjava.litemall:  ERROR
 
+litemall:
+  stripe:
+    secret-key: sk_test_3Li1wcFBsz0AeFTSHBOGm5Yb
+
 swagger:
   production: false
+
+spring-doc:
+  packagesToScan: "org.linlinjava.litemall.wx.web"

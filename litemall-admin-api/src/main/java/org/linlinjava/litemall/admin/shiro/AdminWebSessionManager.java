@@ -1,28 +1,28 @@
 package org.linlinjava.litemall.admin.shiro;
 
 import com.alibaba.druid.util.StringUtils;
-import org.apache.shiro.web.servlet.ShiroHttpServletRequest;
+/*import org.apache.shiro.web.servlet.ShiroHttpServletRequest;
 import org.apache.shiro.web.session.mgt.DefaultWebSessionManager;
-import org.apache.shiro.web.util.WebUtils;
+import org.apache.shiro.web.util.WebUtils;*/
 
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import java.io.Serializable;
 
-public class AdminWebSessionManager extends DefaultWebSessionManager {
+//public class AdminWebSessionManager extends DefaultWebSessionManager {
 
-    public static final String LOGIN_TOKEN_KEY = "X-Litemall-Admin-Token";
-    private static final String REFERENCED_SESSION_ID_SOURCE = "Stateless request";
+    //public static final String LOGIN_TOKEN_KEY = "X-Litemall-Admin-Token";
+    //private static final String REFERENCED_SESSION_ID_SOURCE = "Stateless request";
 
 
-    public AdminWebSessionManager() {
+    /*public AdminWebSessionManager() {
         super();
         setGlobalSessionTimeout(MILLIS_PER_HOUR * 6);
 //        setSessionIdCookieEnabled(false);
         setSessionIdUrlRewritingEnabled(false);
     }
-
-    @Override
+*/
+   /* @Override
     protected Serializable getSessionId(ServletRequest request, ServletResponse response) {
         String id = WebUtils.toHttp(request).getHeader(LOGIN_TOKEN_KEY);
         if (!StringUtils.isEmpty(id)) {
@@ -35,5 +35,5 @@ public class AdminWebSessionManager extends DefaultWebSessionManager {
         } else {
             return super.getSessionId(request, response);
         }
-    }
-}
+    }*/
+//}

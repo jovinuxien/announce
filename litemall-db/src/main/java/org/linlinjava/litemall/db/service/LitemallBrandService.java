@@ -56,6 +56,8 @@ public class LitemallBrandService {
         return brandMapper.selectByExample(example);
     }
 
+
+
     public int updateById(LitemallBrand brand) {
         brand.setUpdateTime(LocalDateTime.now());
         return brandMapper.updateByPrimaryKeySelective(brand);

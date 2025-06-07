@@ -47,6 +47,9 @@
                         userId="litemall"
                         password="litemall123456"/>
 
+        <typeHandlers>
+            <typeHanlder handler="org.linlinjava.litemall.db.typehandler.BigDecimalTypeHandler" />
+        </typeHandlers>
         <javaTypeResolver>
             <property name="useJSR310Types" value="true"/>
         </javaTypeResolver>

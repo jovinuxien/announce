@@ -36,6 +36,14 @@ public class LitemallGoodsService {
         return goodsMapper.selectByExampleSelective(example, columns);
     }
 
+    public List<LitemallGoods> queryForBrand(LitemallGoodsExample example) {
+        example.or().andBrandIdIsNotNull().andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
+        example.setOrderByClause("add_time  desc");
+        //PageHelper.startPage(0, 10);
+
+        return goodsMapper.selectByExample(example);
+    }
+
     /**
      * 获取新品上市
      *
@@ -87,6 +95,14 @@ public class LitemallGoodsService {
         return goodsMapper.selectByExampleSelective(example, columns);
     }
 
+    public List<LitemallGoods> queryByBrand(Integer brandId, int offset, int limit) {
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        example.or().andBrandIdEqualTo(brandId).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
+        example.setOrderByClause("add_time desc");
+        PageHelper.startPage(offset, limit);
+        return goodsMapper.selectByExampleSelective(example, columns);
+    }
+
 
     public List<LitemallGoods> querySelective(Integer catId, Integer brandId, String keywords, Boolean isHot, Boolean isNew, Integer offset, Integer limit, String sort, String order) {
         LitemallGoodsExample example = new LitemallGoodsExample();
@@ -127,6 +143,42 @@ public class LitemallGoodsService {
         return goodsMapper.selectByExampleSelective(example, columns);
     }
 
+    public List<LitemallGoods> querySelectiveBrand(Integer brandId, String keywords, Boolean isHot, Boolean isNew, Integer offset, Integer limit, String sort, String order) {
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        LitemallGoodsExample.Criteria criteria1 = example.or();
+        //LitemallGoodsExample.Criteria criteria2 = example.or();
+
+        /*if (!StringUtils.isEmpty(brandId)) {
+            criteria1.andBrandIdEqualTo(brandId);
+            //criteria2.andBrandIdEqualTo(brandId);
+        }*/
+        /*if (!StringUtils.isEmpty(isNew)) {
+            criteria1.andIsNewEqualTo(isNew);
+            criteria2.andIsNewEqualTo(isNew);
+        }
+        if (!StringUtils.isEmpty(isHot)) {
+            criteria1.andIsHotEqualTo(isHot);
+            criteria2.andIsHotEqualTo(isHot);
+        }
+        if (!StringUtils.isEmpty(keywords)) {
+            criteria1.andKeywordsLike("%" + keywords + "%");
+            criteria2.andNameLike("%" + keywords + "%");
+        }*/
+       /* criteria1.andIsOnSaleEqualTo(true);
+        criteria2.andIsOnSaleEqualTo(true);
+        criteria1.andDeletedEqualTo(false);
+        criteria2.andDeletedEqualTo(false);*/
+
+        /*if (!StringUtils.isEmpty(sort) && !StringUtils.isEmpty(order)) {
+            example.setOrderByClause(sort + " " + order);
+        }*/
+
+
+        PageHelper.startPage(offset, limit);
+
+        return goodsMapper.selectByExampleSelective(example, columns);
+    }
+
     public List<LitemallGoods> querySelective(Integer goodsId, String goodsSn, String name, Integer page, Integer size, String sort, String order) {
         LitemallGoodsExample example = new LitemallGoodsExample();
         LitemallGoodsExample.Criteria criteria = example.createCriteria();
@@ -148,6 +200,11 @@ public class LitemallGoodsService {
 
         PageHelper.startPage(page, size);
         return goodsMapper.selectByExampleWithBLOBs(example);
+    }
+
+    public List<LitemallGoods> simpleGoodSelective(){
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        return goodsMapper.selectByExample(example);
     }
 
     /**
@@ -256,5 +313,11 @@ public class LitemallGoodsService {
         LitemallGoodsExample example = new LitemallGoodsExample();
         example.or().andIdIn(Arrays.asList(ids)).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
         return goodsMapper.selectByExampleSelective(example, columns);
+    }
+
+    public List<LitemallGoods> brandByMuji(){
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        example.or().andBrandIdEqualTo(1).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
+        return goodsMapper.selectByExampleWithBLOBs(example);
     }
 }

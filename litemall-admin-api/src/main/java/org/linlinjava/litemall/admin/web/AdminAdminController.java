@@ -2,9 +2,9 @@ package org.linlinjava.litemall.admin.web;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
-import org.apache.shiro.subject.Subject;
+//import org.apache.shiro.SecurityUtils;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.subject.Subject;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.admin.service.LogHelper;
 import org.linlinjava.litemall.core.util.RegexUtil;
@@ -35,8 +35,8 @@ public class AdminAdminController {
     @Autowired
     private LogHelper logHelper;
 
-    @RequiresPermissions("admin:admin:list")
-    @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "查询")
+    //@RequiresPermissions("admin:admin:list")
+    //@RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "查询")
     @GetMapping("/list")
     public Object list(String username,
                        @RequestParam(defaultValue = "1") Integer page,
@@ -62,8 +62,8 @@ public class AdminAdminController {
         return null;
     }
 
-    @RequiresPermissions("admin:admin:create")
-    @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "添加")
+    //@RequiresPermissions("admin:admin:create")
+    //@RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "添加")
     @PostMapping("/create")
     public Object create(@RequestBody LitemallAdmin admin) {
         Object error = validate(admin);
@@ -73,8 +73,8 @@ public class AdminAdminController {
 
         String username = admin.getUsername();
         List<LitemallAdmin> adminList = adminService.findAdmin(username);
-        if (adminList.size() > 0) {
-            return ResponseUtil.fail(ADMIN_NAME_EXIST, "管理员已经存在");
+        if (!adminList.isEmpty()) {
+            return ResponseUtil.fail(ADMIN_NAME_EXIST, "Administrator already exists");
         }
 
         String rawPassword = admin.getPassword();
@@ -82,20 +82,20 @@ public class AdminAdminController {
         String encodedPassword = encoder.encode(rawPassword);
         admin.setPassword(encodedPassword);
         adminService.add(admin);
-        logHelper.logAuthSucceed("添加管理员", username);
+        logHelper.logAuthSucceed("Add administrator", username);
         return ResponseUtil.ok(admin);
     }
 
-    @RequiresPermissions("admin:admin:read")
-    @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "详情")
+    //@RequiresPermissions("admin:admin:read")
+    //@RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "详情")
     @GetMapping("/read")
     public Object read(@NotNull Integer id) {
         LitemallAdmin admin = adminService.findById(id);
         return ResponseUtil.ok(admin);
     }
 
-    @RequiresPermissions("admin:admin:update")
-    @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "编辑")
+    //@RequiresPermissions("admin:admin:update")
+    //@RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallAdmin admin) {
         Object error = validate(admin);
@@ -119,8 +119,8 @@ public class AdminAdminController {
         return ResponseUtil.ok(admin);
     }
 
-    @RequiresPermissions("admin:admin:delete")
-    @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "删除")
+    //@RequiresPermissions("admin:admin:delete")
+    //@RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallAdmin admin) {
         Integer anotherAdminId = admin.getId();
@@ -129,11 +129,11 @@ public class AdminAdminController {
         }
 
         // 管理员不能删除自身账号
-        Subject currentUser = SecurityUtils.getSubject();
-        LitemallAdmin currentAdmin = (LitemallAdmin) currentUser.getPrincipal();
+        //Subject currentUser = SecurityUtils.getSubject();
+       /* LitemallAdmin currentAdmin = (LitemallAdmin) currentUser.getPrincipal();
         if (currentAdmin.getId().equals(anotherAdminId)) {
             return ResponseUtil.fail(ADMIN_DELETE_NOT_ALLOWED, "管理员不能删除自己账号");
-        }
+        }*/
 
         adminService.deleteById(anotherAdminId);
         logHelper.logAuthSucceed("删除管理员", admin.getUsername());

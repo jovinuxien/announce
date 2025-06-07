@@ -24,15 +24,15 @@ public class WxOrderController {
     private WxOrderService wxOrderService;
 
     /**
-     * 订单列表
+     * Order list
      *
-     * @param userId   用户ID
-     * @param showType 显示类型，如果是0则是全部订单
-     * @param page     分页页数
-     * @param limit     分页大小
-     * @param sort     排序字段
-     * @param order     排序方式
-     * @return 订单列表
+     * @param userId user ID
+     * @param showType display type, if it is 0, it is all orders
+     * @param page paging page number
+     * @param limit paging size
+     * @param sort sort field
+     * @param order sorting method
+     * @return order list
      */
     @GetMapping("list")
     public Object list(@LoginUser Integer userId,
@@ -59,9 +59,9 @@ public class WxOrderController {
     /**
      * 提交订单
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ cartId：xxx, addressId: xxx, couponId: xxx, message: xxx, grouponRulesId: xxx,  grouponLinkId: xxx}
-     * @return 提交订单操作结果
+     * @param userId User ID
+     * @param body   Order information，{ cartId：xxx, addressId: xxx, couponId: xxx, message: xxx, grouponRulesId: xxx,  grouponLinkId: xxx}
+     * @return Submit order operation results
      */
     @PostMapping("submit")
     public Object submit(@LoginUser Integer userId, @RequestBody String body) {
@@ -69,11 +69,11 @@ public class WxOrderController {
     }
 
     /**
-     * 取消订单
+     * Cancel order
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 取消订单操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return Cancel order operation result
      */
     @PostMapping("cancel")
     public Object cancel(@LoginUser Integer userId, @RequestBody String body) {
@@ -81,11 +81,11 @@ public class WxOrderController {
     }
 
     /**
-     * 付款订单的预支付会话标识
+     * The prepayment session ID of the payment order
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 支付订单ID
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return payment order ID
      */
     @PostMapping("prepay")
     public Object prepay(@LoginUser Integer userId, @RequestBody String body, HttpServletRequest request) {
@@ -93,7 +93,7 @@ public class WxOrderController {
     }
 
     /**
-     * 微信H5支付
+     * WeChat H5 payment
      * @param userId
      * @param body
      * @param request
@@ -105,14 +105,14 @@ public class WxOrderController {
     }
 
     /**
-     * 微信付款成功或失败回调接口
+     * WeChat payment success or failure callback interface
      * <p>
-     *  TODO
-     *  注意，这里pay-notify是示例地址，建议开发者应该设立一个隐蔽的回调地址
+     *TODO
+     * Note that pay-notify here is an example address. It is recommended that developers set up a hidden callback address.
      *
-     * @param request 请求内容
-     * @param response 响应内容
-     * @return 操作结果
+     * @param request request content
+     * @param response response content
+     * @return operation result
      */
     @PostMapping("pay-notify")
     public Object payNotify(HttpServletRequest request, HttpServletResponse response) {
@@ -120,11 +120,11 @@ public class WxOrderController {
     }
 
     /**
-     * 订单申请退款
+     * Apply for a refund on your order
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 订单退款操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return Order refund operation result
      */
     @PostMapping("refund")
     public Object refund(@LoginUser Integer userId, @RequestBody String body) {
@@ -132,11 +132,11 @@ public class WxOrderController {
     }
 
     /**
-     * 确认收货
+     * confirm the receipt of goods
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 订单操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return order operation result
      */
     @PostMapping("confirm")
     public Object confirm(@LoginUser Integer userId, @RequestBody String body) {
@@ -144,11 +144,11 @@ public class WxOrderController {
     }
 
     /**
-     * 删除订单
+     * Delete order
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 订单操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return order operation result
      */
     @PostMapping("delete")
     public Object delete(@LoginUser Integer userId, @RequestBody String body) {
@@ -156,11 +156,11 @@ public class WxOrderController {
     }
 
     /**
-     * 待评价订单商品信息
+     * Product information of orders to be evaluated
      *
-     * @param userId  用户ID
-     * @param ogid 订单商品ID
-     * @return 待评价订单商品信息
+     * @param userId user ID
+     * @param ogid order item ID
+     * @return Order product information to be evaluated
      */
     @GetMapping("goods")
     public Object goods(@LoginUser Integer userId,
@@ -169,11 +169,11 @@ public class WxOrderController {
     }
 
     /**
-     * 评价订单商品
+     * Evaluate order items
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 订单操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return order operation result
      */
     @PostMapping("comment")
     public Object comment(@LoginUser Integer userId, @RequestBody String body) {

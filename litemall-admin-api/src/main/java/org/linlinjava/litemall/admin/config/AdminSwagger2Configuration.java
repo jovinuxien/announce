@@ -1,16 +1,17 @@
 package org.linlinjava.litemall.admin.config;
 
-import com.github.xiaoymin.swaggerbootstrapui.annotations.EnableSwaggerBootstrapUI;
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
+import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
+import io.swagger.v3.oas.annotations.security.SecurityScheme;
+import io.swagger.v3.oas.models.ExternalDocumentation;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.info.License;
+import org.springdoc.core.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import springfox.documentation.builders.ApiInfoBuilder;
-import springfox.documentation.builders.PathSelectors;
-import springfox.documentation.builders.RequestHandlerSelectors;
-import springfox.documentation.service.ApiInfo;
-import springfox.documentation.spi.DocumentationType;
-import springfox.documentation.spring.web.plugins.Docket;
-import springfox.documentation.swagger2.annotations.EnableSwagger2;
+
+import static io.swagger.v3.oas.annotations.enums.SecuritySchemeIn.HEADER;
 
 /**
  * swagger在线文档配置<br>
@@ -20,29 +21,45 @@ import springfox.documentation.swagger2.annotations.EnableSwagger2;
  * @version 2018-07-24
  */
 
+
+@OpenAPIDefinition(info = @io.swagger.v3.oas.annotations.info.Info(title = "Litemall Admin API", version = "v1"))
+@SecurityScheme(
+        name="apiKey",
+        type =  SecuritySchemeType.HTTP,
+        paramName = "X-Litemall-Token",
+        in = HEADER
+
+        //config with bearer
+        //name = "apiKeyQuery",
+        //type = SecuritySchemeType.APIKEY,
+        //paramName = "api_key",
+        //in = SecurityScheme.In.QUERY
+
+        //name = "bearerAuth",
+        //type = SecuritySchemeType.HTTP,
+        //bearerFormat = "jwt",
+        //scheme = "bearer"
+)
 @Configuration
-@EnableSwagger2
-@EnableSwaggerBootstrapUI
 public class AdminSwagger2Configuration {
     @Bean
-    public Docket adminDocket() {
-
-        return new Docket(DocumentationType.SWAGGER_2)
-                .groupName("admin")
-                .apiInfo(adminApiInfo())
-                .select()
-                .apis(RequestHandlerSelectors.basePackage("org.linlinjava.litemall.admin.web"))
-                .paths(PathSelectors.any())
+    public GroupedOpenApi adminApi() {
+        return GroupedOpenApi.builder()
+                .group("admin")
+                .pathsToMatch("/admin/**")
+                .packagesToScan("org.linlinjava.litemall.admin.web")
                 .build();
     }
 
-    private ApiInfo adminApiInfo() {
-        return new ApiInfoBuilder()
-                .title("litemall-admin API")
-                .description("litemall管理后台API")
-                .termsOfServiceUrl("https://github.com/linlinjava/litemall")
-                .contact("https://github.com/linlinjava/litemall")
-                .version("1.0")
-                .build();
+    @Bean
+    public OpenAPI adminApiInfo() {
+        return new OpenAPI()
+                .info(new Info().title("litemall-admin API")
+                        .description("litemall管理后台API")
+                        .version("v0.0.1")
+                        .license(new License().name("Apache 2.0").url("https://github.com/linlinjava/litemall")))
+                        .externalDocs(new ExternalDocumentation()
+                          .description("litemall Wiki Documentation")
+                          .url("https://github.com/linlinjava/litemall"));
     }
 }

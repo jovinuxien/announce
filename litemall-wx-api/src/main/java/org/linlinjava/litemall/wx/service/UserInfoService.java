@@ -15,7 +15,7 @@ public class UserInfoService {
 
     public UserInfo getInfo(Integer userId) {
         LitemallUser user = userService.findById(userId);
-        Assert.state(user != null, "用户不存在");
+        Assert.state(user != null, "User does not exist");
         UserInfo userInfo = new UserInfo();
         userInfo.setNickName(user.getNickname());
         userInfo.setAvatarUrl(user.getAvatar());

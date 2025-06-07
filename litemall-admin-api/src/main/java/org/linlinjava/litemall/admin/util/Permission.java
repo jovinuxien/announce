@@ -1,10 +1,10 @@
 package org.linlinjava.litemall.admin.util;
 
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 
 public class Permission {
-    private RequiresPermissions requiresPermissions;
+   /* private RequiresPermissions requiresPermissions;
     private RequiresPermissionsDesc requiresPermissionsDesc;
     private String api;
 
@@ -30,5 +30,5 @@ public class Permission {
 
     public void setApi(String api) {
         this.api = api;
-    }
+    }*/
 }

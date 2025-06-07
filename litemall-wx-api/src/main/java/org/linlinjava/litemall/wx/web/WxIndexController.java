@@ -24,5 +24,4 @@ public class WxIndexController {
     public Object index() {
         return ResponseUtil.ok("hello world, this is wx service");
     }
-
 }

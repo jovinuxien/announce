@@ -1,23 +1,31 @@
 litemall:
-  # 开发者应该设置成自己的wx相关信息
+  # Developers should set it to their own wx related information
   wx:
     app-id: wxa5b486c6b918ecfb
     app-secret: e04004829d4c383b4db7769d88dfbca1
     mch-id: 111111
     mch-key: xxxxxx
     notify-url: http://www.example.com/wx/order/pay-notify
-    # 商户证书文件路径
-    # 请参考“商户证书”一节 https://pay.weixin.qq.com/wiki/doc/api/wxa/wxa_api.php?chapter=4_3
+    # Merchant certificate file path
+    # Please refer to "Merchant Certificate"
+    # 一节 https://pay.weixin.qq.com/wiki/doc/api/wxa/wxa_api.php?chapter=4_3
     key-path: xxxxx
-    # 消息推送配置token
+    # Message push configuration token
     token:
-    # 消息推送配置AesKey
+    # Message push configuration AesKey
     aes-key:
+
+  # Info for Stripe Payment
+  stripe:
+    publishedKey: pk_test_7ZlwiqEnPTuI80hU5JPBHnX5
+    secretKey: sk_test_3Li1wcFBsz0AeFTSHBOGm5Yb
+    webhook-url: https://www.example.com/stripe/webhook/order-paid
 
   #通知相关配置
   notify:
     mail:
-      # 邮件通知配置,邮箱一般用于接收业务通知例如收到新的订单，sendto 定义邮件接收者，通常为商城运营人员
+      # Email notification configuration. Mailboxes are generally used to receive business notifications,
+      # such as receiving new orders. sendto defines email recipients, usually mall operators.
       enable: false
       host: smtp.exmail.qq.com
       username: ex@ex.com.cn
@@ -25,12 +33,13 @@ litemall:
       sendfrom: ex@ex.com.cn
       sendto: ex@qq.com
       port: 465
-    # 短消息模版通知配置
-    # 短信息用于通知客户，例如发货短信通知，注意配置格式；template-name，template-templateId 请参考 NotifyType 枚举值
+      # Short message template notification configuration
+      # Short messages are used to notify customers, such as shipping SMS notifications.
+      # Please pay attention to the configuration format; please refer to the NotifyType enumeration value for template-name and template-templateId.
     sms:
       enable: false
-      # 如果是腾讯云短信，则设置active的值tencent
-      # 如果是阿里云短信，则设置active的值aliyun
+      # If it is Tencent Cloud SMS, set the active value tencent
+      # If it is Alibaba Cloud SMS, set the active value aliyun
       active: tencent
       sign: litemall
       template:
@@ -50,7 +59,7 @@ litemall:
         accessKeyId: xxx
         accessKeySecret: xxx
 
-  # 快鸟物流查询配置
+  # Kuainiao Logistics Query Configuration
   express:
     enable: false
     appId: "XXXXXXXXX"

@@ -48,22 +48,22 @@ import java.util.Map;
 import static org.linlinjava.litemall.wx.util.WxResponseCode.*;
 
 /**
- * 订单服务
+ * Order service
  *
  * <p>
- * 订单状态：
- * 101 订单生成，未支付；102，下单后未支付用户取消；103，下单后未支付超时系统自动取消
- * 201 支付完成，商家未发货；202，订单生产，已付款未发货，但是退款取消；
- * 301 商家发货，用户未确认；
- * 401 用户确认收货； 402 用户没有确认收货超过一定时间，系统自动确认收货；
+ *  Order status:
+ * 101: The order is GENERATED and not PAID; 102: the user cancels the order without payment after placing the order; 103: the system automatically cancels the order after the unpaid timeout occurs.
+ * 201: Payment is COMPLETED, but the merchant has not shipped the goods; 202: Order production, the payment has been made but the goods have not been shipped, but the refund is cancelled;
+ * 301: Merchant SHIPPED, user not confirmed;
+ * 401: The user confirms the receipt; 402: If the user does not confirm the receipt for more than a certain period of time, then the system automatically confirms the receipt;
  *
  * <p>
- * 用户操作：
- * 当101用户未付款时，此时用户可以进行的操作是取消订单，或者付款操作
- * 当201支付完成而商家未发货时，此时用户可以取消订单并申请退款
- * 当301商家已发货时，此时用户可以有确认收货的操作
- * 当401用户确认收货以后，此时用户可以进行的操作是删除订单，评价商品，申请售后，或者再次购买
- * 当402系统自动确认收货以后，此时用户可以删除订单，评价商品，申请售后，或者再次购买
+ *  User actions:
+ * When 101: User fails to pay, At this time, the operations that the user can perform are canceling the order or making payment.
+ * When 201: Payment is completed but the merchant has not shipped the goods, At this point the user can cancel the order and apply for a refund
+ * When 301: Merchant has shipped the goods, At this point, the user can confirm the receipt of the goods.
+ * When 401: After the user confirms receipt of the goods, The operation that the user can perform at this time is to delete the order, Rate product, Apply for after-sales, Or buy again
+ * When 402: After the system automatically confirms receipt of the goods, At this point the user can delete the order, Rate product, Apply for after-sales, Or buy again
  */
 @Service
 public class WxOrderService {
@@ -109,18 +109,18 @@ public class WxOrderService {
     private LitemallAftersaleService aftersaleService;
 
     /**
-     * 订单列表
+     * Order list
      *
-     * @param userId   用户ID
-     * @param showType 订单信息：
-     *                 0，全部订单；
-     *                 1，待付款；
-     *                 2，待发货；
-     *                 3，待收货；
-     *                 4，待评价。
-     * @param page     分页页数
-     * @param limit     分页大小
-     * @return 订单列表
+     * @param userId user ID
+     * @param showType order information:
+     * 0, All orders;
+     * 1, PENDING payment;
+     * 2, AWAITING shipment;
+     * 3, AWAITING receipt;
+     * 4. AWAITING evaluation.
+     * @param page Number of pagination pages
+     * @param limit Paging size
+     * @return order list
      */
     public Object list(Integer userId, Integer showType, Integer page, Integer limit, String sort, String order) {
         if (userId == null) {
@@ -168,11 +168,11 @@ public class WxOrderService {
     }
 
     /**
-     * 订单详情
+     *Order details
      *
-     * @param userId  用户ID
-     * @param orderId 订单ID
-     * @return 订单详情
+     * @param userId user ID
+     * @param orderId order ID
+     * @return order details
      */
     public Object detail(Integer userId, Integer orderId) {
         if (userId == null) {
@@ -182,10 +182,10 @@ public class WxOrderService {
         // 订单信息
         LitemallOrder order = orderService.findById(userId, orderId);
         if (null == order) {
-            return ResponseUtil.fail(ORDER_UNKNOWN, "订单不存在");
+            return ResponseUtil.fail(ORDER_UNKNOWN, "Order does not exist");
         }
         if (!order.getUserId().equals(userId)) {
-            return ResponseUtil.fail(ORDER_INVALID, "不是当前用户的订单");
+            return ResponseUtil.fail(ORDER_INVALID, "Not the current user’s order");
         }
         Map<String, Object> orderVo = new HashMap<String, Object>();
         orderVo.put("id", order.getId());
@@ -212,7 +212,7 @@ public class WxOrderService {
         result.put("orderInfo", orderVo);
         result.put("orderGoods", orderGoodsList);
 
-        // 订单状态为已发货且物流信息不为空
+        // The order status is shipped and the logistics information is not empty.
         //"YTO", "800669400640887922"
         if (order.getOrderStatus().equals(OrderUtil.STATUS_SHIP)) {
             ExpressInfo ei = expressService.getExpressInfo(order.getShipChannel(), order.getShipSn());
@@ -232,17 +232,17 @@ public class WxOrderService {
     }
 
     /**
-     * 提交订单
+     * Submit order
      * <p>
-     * 1. 创建订单表项和订单商品表项;
-     * 2. 购物车清空;
-     * 3. 优惠券设置已用;
-     * 4. 商品货品库存减少;
-     * 5. 如果是团购商品，则创建团购活动表项。
+     * 1. Create order table items and order product table items;
+     * 2. Shopping cart empty;
+     * 3. The coupon setting has been used;
+     * 4. Product inventory reduction;
+     * 5. If it is a group purchase product，Then create a group buying activity table item。
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ cartId：xxx, addressId: xxx, couponId: xxx, message: xxx, grouponRulesId: xxx,  grouponLinkId: xxx}
-     * @return 提交订单操作结果
+     * @param userId User ID
+     * @param body   Order information，{ cartId：xxx, addressId: xxx, couponId: xxx, message: xxx, grouponRulesId: xxx,  grouponLinkId: xxx}
+     * @return Submit order operation results
      */
     @Transactional
     public Object submit(Integer userId, String body) {
@@ -260,42 +260,42 @@ public class WxOrderService {
         Integer grouponRulesId = JacksonUtil.parseInteger(body, "grouponRulesId");
         Integer grouponLinkId = JacksonUtil.parseInteger(body, "grouponLinkId");
 
-        //如果是团购项目,验证活动是否有效
+        //If it is a group purchase project, verify whether the activity is valid
         if (grouponRulesId != null && grouponRulesId > 0) {
             LitemallGrouponRules rules = grouponRulesService.findById(grouponRulesId);
-            //找不到记录
+            //Record not found
             if (rules == null) {
                 return ResponseUtil.badArgument();
             }
-            //团购规则已经过期
+            //Group buying rules have expired
             if (rules.getStatus().equals(GrouponConstant.RULE_STATUS_DOWN_EXPIRE)) {
-                return ResponseUtil.fail(GROUPON_EXPIRED, "团购已过期!");
+                return ResponseUtil.fail(GROUPON_EXPIRED, "Group purchase has expired!");
             }
-            //团购规则已经下线
+            //Group buying rules have been offline
             if (rules.getStatus().equals(GrouponConstant.RULE_STATUS_DOWN_ADMIN)) {
-                return ResponseUtil.fail(GROUPON_OFFLINE, "团购已下线!");
+                return ResponseUtil.fail(GROUPON_OFFLINE, "Group buying has been offline!");
             }
 
             if (grouponLinkId != null && grouponLinkId > 0) {
-                //团购人数已满
+                //Group purchase is full
                 if(grouponService.countGroupon(grouponLinkId) >= (rules.getDiscountMember() - 1)){
-                    return ResponseUtil.fail(GROUPON_FULL, "团购活动人数已满!");
+                    return ResponseUtil.fail(GROUPON_FULL, "The group buying event is full!");
                 }
                 // NOTE
-                // 这里业务方面允许用户多次开团，以及多次参团，
-                // 但是会限制以下两点：
-                // （1）不允许参加已经加入的团购
+                // The business aspect here allows users to start groups multiple times，and participated in many tours，
+                // But it will limit the following two points：
+                // （1）Not allowed to participate in group purchases that have already been joined
                 if(grouponService.hasJoin(userId, grouponLinkId)){
-                    return ResponseUtil.fail(GROUPON_JOIN, "团购活动已经参加!");
+                    return ResponseUtil.fail(GROUPON_JOIN, "Already participated in the group buying event!");
                 }
-                // （2）不允许参加自己开团的团购
+                // （2）Not allowed to participate in group buying organized by oneself
                 LitemallGroupon groupon = grouponService.queryById(userId, grouponLinkId);
                 // if(groupon.getCreatorUserId().equals(userId)){
-                //     return ResponseUtil.fail(GROUPON_JOIN, "团购活动已经参加!");
+                //     return ResponseUtil.fail(GROUPON_JOIN, "Already participated in the group buying event!");
                 // }
                 if(groupon!=null) {
 	                if(groupon.getCreatorUserId().equals(userId)){
-	                    return ResponseUtil.fail(GROUPON_JOIN, "团购活动已经参加!");
+	                    return ResponseUtil.fail(GROUPON_JOIN, "Already participated in the group buying event!");
 	                }
                 }
             }
@@ -305,20 +305,20 @@ public class WxOrderService {
             return ResponseUtil.badArgument();
         }
 
-        // 收货地址
+        // Shipping address
         LitemallAddress checkedAddress = addressService.query(userId, addressId);
         if (checkedAddress == null) {
             return ResponseUtil.badArgument();
         }
 
-        // 团购优惠
+        // Group purchase discount
         BigDecimal grouponPrice = new BigDecimal(0);
         LitemallGrouponRules grouponRules = grouponRulesService.findById(grouponRulesId);
         if (grouponRules != null) {
             grouponPrice = grouponRules.getDiscount();
         }
 
-        // 货品价格
+        // Product price
         List<LitemallCart> checkedGoodsList = null;
         if (cartId.equals(0)) {
             checkedGoodsList = cartService.queryByUidAndChecked(userId);
@@ -327,12 +327,12 @@ public class WxOrderService {
             checkedGoodsList = new ArrayList<>(1);
             checkedGoodsList.add(cart);
         }
-        if (checkedGoodsList.size() == 0) {
+        if (checkedGoodsList.isEmpty()) {
             return ResponseUtil.badArgumentValue();
         }
         BigDecimal checkedGoodsPrice = new BigDecimal(0);
         for (LitemallCart checkGoods : checkedGoodsList) {
-            //  只有当团购规格商品ID符合才进行团购优惠
+            //  Only when the product ID meets the group purchase specifications will the group purchase discount be available
             if (grouponRules != null && grouponRules.getGoodsId().equals(checkGoods.getGoodsId())) {
                 checkedGoodsPrice = checkedGoodsPrice.add(checkGoods.getPrice().subtract(grouponPrice).multiply(new BigDecimal(checkGoods.getNumber())));
             } else {
@@ -340,10 +340,11 @@ public class WxOrderService {
             }
         }
 
-        // 获取可用的优惠券信息
-        // 使用优惠券减免的金额
+        // Get available coupon information
+        // Amount reduced using coupons
         BigDecimal couponPrice = new BigDecimal(0);
-        // 如果couponId=0则没有优惠券，couponId=-1则不使用优惠券
+        // if couponId=0 : There is no coupon，
+        // if couponId=-1 : Do not use coupons
         if (couponId != 0 && couponId != -1) {
             LitemallCoupon coupon = couponVerifyService.checkCoupon(userId, couponId, userCouponId, checkedGoodsPrice, checkedGoodsList);
             if (coupon == null) {
@@ -353,23 +354,24 @@ public class WxOrderService {
         }
 
 
-        // 根据订单商品总价计算运费，满足条件（例如88元）则免运费，否则需要支付运费（例如8元）；
+        // Calculate shipping costs based on total order price，
+        // Meet the conditions (e.g. $88), free shipping，Otherwise you need to pay shipping fee（For example, $8）；
         BigDecimal freightPrice = new BigDecimal(0);
         if (checkedGoodsPrice.compareTo(SystemConfig.getFreightLimit()) < 0) {
             freightPrice = SystemConfig.getFreight();
         }
 
-        // 可以使用的其他钱，例如用户积分
+        // Other money available，For example, user points
         BigDecimal integralPrice = new BigDecimal(0);
 
-        // 订单费用
+        // Order fee
         BigDecimal orderTotalPrice = checkedGoodsPrice.add(freightPrice).subtract(couponPrice).max(new BigDecimal(0));
-        // 最终支付费用
+        // final payment
         BigDecimal actualPrice = orderTotalPrice.subtract(integralPrice);
 
         Integer orderId = null;
         LitemallOrder order = null;
-        // 订单
+        // Order
         order = new LitemallOrder();
         order.setUserId(userId);
         order.setOrderSn(orderService.generateOrderSn(userId));
@@ -386,20 +388,21 @@ public class WxOrderService {
         order.setOrderPrice(orderTotalPrice);
         order.setActualPrice(actualPrice);
 
-        // 有团购
+        // There is group buying
         if (grouponRules != null) {
-            order.setGrouponPrice(grouponPrice);    //  团购价格
+            order.setGrouponPrice(grouponPrice);    //  Group purchase price
+
         } else {
             order.setGrouponPrice(new BigDecimal(0));    //  团购价格
         }
 
-        // 添加订单表项
+        // Add order form item
         orderService.add(order);
         orderId = order.getId();
 
-        // 添加订单商品表项
+        // Add order item items
         for (LitemallCart cartGoods : checkedGoodsList) {
-            // 订单商品
+            // Order items
             LitemallOrderGoods orderGoods = new LitemallOrderGoods();
             orderGoods.setOrderId(order.getId());
             orderGoods.setGoodsId(cartGoods.getGoodsId());
@@ -415,28 +418,28 @@ public class WxOrderService {
             orderGoodsService.add(orderGoods);
         }
 
-        // 删除购物车里面的商品信息
+        // Delete product information in shopping cart
         if(cartId.equals(0)){
             cartService.clearGoods(userId);
         }else{
             cartService.deleteById(cartId);
         }
 
-        // 商品货品数量减少
+        // Product quantity reduced
         for (LitemallCart checkGoods : checkedGoodsList) {
             Integer productId = checkGoods.getProductId();
             LitemallGoodsProduct product = productService.findById(productId);
 
             int remainNumber = product.getNumber() - checkGoods.getNumber();
             if (remainNumber < 0) {
-                throw new RuntimeException("下单的商品货品数量大于库存量");
+                throw new RuntimeException("The quantity of the ordered product is greater than the inventory");
             }
             if (productService.reduceStock(productId, checkGoods.getNumber()) == 0) {
-                throw new RuntimeException("商品货品库存减少失败");
+                throw new RuntimeException("Product inventory reduction failed");
             }
         }
 
-        // 如果使用了优惠券，设置优惠券使用状态
+        // If a coupon is used，Set coupon usage status
         if (couponId != 0 && couponId != -1) {
             LitemallCouponUser couponUser = couponUserService.findById(userCouponId);
             couponUser.setStatus(CouponUserConstant.STATUS_USED);
@@ -445,7 +448,7 @@ public class WxOrderService {
             couponUserService.update(couponUser);
         }
 
-        //如果是团购项目，添加团购信息
+        //If it is a group purchase project，Add group buying information
         if (grouponRulesId != null && grouponRulesId > 0) {
             LitemallGroupon groupon = new LitemallGroupon();
             groupon.setOrderId(orderId);
@@ -453,9 +456,9 @@ public class WxOrderService {
             groupon.setUserId(userId);
             groupon.setRulesId(grouponRulesId);
 
-            //参与者
+            //participants
             if (grouponLinkId != null && grouponLinkId > 0) {
-                //参与的团购记录
+                //Participated group buying records
                 LitemallGroupon baseGroupon = grouponService.queryById(grouponLinkId);
                 groupon.setCreatorUserId(baseGroupon.getCreatorUserId());
                 groupon.setGrouponId(grouponLinkId);
@@ -470,8 +473,10 @@ public class WxOrderService {
             }
         }
 
-        // NOTE: 建议开发者从业务场景核实下面代码，防止用户利用业务BUG使订单跳过支付环节。
-        // 如果订单实际支付费用是0，则直接跳过支付变成待发货状态
+        // NOTE: It is recommended that developers verify the following code from the business scenario，
+        //              Prevent users from using business bugs to make orders skip the payment process
+        // If the actual payment fee for the order is 0，
+        //      Then directly skip the payment and become the status of pending shipment.
         boolean payed = false;
         if (order.getActualPrice().equals(new BigDecimal("0.00"))) {
             payed = true;
@@ -481,19 +486,19 @@ public class WxOrderService {
             o.setOrderStatus(OrderUtil.STATUS_PAY);
             orderService.updateSelective(o);
 
-            //  支付成功，有团购信息，更新团购信息
+            //  Payment successful，There is group buying information，Update group buying information
             LitemallGroupon groupon = grouponService.queryByOrderId(order.getId());
             if (groupon != null) {
                 grouponRules = grouponRulesService.findById(groupon.getRulesId());
 
-                //仅当发起者才创建分享图片
+                //Shared images are created only if the originator
                 if (groupon.getGrouponId() == 0) {
                     String url = qCodeService.createGrouponShareImage(grouponRules.getGoodsName(), grouponRules.getPicUrl(), groupon);
                     groupon.setShareUrl(url);
                 }
                 groupon.setStatus(GrouponConstant.STATUS_ON);
                 if (grouponService.updateById(groupon) == 0) {
-                    throw new RuntimeException("更新数据已失效");
+                    throw new RuntimeException("Update data has expired");
                 }
 
 
@@ -510,14 +515,16 @@ public class WxOrderService {
                 }
             }
 
-            //TODO 发送邮件和短信通知，这里采用异步发送
-            // 订单支付成功以后，会发送短信给用户，以及发送邮件给管理员
-            notifyService.notifyMail("新订单通知", order.toString());
-            // 这里微信的短信平台对参数长度有限制，所以将订单号只截取后6位
+            //TODO Send email and SMS notifications，Asynchronous sending is used here
+            //          After the order payment is successful，
+            //          A text message will be sent to the user，and send an email to the administrator
+            notifyService.notifyMail("New order notification", order.toString());
+            // Here, WeChat’s SMS platform has restrictions on parameter length，
+            //      Therefore, only the last 6 digits of the order number are truncated.
             notifyService.notifySmsTemplateSync(order.getMobile(), NotifyType.PAY_SUCCEED, new String[]{order.getOrderSn().substring(8, 14)});
         }
         else {
-            // 订单支付超期任务
+            // Order payment overdue task
             taskService.addTask(new OrderUnpaidTask(orderId));
         }
 
@@ -534,16 +541,16 @@ public class WxOrderService {
     }
 
     /**
-     * 取消订单
+     * Cancel order
      * <p>
-     * 1. 检测当前订单是否能够取消；
-     * 2. 设置订单取消状态；
-     * 3. 商品货品库存恢复；
-     * 4. 返还优惠券；
+     * 1. Check whether the current order can be canceled;
+     * 2. Set order cancellation status;
+     * 3. Product inventory restoration;
+     * 4. Return coupons;
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 取消订单操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return Cancel order operation result
      */
     @Transactional
     public Object cancel(Integer userId, String body) {
@@ -565,45 +572,45 @@ public class WxOrderService {
 
         LocalDateTime preUpdateTime = order.getUpdateTime();
 
-        // 检测是否能够取消
+        // Check whether it can be canceled
         OrderHandleOption handleOption = OrderUtil.build(order);
         if (!handleOption.isCancel()) {
-            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "订单不能取消");
+            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "Order cannot be canceled");
         }
 
-        // 设置订单已取消状态
+        // Set order canceled status
         order.setOrderStatus(OrderUtil.STATUS_CANCEL);
         order.setEndTime(LocalDateTime.now());
         if (orderService.updateWithOptimisticLocker(order) == 0) {
-            throw new RuntimeException("更新数据已失效");
+            throw new RuntimeException("Update data has expired");
         }
 
-        // 商品货品数量增加
+        // Increase in quantity of goods
         List<LitemallOrderGoods> orderGoodsList = orderGoodsService.queryByOid(orderId);
         for (LitemallOrderGoods orderGoods : orderGoodsList) {
             Integer productId = orderGoods.getProductId();
             Short number = orderGoods.getNumber();
             if (productService.addStock(productId, number) == 0) {
-                throw new RuntimeException("商品货品库存增加失败");
+                throw new RuntimeException("Product inventory increase failed");
             }
         }
 
-        // 返还优惠券
+        // Return coupon
         releaseCoupon(orderId);
 
         return ResponseUtil.ok();
     }
 
     /**
-     * 付款订单的预支付会话标识
+     * The prepayment session ID of the payment order
      * <p>
-     * 1. 检测当前订单是否能够付款
-     * 2. 微信商户平台返回支付订单ID
-     * 3. 设置订单付款状态
+     * 1. Check whether the current order can be paid
+     * 2. WeChat merchant platform returns payment order ID
+     * 3. Set order payment status
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 支付订单ID
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return payment order ID
      */
     @Transactional
     public Object prepay(Integer userId, String body, HttpServletRequest request) {
@@ -623,24 +630,24 @@ public class WxOrderService {
             return ResponseUtil.badArgumentValue();
         }
 
-        // 检测是否能够取消
+        // Check whether it can be canceled
         OrderHandleOption handleOption = OrderUtil.build(order);
         if (!handleOption.isPay()) {
-            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "订单不能支付");
+            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "Order cannot be paid");
         }
 
         LitemallUser user = userService.findById(userId);
         String openid = user.getWeixinOpenid();
         if (openid == null) {
-            return ResponseUtil.fail(AUTH_OPENID_UNACCESS, "订单不能支付");
+            return ResponseUtil.fail(AUTH_OPENID_UNACCESS, "Order cannot be paid");
         }
         WxPayMpOrderResult result = null;
         try {
             WxPayUnifiedOrderRequest orderRequest = new WxPayUnifiedOrderRequest();
             orderRequest.setOutTradeNo(order.getOrderSn());
             orderRequest.setOpenid(openid);
-            orderRequest.setBody("订单：" + order.getOrderSn());
-            // 元转成分
+            orderRequest.setBody("Order：" + order.getOrderSn());
+            // Yuanzhuan component
             int fee = 0;
             BigDecimal actualPrice = order.getActualPrice();
             fee = actualPrice.multiply(new BigDecimal(100)).intValue();
@@ -650,7 +657,7 @@ public class WxOrderService {
             result = wxPayService.createOrder(orderRequest);
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseUtil.fail(ORDER_PAY_FAIL, "订单不能支付");
+            return ResponseUtil.fail(ORDER_PAY_FAIL, "Order cannot be paid");
         }
 
         if (orderService.updateWithOptimisticLocker(order) == 0) {
@@ -660,7 +667,7 @@ public class WxOrderService {
     }
 
     /**
-     * 微信H5支付
+     * WeChat H5 payment
      *
      * @param userId
      * @param body
@@ -685,10 +692,10 @@ public class WxOrderService {
             return ResponseUtil.badArgumentValue();
         }
 
-        // 检测是否能够取消
+        // Check whether it can be canceled
         OrderHandleOption handleOption = OrderUtil.build(order);
         if (!handleOption.isPay()) {
-            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "订单不能支付");
+            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "Order cannot be paid");
         }
 
         WxPayMwebOrderResult result = null;
@@ -696,8 +703,8 @@ public class WxOrderService {
             WxPayUnifiedOrderRequest orderRequest = new WxPayUnifiedOrderRequest();
             orderRequest.setOutTradeNo(order.getOrderSn());
             orderRequest.setTradeType("MWEB");
-            orderRequest.setBody("订单：" + order.getOrderSn());
-            // 元转成分
+            orderRequest.setBody("Order：" + order.getOrderSn());
+            // Yuanzhuan component
             int fee = 0;
             BigDecimal actualPrice = order.getActualPrice();
             fee = actualPrice.multiply(new BigDecimal(100)).intValue();
@@ -714,15 +721,15 @@ public class WxOrderService {
     }
 
     /**
-     * 微信付款成功或失败回调接口
+     * WeChat payment success or failure callback interface
      * <p>
-     * 1. 检测当前订单是否是付款状态;
-     * 2. 设置订单付款成功状态相关信息;
-     * 3. 响应微信商户平台.
+     * 1. Check whether the current order is in payment status;
+     * 2. Set information related to order payment success status;
+     * 3. Respond to WeChat merchant platform.
      *
-     * @param request  请求内容
-     * @param response 响应内容
-     * @return 操作结果
+     * @param request request content
+     * @param response response content
+     * @return operation result
      */
     @Transactional
     public Object payNotify(HttpServletRequest request, HttpServletResponse response) {
@@ -740,60 +747,60 @@ public class WxOrderService {
 
             if(!WxPayConstants.ResultCode.SUCCESS.equals(result.getResultCode())){
                 logger.error(xmlResult);
-                throw new WxPayException("微信通知支付失败！");
+                throw new WxPayException("WeChat notification payment failed！");
             }
             if(!WxPayConstants.ResultCode.SUCCESS.equals(result.getReturnCode())){
                 logger.error(xmlResult);
-                throw new WxPayException("微信通知支付失败！");
+                throw new WxPayException("WeChat notification payment failed！");
             }
         } catch (WxPayException e) {
             e.printStackTrace();
             return WxPayNotifyResponse.fail(e.getMessage());
         }
 
-        logger.info("处理腾讯支付平台的订单支付");
+        logger.info("Process order payments on Tencent payment platform");
         logger.info(result);
 
         String orderSn = result.getOutTradeNo();
         String payId = result.getTransactionId();
 
-        // 分转化成元
+        // converted into yuan
         String totalFee = BaseWxPayResult.fenToYuan(result.getTotalFee());
         LitemallOrder order = orderService.findBySn(orderSn);
         if (order == null) {
-            return WxPayNotifyResponse.fail("订单不存在 sn=" + orderSn);
+            return WxPayNotifyResponse.fail("Order does not exist sn=" + orderSn);
         }
 
-        // 检查这个订单是否已经处理过
+        // Check if this order has been processed
         if (OrderUtil.hasPayed(order)) {
-            return WxPayNotifyResponse.success("订单已经处理成功!");
+            return WxPayNotifyResponse.success("The order has been processed successfully!");
         }
 
-        // 检查支付订单金额
+        // Check payment order amount
         if (!totalFee.equals(order.getActualPrice().toString())) {
-            return WxPayNotifyResponse.fail(order.getOrderSn() + " : 支付金额不符合 totalFee=" + totalFee);
+            return WxPayNotifyResponse.fail(order.getOrderSn() + " : The payment amount does not meet the totalFee=" + totalFee);
         }
 
         order.setPayId(payId);
         order.setPayTime(LocalDateTime.now());
         order.setOrderStatus(OrderUtil.STATUS_PAY);
         if (orderService.updateWithOptimisticLocker(order) == 0) {
-            return WxPayNotifyResponse.fail("更新数据已失效");
+            return WxPayNotifyResponse.fail("Update data has expired");
         }
 
-        //  支付成功，有团购信息，更新团购信息
+        //  The payment is successful, there is group purchase information, update the group purchase information
         LitemallGroupon groupon = grouponService.queryByOrderId(order.getId());
         if (groupon != null) {
             LitemallGrouponRules grouponRules = grouponRulesService.findById(groupon.getRulesId());
 
-            //仅当发起者才创建分享图片
+            //Shared images are created only if the originator
             if (groupon.getGrouponId() == 0) {
                 String url = qCodeService.createGrouponShareImage(grouponRules.getGoodsName(), grouponRules.getPicUrl(), groupon);
                 groupon.setShareUrl(url);
             }
             groupon.setStatus(GrouponConstant.STATUS_ON);
             if (grouponService.updateById(groupon) == 0) {
-                return WxPayNotifyResponse.fail("更新数据已失效");
+                return WxPayNotifyResponse.fail("Update data has expired");
             }
 
 
@@ -810,27 +817,27 @@ public class WxOrderService {
             }
         }
 
-        //TODO 发送邮件和短信通知，这里采用异步发送
-        // 订单支付成功以后，会发送短信给用户，以及发送邮件给管理员
-        notifyService.notifyMail("新订单通知", order.toString());
-        // 这里微信的短信平台对参数长度有限制，所以将订单号只截取后6位
+        //TODO sends email and SMS notifications, asynchronous sending is used here
+        // After the order payment is successful, a text message will be sent to the user and an email will be sent to the administrator.
+        notifyService.notifyMail("New order notification", order.toString());
+        // The WeChat SMS platform here has restrictions on parameter length, so only the last 6 digits of the order number are intercepted.
         notifyService.notifySmsTemplateSync(order.getMobile(), NotifyType.PAY_SUCCEED, new String[]{orderSn.substring(8, 14)});
 
-        // 取消订单超时未支付任务
+        // Cancel order timeout and unpaid tasks
         taskService.removeTask(new OrderUnpaidTask(order.getId()));
 
-        return WxPayNotifyResponse.success("处理成功!");
+        return WxPayNotifyResponse.success("Processed successfully!");
     }
 
     /**
-     * 订单申请退款
+     * Apply for a refund on your order
      * <p>
-     * 1. 检测当前订单是否能够退款；
-     * 2. 设置订单申请退款状态。
+     * 1. Check whether the current order can be refunded;
+     * 2. Set the order application refund status.
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 订单退款操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return Order refund operation result
      */
     public Object refund(Integer userId, String body) {
         if (userId == null) {
@@ -851,31 +858,31 @@ public class WxOrderService {
 
         OrderHandleOption handleOption = OrderUtil.build(order);
         if (!handleOption.isRefund()) {
-            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "订单不能取消");
+            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "Order cannot be canceled");
         }
 
-        // 设置订单申请退款状态
+        // Set order application refund status
         order.setOrderStatus(OrderUtil.STATUS_REFUND);
         if (orderService.updateWithOptimisticLocker(order) == 0) {
             return ResponseUtil.updatedDateExpired();
         }
 
-        //TODO 发送邮件和短信通知，这里采用异步发送
-        // 有用户申请退款，邮件通知运营人员
-        notifyService.notifyMail("退款申请", order.toString());
+        //TODO sends email and SMS notifications, asynchronous sending is used here
+        // If a user applies for a refund, the operator will be notified by email
+        notifyService.notifyMail("Refund request", order.toString());
 
         return ResponseUtil.ok();
     }
 
     /**
-     * 确认收货
+     * confirm the receipt of goods
      * <p>
-     * 1. 检测当前订单是否能够确认收货；
-     * 2. 设置订单确认收货状态。
+     * 1. Check whether the current order can be confirmed to be received;
+     * 2. Set the order confirmation receipt status.
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 订单操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return order operation result
      */
     public Object confirm(Integer userId, String body) {
         if (userId == null) {
@@ -896,7 +903,7 @@ public class WxOrderService {
 
         OrderHandleOption handleOption = OrderUtil.build(order);
         if (!handleOption.isConfirm()) {
-            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "订单不能确认收货");
+            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "Order cannot be confirmed for receipt");
         }
 
         Short comments = orderGoodsService.getComments(orderId);
@@ -911,14 +918,14 @@ public class WxOrderService {
     }
 
     /**
-     * 删除订单
+     * Delete order
      * <p>
-     * 1. 检测当前订单是否可以删除；
-     * 2. 删除订单。
+     * 1. Check whether the current order can be deleted;
+     * 2. Delete the order.
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 订单操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return order operation result
      */
     public Object delete(Integer userId, String body) {
         if (userId == null) {
@@ -939,24 +946,24 @@ public class WxOrderService {
 
         OrderHandleOption handleOption = OrderUtil.build(order);
         if (!handleOption.isDelete()) {
-            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "订单不能删除");
+            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "Order cannot be deleted");
         }
 
-        // 订单order_status没有字段用于标识删除
-        // 而是存在专门的delete字段表示是否删除
+        // Order order_status has no field to identify deletion
+        // Instead, there is a special delete field indicating whether to delete
         orderService.deleteById(orderId);
-        // 售后也同时删除
+        // The after-sales service will also be deleted at the same time
         aftersaleService.deleteByOrderId(userId, orderId);
 
         return ResponseUtil.ok();
     }
 
     /**
-     * 待评价订单商品信息
+     * Product information of orders to be evaluated
      *
-     * @param userId  用户ID
-     * @param ogid 订单商品ID
-     * @return 待评价订单商品信息
+     * @param userId user ID
+     * @param ogid order item ID
+     * @return Order product information to be evaluated
      */
     public Object goods(Integer userId, Integer ogid) {
         if (userId == null) {
@@ -975,13 +982,13 @@ public class WxOrderService {
     }
 
     /**
-     * 评价订单商品
+     * Evaluate order items
      * <p>
-     * 确认商品收货或者系统自动确认商品收货后7天内可以评价，过期不能评价。
+     * You can evaluate within 7 days after confirming the receipt of the product or the system automatically confirms the receipt of the product, and cannot evaluate after the expiration date.
      *
-     * @param userId 用户ID
-     * @param body   订单信息，{ orderId：xxx }
-     * @return 订单操作结果
+     * @param userId user ID
+     * @param body order information, { orderId: xxx }
+     * @return order operation result
      */
     public Object comment(Integer userId, String body) {
         if (userId == null) {
@@ -1002,17 +1009,17 @@ public class WxOrderService {
             return ResponseUtil.badArgumentValue();
         }
         if (!OrderUtil.isConfirmStatus(order) && !OrderUtil.isAutoConfirmStatus(order)) {
-            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "当前商品不能评价");
+            return ResponseUtil.fail(ORDER_INVALID_OPERATION, "The current product cannot be evaluated");
         }
         if (!order.getUserId().equals(userId)) {
-            return ResponseUtil.fail(ORDER_INVALID, "当前商品不属于用户");
+            return ResponseUtil.fail(ORDER_INVALID, "The current product does not belong to the user");
         }
         Integer commentId = orderGoods.getComment();
         if (commentId == -1) {
-            return ResponseUtil.fail(ORDER_COMMENT_EXPIRED, "当前商品评价时间已经过期");
+            return ResponseUtil.fail(ORDER_COMMENT_EXPIRED, "The current product evaluation time has expired");
         }
         if (commentId != 0) {
-            return ResponseUtil.fail(ORDER_COMMENTED, "订单商品已评价");
+            return ResponseUtil.fail(ORDER_COMMENTED, "The order product has been evaluated");
         }
 
         String content = JacksonUtil.parseString(body, "content");
@@ -1026,7 +1033,7 @@ public class WxOrderService {
             picUrls = new ArrayList<>(0);
         }
 
-        // 1. 创建评价
+        // 1. Create a review
         LitemallComment comment = new LitemallComment();
         comment.setUserId(userId);
         comment.setType((byte) 0);
@@ -1037,11 +1044,11 @@ public class WxOrderService {
         comment.setPicUrls(picUrls.toArray(new String[]{}));
         commentService.save(comment);
 
-        // 2. 更新订单商品的评价列表
+        // 2. Update the review list of order items
         orderGoods.setComment(comment.getId());
         orderGoodsService.updateById(orderGoods);
 
-        // 3. 更新订单中未评价的订单商品可评价数量
+        // 3. Update the evaluable quantity of unevaluated order items in the order
         Short commentCount = order.getComments();
         if (commentCount > 0) {
             commentCount--;
@@ -1053,7 +1060,7 @@ public class WxOrderService {
     }
 
     /**
-     * 取消订单/退款返还优惠券
+     *Cancel order/refund coupon
      * <br/>
      * @param orderId
      * @return void
@@ -1063,7 +1070,7 @@ public class WxOrderService {
     public void releaseCoupon(Integer orderId) {
         List<LitemallCouponUser> couponUsers = couponUserService.findByOid(orderId);
         for (LitemallCouponUser couponUser: couponUsers) {
-            // 优惠券状态设置为可使用
+            // Coupon status is set to available
             couponUser.setStatus(CouponUserConstant.STATUS_USABLE);
             couponUser.setUpdateTime(LocalDateTime.now());
             couponUserService.update(couponUser);

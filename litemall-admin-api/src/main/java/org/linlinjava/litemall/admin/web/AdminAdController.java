@@ -2,7 +2,7 @@ package org.linlinjava.litemall.admin.web;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
@@ -26,8 +26,8 @@ public class AdminAdController {
     @Autowired
     private LitemallAdService adService;
 
-    @RequiresPermissions("admin:ad:list")
-    @RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "查询")
+    //@RequiresPermissions("admin:ad:list")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "查询")
     @GetMapping("/list")
     public Object list(String name, String content,
                        @RequestParam(defaultValue = "1") Integer page,
@@ -50,8 +50,8 @@ public class AdminAdController {
         return null;
     }
 
-    @RequiresPermissions("admin:ad:create")
-    @RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "添加")
+    //@RequiresPermissions("admin:ad:create")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "添加")
     @PostMapping("/create")
     public Object create(@RequestBody LitemallAd ad) {
         Object error = validate(ad);
@@ -62,16 +62,16 @@ public class AdminAdController {
         return ResponseUtil.ok(ad);
     }
 
-    @RequiresPermissions("admin:ad:read")
-    @RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "详情")
+    //@RequiresPermissions("admin:ad:read")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "详情")
     @GetMapping("/read")
     public Object read(@NotNull Integer id) {
         LitemallAd ad = adService.findById(id);
         return ResponseUtil.ok(ad);
     }
 
-    @RequiresPermissions("admin:ad:update")
-    @RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "编辑")
+    //@RequiresPermissions("admin:ad:update")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallAd ad) {
         Object error = validate(ad);
@@ -85,8 +85,8 @@ public class AdminAdController {
         return ResponseUtil.ok(ad);
     }
 
-    @RequiresPermissions("admin:ad:delete")
-    @RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "删除")
+    //@RequiresPermissions("admin:ad:delete")
+    //@RequiresPermissionsDesc(menu = {"推广管理", "广告管理"}, button = "删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallAd ad) {
         Integer id = ad.getId();

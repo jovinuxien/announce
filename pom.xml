@@ -2,21 +2,40 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.linlinjava</groupId>
-    <artifactId>litemall</artifactId>
+    <artifactId>announce</artifactId>
     <version>0.1.0</version>
     <packaging>pom</packaging>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.1.5.RELEASE</version>
+        <!--<version>2.7.6</version>-->
+        <version>2.7.18</version>
+       <!-- <version>3.1.6</version>-->
         <relativePath/>
     </parent>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <java.version>1.8</java.version>
+        <!--<java.version>1.8</java.version>-->
+        <java.version>17</java.version>
         <maven.test.skip>true</maven.test.skip>
+        <jhipster-dependencies.version>7.9.2</jhipster-dependencies.version>
+        <spring-cloud.version>2021.0.9</spring-cloud.version>
+
+        <frontend-maven-plugin.version>1.13.4</frontend-maven-plugin.version>
+        <node.version>v20.16.0</node.version>
+        <npm.version>10.8.1</npm.version>
+        <maven-compiler-plugin.version>3.5.0</maven-compiler-plugin.version>
+        <mapstruct.version>1.4.2.Final</mapstruct.version>
+        <maven-idea-plugin.version>2.2.1</maven-idea-plugin.version>
+        <druid.version>1.2.23</druid.version>
+        <shiro.version>2.0.2</shiro.version>
+        <security.version>2.7.18</security.version>
+        <pagehelper.version>2.0.0</pagehelper.version>
+        <mbatis.version>2.3.0</mbatis.version>
+
+<!--        <mbatis.version>3.0.2</mbatis.version>-->
     </properties>
 
     <modules>
@@ -25,11 +44,38 @@
         <module>litemall-wx-api</module>
         <module>litemall-admin-api</module>
         <module>litemall-all</module>
-        <module>litemall-all-war</module>
+        <module>litemall-all-react-war</module>
+        <module>litemall-elastic</module>
+        <module>litemall-order</module>
+        <module>litemall-goods-management</module>
+
+        <module>litemall-gateway</module>
+        <module>litemall-config</module>
+        <module>litemall-eureka</module>
+        <module>litemall-auth-server</module>
     </modules>
+
 
     <dependencyManagement>
         <dependencies>
+            <!-- Spring cloud section -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Jhipster section -->
+            <dependency>
+                <groupId>tech.jhipster</groupId>
+                <artifactId>jhipster-dependencies</artifactId>
+                <version>${jhipster-dependencies.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
             <dependency>
                 <groupId>org.linlinjava</groupId>
                 <artifactId>litemall-core</artifactId>
@@ -60,39 +106,44 @@
             <dependency>
                 <groupId>org.mybatis.spring.boot</groupId>
                 <artifactId>mybatis-spring-boot-starter</artifactId>
-                <version>1.3.2</version>
+                <version>${mbatis.version}</version>
             </dependency>
 
-            <!-- Spring Boot pagehelper 依赖 -->
+
             <dependency>
                 <groupId>com.github.pagehelper</groupId>
                 <artifactId>pagehelper-spring-boot-starter</artifactId>
-                <version>1.2.5</version>
+                <version>${pagehelper.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>org.apache.shiro</groupId>
                 <artifactId>shiro-spring-boot-web-starter</artifactId>
-                <version>1.6.0</version>
+                <version>${shiro.version}</version>
+                <!--<version>1.6.0</version>-->
             </dependency>
-
             <dependency>
-                <groupId>org.hibernate.validator</groupId>
-                <artifactId>hibernate-validator</artifactId>
-                <version>6.1.5.Final</version>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-security</artifactId>
+                <version>${security.version}</version>
             </dependency>
 
-            <!-- MySQL 连接驱动依赖 -->
+
+
+
+            <!-- MySQL Connector -->
             <dependency>
                 <groupId>mysql</groupId>
                 <artifactId>mysql-connector-java</artifactId>
-                <version>8.0.28</version>
+                <version>8.0.29</version>
             </dependency>
+
 
             <dependency>
                 <groupId>com.alibaba</groupId>
                 <artifactId>druid-spring-boot-starter</artifactId>
-                <version>1.2.1</version>
+                <version>${druid.version}</version>
+                <!--<version>1.2.1</version>-->
             </dependency>
 
             <dependency>
@@ -134,32 +185,39 @@
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-json</artifactId>
-                <version>2.1.5.RELEASE</version>
+                <version>2.7.18</version>
             </dependency>
 
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-mail</artifactId>
-                <version>2.1.5.RELEASE</version>
+                <version>2.7.18</version>
             </dependency>
 
-            <dependency>
+            <!--<dependency>
 		       <groupId>io.springfox</groupId>
 			   <artifactId>springfox-swagger2</artifactId>
-			   <version>2.9.2</version>
-		   </dependency>
-		
-		<dependency>
-			  <groupId>io.springfox</groupId>
-			  <artifactId>springfox-swagger-ui</artifactId>
-			  <version>2.10.0</version>
-		</dependency>
+			   <version>3.0.0</version>
+		   </dependency>-->
 
-        <dependency>
+            <!--<dependency>
+                  <groupId>io.springfox</groupId>
+                  <artifactId>springfox-swagger-ui</artifactId>
+                  <version>3.0.0</version>
+            </dependency>-->
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-ui</artifactId>
+                <version>1.6.14</version>
+            </dependency>
+
+
+            <dependency>
             <groupId>com.github.penggle</groupId>
             <artifactId>kaptcha</artifactId>
             <version>2.3.2</version>
         </dependency>
+
 
 		<!--引入ui包-->
 		<dependency>
@@ -184,11 +242,33 @@
                 <artifactId>aliyun-java-sdk-core</artifactId>
                 <version>4.0.3</version>
             </dependency>
+
+            <!--Deps for elastic project -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-data-jpa</artifactId>
+                <version>2.7.18</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-integration</artifactId>
+                <version>2.7.18</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+                <version>2.7.18</version>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
-
+        <!-- spring cloud config -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
         <!-- 热部署模块 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -215,18 +295,36 @@
             <version>1.6.6</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- Stripe -->
+        <dependency>
+            <groupId>com.stripe</groupId>
+            <artifactId>stripe-java</artifactId>
+            <version>22.18.0</version>
+        </dependency>
         <dependency>
             <groupId>org.powermock</groupId>
             <artifactId>powermock-module-junit4</artifactId>
             <version>1.6.6</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
+       <!-- <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
             <version>1.10.19</version>
             <scope>test</scope>
+        </dependency>-->
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+            <version>2.0.7</version>
+            <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+
     </dependencies>
 
 
@@ -237,11 +335,43 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
                 </configuration>
             </plugin>
         </plugins>
     </build>
 
+    <profiles>
+        <profile>
+            <!--
+                Profile for applying IDE-specific configuration.
+                At the moment it configures MapStruct and Hibernate JPA Metamodel Generator, which you need when working
+                with DTOs and entity filtering.
+            -->
+            <id>IDE</id>
+            <dependencies>
+            <!--    <dependency>
+                    <groupId>org.mapstruct</groupId>
+                    <artifactId>mapstruct-processor</artifactId>
+                    <version>${mapstruct.version}</version>
+                </dependency>-->
+                <dependency>
+                    <groupId>org.hibernate</groupId>
+                    <artifactId>hibernate-jpamodelgen</artifactId>
+                </dependency>
+            </dependencies>
+        </profile>
+        <!-- For executing a specific profile from litemall-all folder -->
+        <!-- Cmd: mvn spring-boot:run -Pdev-litemall-db -->
+        <profile>
+            <id>dev-litemall-db</id>
+            <modules>
+                <module>litemall-db</module>
+            </modules>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+        </profile>
+    </profiles>
 </project>

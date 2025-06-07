@@ -5,11 +5,13 @@ import org.apache.commons.logging.LogFactory;
 import org.hibernate.validator.internal.engine.path.PathImpl;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import javax.validation.ConstraintViolation;
@@ -39,8 +41,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     @ResponseBody
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Object badArgumentHandler(MissingServletRequestParameterException e) {
-        logger.error(e.getMessage(), e);
+        logger.error("Missing request parameter: {}");
+        //logger.error("Missing request parameter: {}", e.getParameterName(), e);
         return ResponseUtil.badArgumentValue();
     }
 

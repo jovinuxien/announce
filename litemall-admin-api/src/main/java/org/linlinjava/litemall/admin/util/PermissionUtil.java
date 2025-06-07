@@ -2,7 +2,7 @@ package org.linlinjava.litemall.admin.util;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.reflect.MethodUtils;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.admin.vo.PermVo;
 import org.springframework.context.ApplicationContext;
@@ -16,10 +16,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import java.lang.reflect.Method;
 import java.util.*;
 
-public class PermissionUtil {
+//public class PermissionUtil {
 
-    public static List<PermVo> listPermVo(List<Permission> permissions) {
-        List<PermVo> root = new ArrayList<>();
+   //public static List<PermVo> listPermVo(List<Permission> permissions) {
+       /* List<PermVo> root = new ArrayList<>();
         for (Permission permission : permissions) {
             RequiresPermissions requiresPermissions = permission.getRequiresPermissions();
             RequiresPermissionsDesc requiresPermissionsDesc = permission.getRequiresPermissionsDesc();
@@ -82,11 +82,11 @@ public class PermissionUtil {
             }
 
         }
-        return root;
-    }
+        return root;*/
+    //}
 
-    public static List<Permission> listPermission(ApplicationContext context, String basicPackage) {
-        Map<String, Object> map = context.getBeansWithAnnotation(Controller.class);
+    //public static List<Permission> listPermission(ApplicationContext context, String basicPackage) {
+       /* Map<String, Object> map = context.getBeansWithAnnotation(Controller.class);
         List<Permission> permissions = new ArrayList<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             Object bean = entry.getValue();
@@ -139,14 +139,14 @@ public class PermissionUtil {
                 throw new RuntimeException("目前权限管理应该在method的前面使用GetMapping注解或者PostMapping注解");
             }
         }
-        return permissions;
-    }
+        return permissions;*/
+    //}
 
-    public static Set<String> listPermissionString(List<Permission> permissions) {
+    /*public static Set<String> listPermissionString(List<Permission> permissions) {
         Set<String> permissionsString = new HashSet<>();
         for (Permission permission : permissions) {
             permissionsString.add(permission.getRequiresPermissions().value()[0]);
         }
         return permissionsString;
-    }
-}
+    }*/
+//}

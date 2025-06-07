@@ -8,15 +8,13 @@ import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
 import org.linlinjava.litemall.db.domain.*;
+import org.linlinjava.litemall.db.dto.ElasticDto;
 import org.linlinjava.litemall.db.service.*;
 import org.linlinjava.litemall.wx.annotation.LoginUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.validation.constraints.NotNull;
 import java.util.ArrayList;
@@ -36,6 +34,8 @@ public class WxGoodsController {
 
 	@Autowired
 	private LitemallGoodsService goodsService;
+    @Autowired
+	private LitemallElasticDataService elasticService;
 
 	@Autowired
 	private LitemallGoodsProductService productService;
@@ -201,10 +201,10 @@ public class WxGoodsController {
 	}
 
 	/**
-	 * 商品分类类目
-	 *
-	 * @param id 分类类目ID
-	 * @return 商品分类类目
+	 * Product Category
+	 * *
+	 * @param id category
+	 * @return  The product category
 	 */
 	@GetMapping("category")
 	public Object category(@NotNull Integer id) {
@@ -228,10 +228,10 @@ public class WxGoodsController {
 	}
 
 	/**
-	 * 根据条件搜素商品
+	 * Search products based on conditions
 	 * <p>
-	 * 1. 这里的前五个参数都是可选的，甚至都是空
-	 * 2. 用户是可选登录，如果登录，则记录用户的搜索关键字
+	 * 1. The first five parameters here are all optional,or even empty.
+	 * 2. The user is optionally logged in，If logged in，the user's search keywords are recorded
 	 *
 	 * @param categoryId 分类类目ID，可选
 	 * @param brandId    品牌商ID，可选
@@ -243,7 +243,7 @@ public class WxGoodsController {
 	 * @param limit       分页大小
 	 * @param sort       排序方式，支持"add_time", "retail_price"或"name"
 	 * @param order      排序类型，顺序或者降序
-	 * @return 根据条件搜素的商品详情
+	 * @return Search product details based on criteria
 	 */
 	@GetMapping("list")
 	public Object list(
@@ -267,13 +267,13 @@ public class WxGoodsController {
 			searchHistoryService.save(searchHistoryVo);
 		}
 
-		//查询列表数据
+		//Query list data
 		List<LitemallGoods> goodsList = goodsService.querySelective(categoryId, brandId, keyword, isHot, isNew, page, limit, sort, order);
 
-		// 查询商品所属类目列表。
+		// Query the list of categories to which the product belongs。
 		List<Integer> goodsCatIds = goodsService.getCatIds(brandId, keyword, isHot, isNew);
 		List<LitemallCategory> categoryList = null;
-		if (goodsCatIds.size() != 0) {
+		if (!goodsCatIds.isEmpty()) {
 			categoryList = categoryService.queryL2ByIds(goodsCatIds);
 		} else {
 			categoryList = new ArrayList<>(0);
@@ -293,11 +293,13 @@ public class WxGoodsController {
 		return ResponseUtil.ok(entity);
 	}
 
+
+
 	/**
-	 * 商品详情页面“大家都在看”推荐商品
+	 * Product details page "Everyone is watching" recommended products
 	 *
 	 * @param id, 商品ID
-	 * @return 商品详情页面推荐商品
+	 * @return Recommended products on product details page
 	 */
 	@GetMapping("related")
 	public Object related(@NotNull Integer id) {
@@ -306,14 +308,16 @@ public class WxGoodsController {
 			return ResponseUtil.badArgumentValue();
 		}
 
-		// 目前的商品推荐算法仅仅是推荐同类目的其他商品
+		// The current product recommendation algorithm only recommends other products of the same category.
 		int cid = goods.getCategoryId();
 
-		// 查找六个相关商品
+		// Find six related products
 		int related = 6;
 		List<LitemallGoods> goodsList = goodsService.queryByCategory(cid, 0, related);
 		return ResponseUtil.okList(goodsList);
 	}
+
+	// Added by Jovi
 
 	/**
 	 * 在售的商品总数
@@ -325,5 +329,53 @@ public class WxGoodsController {
 		Integer goodsCount = goodsService.queryOnSale();
 		return ResponseUtil.ok(goodsCount);
 	}
+
+
+
+	@GetMapping("/elasticCategory")
+	public Object getGoodsByCategory(@NotNull Integer id) {
+		List<LitemallGoods> goods = elasticService.getGoodsByCategory(id);
+		Map<String, Object> entity = new HashMap<>();
+		entity.put("list", goods);
+		return ResponseUtil.ok(entity);
+	}
+
+
+	@GetMapping("/{goodsId}/categories")
+	public Object getCategoriesForGoods(@NotNull Integer id) {
+		List<LitemallCategory> categories = elasticService.getCategoriesForGoods(id);
+
+
+		Map<String, Object> entity = new HashMap<>();
+		entity.put("list cat for the good", categories);
+		return ResponseUtil.ok(categories);
+	}
+
+	@GetMapping("/brand")
+	public Object goodsByBrand(
+							   Integer brandId,
+							   String keyword,
+							   Boolean isNew,
+							   Boolean isHot,
+							   @LoginUser Integer userId,
+							   @RequestParam(defaultValue = "1") Integer page,
+							   @RequestParam(defaultValue = "10") Integer limit,
+							   @Sort(accepts = {"add_time", "retail_price", "name"}) @RequestParam(defaultValue = "add_time") String sort,
+							   @Order @RequestParam(defaultValue = "desc") String order) {
+		List<LitemallGoods> goods = goodsService.querySelectiveBrand(brandId, keyword, isHot, isNew,  page, limit, sort, order);
+		Map<String, Object> entity = new HashMap<>();
+		entity.put("list", goods);
+		return ResponseUtil.ok(entity);
+	}
+
+	@GetMapping("/elastic")
+	public Object getGoodsElastic(@RequestParam(defaultValue = "MUJI manufacturer") String manufacturerName,
+								  @RequestParam(defaultValue = "material") String attribute){
+		List<ElasticDto> goods = elasticService.getGoods(manufacturerName, attribute);
+		Map<String, Object> entity = new HashMap<>();
+		entity.put("list", goods);
+		return ResponseUtil.ok(entity);
+	}
+
 
 }

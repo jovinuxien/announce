@@ -4,7 +4,7 @@
 
 Another mini-mall system.
 
-Litemall = Spring Boot backend + Vue admin frontend + WeChat mini-program user frontend + Vue mobile user frontend
+Litemall = Spring Boot backend + React admin frontend + WeChat mini-program user frontend 
 
 * [Documentation](https://linlinjava.gitbook.io/litemall)
 * [Contribute](https://linlinjava.gitbook.io/litemall/contribute)

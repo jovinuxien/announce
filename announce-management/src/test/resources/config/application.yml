@@ -1,0 +1,27 @@
+spring:
+  r2dbc:
+    initialization-mode: always
+    # These will be overridden by Testcontainers @DynamicPropertySource
+    url: r2dbc:mysql://localhost:3306/litemall
+    username: litemall
+    password: Callite_1006
+    pool:
+      enabled: true
+
+  #Schema initialization for tests
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/marketplace_table.sql
+      data-locations: classpath:db/marketplace_data.sql
+      continue-on-error: true
+
+  # Reactive transaction management
+  transaction:
+    reactive:
+      enabled: true
+
+logging:
+  level:
+    org.springframework.data.r2dbc: DEBUG
+    io.asyncer.r2dbc.mysql: DEBUG

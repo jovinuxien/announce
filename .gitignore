@@ -52,3 +52,7 @@ Servers
 .metadata
 upload
 gen_code
+
+### node (frontend-maven-plugin downloads) ###
+node/
+node_modules/

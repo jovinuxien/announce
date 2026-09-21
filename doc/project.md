@@ -468,7 +468,7 @@ flush privilege
     <logger name="org.mybatis" level="ERROR" />
     <logger name="org.springframework" level="ERROR" />
     <logger name="org.linlinjava.litemall.core" level="DEBUG" />
-    <logger name="org.linlinjava.litemall.db" level="DEBUG" />
+    <logger name="org.linlinjava.announce.db" level="DEBUG" />
     <logger name="org.linlinjava.litemall.admin" level="DEBUG" />
     <logger name="org.linlinjava.litemall.wx" level="DEBUG" />
     <logger name="org.linlinjava.litemall" level="DEBUG" />
@@ -477,7 +477,7 @@ flush privilege
 具体如何配置，请自行学习Spring Boot的日志配置和logback日志配置。
 
 `org.linlinjava.litemall.core`定义litemall-core模块的日志级别
-`org.linlinjava.litemall.db`定义litemall-db模块的日志级别
+`org.linlinjava.announce.db`定义litemall-db模块的日志级别
 `org.linlinjava.litemall.wx`定义litemall-wx-api模块的日志级别
 `org.linlinjava.litemall.admin`定义litemall-admin-api模块的日志级别
 `org.linlinjava.litemall`而定义litemall所有后端模块的日志级别

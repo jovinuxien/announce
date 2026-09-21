@@ -1,0 +1,32 @@
+spring:
+  messages:
+    encoding: UTF-8
+  main:
+    allow-circular-references: true
+
+  # Reactive connection. reactive-mybatis-support builds the pooled ConnectionFactory from
+  # these keys (it does not read spring.r2dbc.url). Spring Data R2DBC (R2dbcEntityTemplate,
+  # repositories) picks up that same ConnectionFactory bean.
+  r2dbc:
+    mybatis:
+      r2dbc-url: ${ANNOUNCE_R2DBC_URL:r2dbc:mysql://localhost:3306/announce_reactive_db}
+      username: ${ANNOUNCE_DB_USER:announce}
+      password: ${ANNOUNCE_DB_PASSWORD:Calliste_1006}
+      pool:
+        initial-size: 2
+        max-size: 10
+
+
+# reactive-mybatis-support
+r2dbc:
+  mybatis:
+    mapper-locations: classpath:org/linlinjava/announce/db/dao/reactive/*.xml
+    configuration:
+      map-underscore-to-camel-case: true
+
+logging:
+  level:
+    root: ERROR
+    org.springframework: ERROR
+    org.mybatis: ERROR
+    org.linlinjava.announce.db: DEBUG

@@ -1,0 +1,27 @@
+spring:
+  r2dbc:
+    initialization-mode: always
+    url: r2dbc:mysql://localhost:3306/litemall?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: litemall
+    password: Calliste_1006
+    pool:
+      enabled: true
+      initial-size: 3
+      max-size: 15
+      max-idle-time: 10m
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/marketplace_table.sql, classpath:db/marketplace_data.sql
+      continue-on-error: true
+
+  # Application specific settings
+  application:
+    name: announce-management-testdev
+
+logging:
+  level:
+    org.linlinjava.announce.goods: DEBUG
+    org.springframework.data.r2dbc: DEBUG
+    io.asyncer.r2dbc.mysql: DEBUG

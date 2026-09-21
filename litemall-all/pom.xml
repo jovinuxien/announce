@@ -5,9 +5,9 @@
     <packaging>jar</packaging>
 
     <parent>
-        <groupId>org.linlinjava</groupId>
-        <artifactId>litemall</artifactId>
-        <version>0.1.0</version>
+        <groupId>org.joviste</groupId>
+        <artifactId>announce</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
     </parent>
 
  <!--   <properties>
@@ -16,22 +16,22 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.linlinjava</groupId>
+            <groupId>org.joviste</groupId>
             <artifactId>litemall-core</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.linlinjava</groupId>
+            <groupId>org.joviste</groupId>
             <artifactId>litemall-db</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.linlinjava</groupId>
+            <groupId>org.joviste</groupId>
             <artifactId>litemall-wx-api</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.linlinjava</groupId>
+            <groupId>org.joviste</groupId>
             <artifactId>litemall-admin-api</artifactId>
         </dependency>
 

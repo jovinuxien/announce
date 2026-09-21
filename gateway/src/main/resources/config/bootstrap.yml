@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: gateway
+  profiles:
+    active: default
+  cloud:
+    config:
+      uri: http://configserver:8888
+      #uri: http://localhost:8888
+    bootstrap:
+      enabled: true
+    compatibility-verifier:
+      enabled: false
+    gateway:
+      default-filters:
+        - TokenRelay=
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:9000" #Allow the origin of your request
+            allowedMethods: "*"
+            allowCredentials: true
+      routes:
+        - id: admin-api
+          uri: lb://litemall-admin-api
+          predicates:
+            - Path=/admin/**
+        - id: wx-api
+          uri: lb://litemall-wx-api
+          predicates:
+            - Path=/wx/**
+        - id: announce-management
+          uri: lb://announce-management
+          predicates:
+            - Path=/goods/**
+
+server:
+  port: 9001
+
+eureka:
+  instance:
+    preferIpAddress: true
+    #hostname: localhost
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/

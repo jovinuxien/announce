@@ -5,9 +5,9 @@
 
     <!-- Added by Jovi -->
     <parent>
-        <groupId>org.linlinjava</groupId>
-        <artifactId>litemall</artifactId>
-        <version>0.1.0</version>
+        <groupId>org.joviste</groupId>
+        <artifactId>announce</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
     </parent>
 
     <artifactId>litemall-library</artifactId>

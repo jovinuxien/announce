@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: listing-sample
+  main:
+    banner-mode: off
+  cloud:
+    function:
+      definition: listingEvents
+    stream:
+      bindings:
+        listing-out-0:
+          destination: listing.v1
+        listingEvents-in-0:
+          destination: listing.v1
+          group: listing-sample
+      kafka:
+        binder:
+          auto-create-topics: true
+          replication-factor: 1
+
+opencqrs:
+  event-handling:
+    standard:
+      fetch:
+        subject: /listing
+        recursive: true
+      retry:
+        policy: exponential_backoff
+        initial-interval: 200ms
+        max-interval: 2s
+        max-attempts: 20
+      life-cycle:
+        controller: application_context
+
+cqrs:
+  readside:
+    handler-timeout: 15s
+
+logging:
+  level:
+    org.linlinjava.announce.cqrs: DEBUG
+    org.apache.kafka: WARN
+    org.springframework.kafka: WARN

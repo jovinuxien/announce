@@ -84,6 +84,11 @@
                 <artifactId>cqrs-reactive</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.joviste</groupId>
+                <artifactId>cqrs-reactive-test</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>tech.jhipster</groupId>
@@ -156,6 +161,7 @@
 
         <module>db-reactive</module>
         <module>cqrs-reactive</module>
+        <module>cqrs-reactive-test</module>
         <module>core</module>
         <module>announce-management</module>
         <module>order</module>

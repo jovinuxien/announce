@@ -1,0 +1,206 @@
+# OCS search-service configuration for announce_index.
+#
+# Mounted as application-custom.yml into commerceexperts/ocs-search-service (profile "custom", layered over
+# the bundled "preset"). The field configuration MUST match docker/cqrs/application.indexer-service.yml.
+#
+# WHY THE QUERY BLOCK: the bundled preset weights only the OCS-canonical fields (title, brand, category_leaf,
+# category_lvl_*). Announce documents carry a flat category_names list, a searchable description and a city,
+# so the text strategies are restated here to weight the fields we actually index.
+spring:
+  logging:
+    level:
+      de.cxp.ocs: INFO
+
+ocs:
+  index-config:
+    announce_index:
+      field-configuration:
+        fields:
+          id:
+            name: announce_id
+            type: id
+            usage: [Result]
+          title:
+            name: title
+            type: string
+            usage: [Search, Result, Sort]
+          description:
+            name: description
+            type: string
+            usage: [Search, Result]
+          price:
+            name: price
+            type: number
+            usage: [Result, Sort, Facet]
+          sale_type:
+            name: sale_type
+            type: string
+            usage: [Result, Facet]
+          current_bid:
+            name: current_bid
+            type: number
+            usage: [Result, Sort]
+          status:
+            name: status
+            type: string
+            usage: [Result, Filter]
+          category_names:
+            name: category_names
+            type: string
+            usage: [Search, Result, Facet]
+          category_ids:
+            name: category_ids
+            type: string
+            usage: [Facet]
+          brand:
+            name: brand
+            type: string
+            usage: [Search, Result, Facet]
+          region_id:
+            name: region_id
+            type: string
+            usage: [Facet]
+          city:
+            name: city
+            type: string
+            usage: [Search, Result, Facet]
+          postal_code:
+            name: postal_code
+            type: string
+            usage: [Result, Filter]
+          seller_id:
+            name: seller_id
+            type: string
+            usage: [Result, Filter]
+          image_url:
+            name: image_url
+            type: string
+            usage: [Result]
+          created_epoch:
+            name: created_epoch
+            type: number
+            usage: [Result, Sort, Score]
+          expire_epoch:
+            name: expire_epoch
+            type: number
+            usage: [Result, Sort, Filter]
+          variant_price:
+            name: variant_price
+            type: number
+            usage: [Result, Sort, Facet]
+            field-level: variant
+          stock:
+            name: stock
+            type: number
+            usage: [Result, Filter, Score]
+            field-level: variant
+        dynamic-fields:
+          - name: attribute_string
+            type: string
+            source-names:
+              - '^(?!(announce_id|title|description|price|sale_type|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch)$).*$'
+            usage: [Facet, Result]
+          - name: attribute_number
+            type: number
+            source-names:
+              - '^(?!(announce_id|title|description|price|sale_type|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch)$).*$'
+            usage: [Facet, Result]
+
+  default-tenant-config:
+    # Synonyms are applied at query time through Querqy common rules (docker/cqrs/querqy-rules.txt);
+    # edit the file and restart the searcher, no reindex needed.
+    query-processing:
+      user-query-analyzer: "de.cxp.ocs.elasticsearch.query.analyzer.QuerqyQueryExpander"
+    plugin-configuration:
+      "[de.cxp.ocs.elasticsearch.query.analyzer.QuerqyQueryExpander]":
+        "common_rules_url": "/app/resources/querqy-rules.txt"
+        "do_lowercase_rules": "true"
+    # Classifieds ranking: text relevance first, then a gentle recency boost (newer announces rank higher
+    # among equal matches) and an in-stock boost for variants. Multiplicative so a weak text match never
+    # outranks a strong one on freshness alone.
+    scoring-configuration:
+      boost-mode: multiply
+      score-mode: multiply
+      score-functions:
+        - type: field_value_factor
+          field: stock
+          options:
+            MODIFIER: "ln1p"
+            MISSING: 1
+            FACTOR: 1
+            USE_FOR_VARIANTS: "true"
+        - type: field_value_factor
+          field: created_epoch
+          options:
+            MODIFIER: "log1p"
+            MISSING: 0
+            FACTOR: 0.0000001
+    query-configuration:
+      default-query:
+        strategy: "ConfigurableQuery"
+        condition:
+          minTermCount: 1
+          maxTermCount: 10
+        settings:
+          operator: "AND"
+          tieBreaker: 0.7
+          multimatch_type: "CROSS_FIELDS"
+          analyzer: "standard"
+          quoteAnalyzer: "minimal"
+          weightedFields:
+            "title": 3.0
+            "title.standard": 2.0
+            "category_names": 1.5
+            "brand": 1.5
+            "city": 1.2
+            "description": 0.8
+      relaxed-query:
+        strategy: "ConfigurableQuery"
+        condition:
+          minTermCount: 2
+          maxTermCount: 10
+        settings:
+          operator: "OR"
+          tieBreaker: 0.5
+          multimatch_type: "BEST_FIELDS"
+          analyzer: "standard"
+          weightedFields:
+            "title": 2.0
+            "category_names": 1.0
+            "brand": 1.0
+            "description": 0.5
+    facet-configuration:
+      facets:
+        - source-field: price
+          label: Price
+          type: interval
+          order: 1
+        - source-field: sale_type
+          label: Sale type
+          order: 2
+        - source-field: category_names
+          label: Category
+          order: 3
+        - source-field: brand
+          label: Brand
+          order: 4
+        - source-field: city
+          label: City
+          order: 5
+        - source-field: region_id
+          label: Region
+          order: 6
+        - source-field: variant_price
+          label: Variant price
+          type: interval
+          order: 7
+    sort-configuration:
+      - field: created_epoch
+        label: Newest
+        order: DESC
+      - field: price
+        label: Price
+        order: ASC
+      - field: expire_epoch
+        label: Ending soon
+        order: ASC

@@ -1,0 +1,191 @@
+# Local development stack for the announce services built on cqrs-reactive.
+#
+#   Up:     docker compose -f docker/cqrs/docker-compose.yml up -d
+#   Tools:  docker compose -f docker/cqrs/docker-compose.yml --profile tools up -d   (adds Kibana)
+#   Down:   docker compose -f docker/cqrs/docker-compose.yml down        (-v also drops the data volumes)
+#
+# The services run on the HOST (mvn spring-boot:run), so every port is published on localhost and
+# Kafka advertises localhost:9092. MySQL is the native server on localhost:3306 (announce_reactive_db),
+# it is not part of this file.
+#
+#   EventSourcingDB  http://localhost:3000   api token "secret"   (esdb.server.uri / esdb.server.api-token)
+#   Kafka            localhost:9092          (spring.cloud.stream.kafka.binder.brokers)
+#   Elasticsearch    http://localhost:9200
+#   OCS indexer      http://localhost:8535   (the search context pushes announce documents here)
+#   OCS searcher     http://localhost:8534   (the search API the gateway exposes)
+#   OCS suggest      http://localhost:8081
+#   Kibana           http://localhost:5601   (profile "tools")
+#
+# The project name is pinned so this stack owns its containers, network and volumes even when another
+# checkout of the repository runs the same file.
+name: announce
+
+services:
+
+  # ---- write side: the event store OpenCQRS talks to --------------------------------------------------
+  eventsourcingdb:
+    image: thenativeweb/eventsourcingdb:1.2.0
+    container_name: announce_esdb
+    restart: unless-stopped
+    command:
+      - run
+      - --api-token=secret
+      - --data-directory=/data
+      - --http-enabled
+      - --http-port=3000
+      - --https-enabled=false
+      - --with-ui
+    ports:
+      - "3000:3000"
+    volumes:
+      - esdb-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/v1/ping >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [announce]
+
+  # ---- messaging: public events between bounded contexts ----------------------------------------------
+  kafka:
+    image: apache/kafka:3.9.1
+    container_name: announce_kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,INTERNAL://0.0.0.0:19092
+      # host clients (the services) use localhost:9092; containers on the network use kafka:19092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,INTERNAL://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: announce-local-kraft-cluster
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    networks: [announce]
+
+  # ---- search tier: Open Commerce Search Stack over Elasticsearch ------------------------------------
+  # The search bounded context subscribes to the announce public topic (PublicEventSubscriber) and pushes
+  # documents to the indexer; the gateway routes /search to the searcher.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.25
+    container_name: announce_elasticsearch
+    restart: unless-stopped
+    # the entrypoint installs the analysis plugins OCS relies on before starting Elasticsearch
+    volumes:
+      - ./elasticsearch:/mnt
+      - es-data:/usr/share/elasticsearch/data
+    entrypoint:
+      - /mnt/docker-entrypoint-es.sh
+    ports:
+      - "9200:9200"
+    environment:
+      - "discovery.type=single-node"
+      - "http.cors.enabled=true"
+      - "http.cors.allow-origin=/https?://localhost(:[0-9]+)?/"
+      - "ES_JAVA_OPTS=-Xms1024m -Xmx1024m"
+      - "xpack.security.enabled=false"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    networks: [announce]
+
+  indexer:
+    image: commerceexperts/ocs-indexer-service:latest
+    container_name: announce_ocs_indexer
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ES_HOSTS: http://elasticsearch:9200
+      # `custom` loads the mounted announce field configuration; `preset` is the OCS relevance preset.
+      SPRING_PROFILES_ACTIVE: preset,custom
+    volumes:
+      - ./application.indexer-service.yml:/app/resources/application-custom.yml:ro
+    ports:
+      - "8535:8535"
+    mem_limit: 768m
+    networks: [announce]
+
+  searcher:
+    image: commerceexperts/ocs-search-service:latest
+    container_name: announce_ocs_searcher
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ES_HOSTS: http://elasticsearch:9200
+      SPRING_PROFILES_ACTIVE: preset,custom
+    volumes:
+      - ./application.search-service.yml:/app/resources/application-custom.yml:ro
+      - ./querqy-rules.txt:/app/resources/querqy-rules.txt:ro
+    ports:
+      - "8534:8534"
+    mem_limit: 768m
+    networks: [announce]
+
+  suggest:
+    image: commerceexperts/ocs-suggest-service:searchhub-latest
+    container_name: announce_ocs_suggest
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      # searchhub-latest refuses to start without an API key (SearchHub is unused here); point it at our
+      # Elasticsearch so it harvests announce_index for suggestions.
+      SH_API_KEY: disabled
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SUGGEST_INDEX_DEFAULT_SOURCEFIELDS: title,brand,category_names,city
+    ports:
+      - "8081:8081"
+    mem_limit: 768m
+    networks: [announce]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.25
+    container_name: announce_kibana
+    profiles: [tools]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5601:5601"
+    environment:
+      - "ELASTICSEARCH_HOSTS=http://elasticsearch:9200"
+    networks: [announce]
+
+volumes:
+  esdb-data:
+  kafka-data:
+  es-data:
+
+networks:
+  announce:
+    name: announce
+    driver: bridge

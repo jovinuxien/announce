@@ -62,3 +62,74 @@ or `target/`.
   aggregate + projection + topic in `cqrs-reactive-test` exercises the whole
   path end to end; announce-management still compiles against the module;
   `doc/cqrs-reactive.md` explains how a new service uses each package.
+
+### Worktree: `announce-kinds` — Announce as goods, job or event (2026-09-22)
+
+- **Prerequisite:** `feat/cqrs-reactive` merged into `announce-jo-branch`.
+  Follow `doc/cqrs-reactive.md`; the sample under
+  `cqrs-reactive-test/src/test/java/.../sample` is the reference for wiring
+  an aggregate, a projection and a topic.
+- **Task:** turn the Announce aggregate in `announce-management` into a
+  generic announce with three kinds, and rework the `db-reactive` schema so
+  the tables become read models fed by projections. Both modules in this one
+  worktree.
+  1. Domain (`org.linlinjava.announce.goods.domain.announce`): one `Announce`
+     aggregate keeps what is shared by every kind: owner (`SellerId`, the
+     member who posted it), category, title, description, gallery, keywords,
+     `Location`, status lifecycle DRAFT -> PUBLISHED -> SOLD | WITHDRAWN |
+     EXPIRED, publishedAt / expiresAt. Add a sealed `AnnounceKind` detail:
+     - `GoodsDetails`: price (`Money`), condition, `SaleType` (FIXED_PRICE,
+       AUCTION, GIVEAWAY), variants and attributes as today. The only kind
+       that is biddable.
+     - `JobDetails`: employer, contract type, salary range (optional),
+       application deadline, how to apply. Never biddable.
+     - `EventDetails`: start and end date-time, venue (may reuse Location),
+       organizer, free or ticketed, capacity (optional).
+     Kind invariants live in the aggregate: an event cannot publish unless
+     start < end and end is in the future; a job or event cannot have an
+     auction sale type; a goods announce needs a price unless it is a
+     giveaway or auction. SOLD applies to goods only; jobs and events end
+     as EXPIRED or WITHDRAWN.
+  2. Command side on OpenCQRS: subject `/announce/{id}`; commands
+     PostAnnounce (with kind), EditAnnounce, PublishAnnounce,
+     WithdrawAnnounce, MarkSold, ExpireAnnounce; events as top-level
+     classes (EventSourcingDB rejects `$` in type names), e.g.
+     AnnouncePosted, AnnounceEdited, AnnouncePublished, AnnounceWithdrawn,
+     AnnounceSold, AnnounceExpired. Dispatch through `ReactiveCommandRouter`.
+  3. Schema in `db-reactive/sql`: replace the stretched `announce_goods` by a
+     base table `announce` (id, kind, seller_id, category_id, title, brief,
+     detail, gallery, keywords, region/city/postal code/coords, status,
+     published_at, expires_at, add_time, update_time, deleted) plus one
+     detail table per kind keyed by announce_id: `announce_goods_detail`
+     (price, condition, sale_type, brand_id, unit), `announce_job`
+     (employer, contract_type, salary_min, salary_max, currency,
+     application_deadline, apply_url_or_email), `announce_event`
+     (starts_at, ends_at, venue, organizer, ticketed, ticket_price,
+     capacity). Keep `announce_goods_product`, `announce_goods_attribute`
+     and `announce_goods_specification` but key them by announce_id. Add
+     `kind` to `announce_category` so goods, jobs and events have separate
+     roots. Move the auction columns added to `announce_goods` (seller_id,
+     sale_type, expire_time) into the new tables and update
+     `announce_auction_chat.sql` and `build_announce_reactive_db.sh`.
+     Regenerate the affected reactive mappers with
+     `mybatis-generator/generatorConfig.xml` + `reactify_mapper.py`.
+  4. Read side: projections in `announce-management` (via the
+     `readside` package) write the tables above from the events; the
+     `R2dbcProgressTracker` keeps the checkpoint in MySQL. Queries
+     (`AnnounceBrowsing`) read the tables, never the event store.
+  5. Search: a second projection publishes announces of every kind to the
+     OCS indexer configured in `docker/cqrs` (index `announce_index`), with
+     `kind` as a facet. Removal on withdraw/expire.
+  6. REST (`interfaces/rest`): `/api/announces` accepts a `kind`
+     discriminator in the body and filters by kind on listing; keep
+     `X-Seller-Id` as the owner header.
+- **Out of scope:** bidding (auction context), job applications, ticketing,
+  moderation. They reference the announce id later.
+- **Acceptance:** `mvn -pl db-reactive test` and
+  `mvn -pl announce-management -P '!webapp' test` pass; a test posts one
+  announce of each kind, publishes it, and reads it back from the
+  projection with the kind-specific fields; an event with end before start
+  and a job with AUCTION sale type are rejected; the seed data in
+  `announce_data_en.sql` loads into the new schema (existing goods rows
+  migrated to kind GOODS); `doc/announce-management-context.md` gains a
+  section on the three kinds and the read-model tables.

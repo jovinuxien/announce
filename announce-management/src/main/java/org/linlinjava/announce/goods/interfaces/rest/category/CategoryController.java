@@ -1,6 +1,7 @@
 package org.linlinjava.announce.goods.interfaces.rest.category;
 
 import org.linlinjava.announce.goods.application.category.CategoryTreeManagement;
+import org.linlinjava.announce.goods.domain.announce.Kind;
 import org.linlinjava.announce.goods.domain.category.Category;
 import org.linlinjava.announce.goods.domain.category.CategoryId;
 import org.springframework.http.HttpStatus;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
@@ -24,12 +26,13 @@ import java.util.List;
 @RequestMapping("/api/categories")
 public class CategoryController {
 
-    public record CategoryRequest(String name, String description, String iconUrl, String pictureUrl, String keywords, Integer sortOrder) {}
+    /** {@code kind} is read on root creation only (default GOODS); children inherit it. */
+    public record CategoryRequest(Kind kind, String name, String description, String iconUrl, String pictureUrl, String keywords, Integer sortOrder) {}
     public record MoveRequest(Integer parentId) {}
-    public record CategoryResponse(Integer id, String name, Integer parentId, String level, String description, String iconUrl,
+    public record CategoryResponse(Integer id, Kind kind, String name, Integer parentId, String level, String description, String iconUrl,
                                    String pictureUrl, String keywords, int sortOrder, boolean hidden) {
         static CategoryResponse of(Category c) {
-            return new CategoryResponse(c.id().value(), c.name(), c.parentId() == null ? null : c.parentId().value(), c.level(),
+            return new CategoryResponse(c.id().value(), c.kind(), c.name(), c.parentId() == null ? null : c.parentId().value(), c.level(),
                     c.description(), c.iconUrl(), c.pictureUrl(), c.keywords(), c.sortOrder(), c.isHidden());
         }
     }
@@ -42,8 +45,8 @@ public class CategoryController {
     }
 
     @GetMapping
-    public Flux<CategoryNodeResponse> tree() {
-        return categories.tree().map(n -> new CategoryNodeResponse(CategoryResponse.of(n.category()),
+    public Flux<CategoryNodeResponse> tree(@RequestParam(required = false) Kind kind) {
+        return categories.tree(kind).map(n -> new CategoryNodeResponse(CategoryResponse.of(n.category()),
                 n.children().stream().map(CategoryResponse::of).toList()));
     }
 
@@ -55,7 +58,7 @@ public class CategoryController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<CategoryResponse> createRoot(@RequestBody CategoryRequest body) {
-        return categories.createRoot(body.name(), body.description(), body.iconUrl(), sortOrder(body)).map(CategoryResponse::of);
+        return categories.createRoot(body.kind(), body.name(), body.description(), body.iconUrl(), sortOrder(body)).map(CategoryResponse::of);
     }
 
     @PostMapping("/{id}/children")

@@ -21,25 +21,27 @@
 
     <select id="selectGoodsWithJoin" resultMap="elasticDataResultMap">
         SELECT
-        p.name AS goodsName,
+        p.title AS name,
         p.brief,
-        p.counter_price,
-        p.retail_price,
+        NULL AS counter_price,
+        d.price AS retail_price,
         a.attribute,
         parent_c.name AS parentCategoryName,
         c.name AS categoryName,
         b.name AS manufacturer
         FROM
-        announce_goods p
+        announce p
         JOIN
-        announce_brand b ON p.brand_id = b.id
+        announce_goods_detail d ON d.announce_id = p.id
+        JOIN
+        announce_brand b ON d.brand_id = b.id
         JOIN
         announce_category c ON p.category_id = c.id
         LEFT JOIN
         announce_category parent_c ON c.pid = parent_c.id
         LEFT JOIN
-        announce_goods_attribute a ON p.id = a.goods_id
+        announce_goods_attribute a ON p.id = a.announce_id
         WHERE
-        b.name = #{manufacturerName} AND a.attribute = #{attribute}
+        p.kind = 'GOODS' AND b.name = #{manufacturerName} AND a.attribute = #{attribute}
     </select>
 </mapper>

@@ -20,6 +20,66 @@ ocs:
             name: announce_id
             type: id
             usage: [Result]
+          kind:
+            name: kind
+            type: string
+            usage: [Result, Facet, Filter]
+          condition:
+            name: condition
+            type: string
+            usage: [Result, Facet]
+          brand_id:
+            name: brand_id
+            type: string
+            usage: [Facet]
+          employer:
+            name: employer
+            type: string
+            usage: [Search, Result, Facet]
+          contract_type:
+            name: contract_type
+            type: string
+            usage: [Result, Facet]
+          application_deadline_epoch:
+            name: application_deadline_epoch
+            type: number
+            usage: [Result, Sort, Filter]
+          salary_min:
+            name: salary_min
+            type: number
+            usage: [Result, Sort, Filter]
+          salary_max:
+            name: salary_max
+            type: number
+            usage: [Result, Sort, Filter]
+          currency:
+            name: currency
+            type: string
+            usage: [Result]
+          starts_epoch:
+            name: starts_epoch
+            type: number
+            usage: [Result, Sort, Filter]
+          ends_epoch:
+            name: ends_epoch
+            type: number
+            usage: [Result, Filter]
+          venue:
+            name: venue
+            type: string
+            usage: [Search, Result]
+          organizer:
+            name: organizer
+            type: string
+            usage: [Search, Result, Facet]
+          ticketed:
+            name: ticketed
+            type: string
+            usage: [Result, Facet]
+          ticket_price:
+            name: ticket_price
+            type: number
+            usage: [Result, Sort, Facet]
           title:
             name: title
             type: string
@@ -98,12 +158,12 @@ ocs:
           - name: attribute_string
             type: string
             source-names:
-              - '^(?!(announce_id|title|description|price|sale_type|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch)$).*$'
+              - '^(?!(announce_id|kind|title|description|price|sale_type|condition|brand_id|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch|employer|contract_type|application_deadline_epoch|salary_min|salary_max|currency|starts_epoch|ends_epoch|venue|organizer|ticketed|ticket_price)$).*$'
             usage: [Facet, Result]
           - name: attribute_number
             type: number
             source-names:
-              - '^(?!(announce_id|title|description|price|sale_type|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch)$).*$'
+              - '^(?!(announce_id|kind|title|description|price|sale_type|condition|brand_id|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch|employer|contract_type|application_deadline_epoch|salary_min|salary_max|currency|starts_epoch|ends_epoch|venue|organizer|ticketed|ticket_price)$).*$'
             usage: [Facet, Result]
 
   default-tenant-config:
@@ -171,6 +231,9 @@ ocs:
             "description": 0.5
     facet-configuration:
       facets:
+        - source-field: kind
+          label: Kind
+          order: 0
         - source-field: price
           label: Price
           type: interval
@@ -194,6 +257,19 @@ ocs:
           label: Variant price
           type: interval
           order: 7
+        - source-field: contract_type
+          label: Contract
+          order: 8
+        - source-field: employer
+          label: Employer
+          order: 9
+        - source-field: ticketed
+          label: Ticketed
+          order: 10
+        - source-field: ticket_price
+          label: Ticket price
+          type: interval
+          order: 11
     sort-configuration:
       - field: created_epoch
         label: Newest
@@ -203,4 +279,10 @@ ocs:
         order: ASC
       - field: expire_epoch
         label: Ending soon
+        order: ASC
+      - field: starts_epoch
+        label: Starting soon
+        order: ASC
+      - field: application_deadline_epoch
+        label: Apply soon
         order: ASC

@@ -160,7 +160,7 @@
         on o.user_id = u.id
         left join announce_order_goods og
         on o.id = og.order_id
-        left join announce_goods g
+        left join announce g
         on og.goods_id = g.id
         <where>
             <if test="query != null">

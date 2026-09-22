@@ -18,6 +18,7 @@
     <result column="add_time" jdbcType="TIMESTAMP" property="addTime" />
     <result column="update_time" jdbcType="TIMESTAMP" property="updateTime" />
     <result column="deleted" jdbcType="BIT" property="deleted" />
+    <result column="kind" jdbcType="VARCHAR" property="kind" />
   </resultMap>
   <sql id="Example_Where_Clause">
     <where>
@@ -79,7 +80,7 @@
   </sql>
   <sql id="Base_Column_List">
     id, `name`, keywords, `desc`, pid, icon_url, pic_url, `level`, sort_order, add_time, 
-    update_time, deleted
+    update_time, deleted, kind
   </sql>
   <select id="selectByExample" parameterType="org.linlinjava.announce.db.domain.LitemallCategoryExample" resultMap="BaseResultMap">
     select
@@ -97,11 +98,11 @@
   </select>
   <select id="selectByExampleSelective" parameterType="map" resultMap="BaseResultMap">
     select
-    <if test="example.distinct">
+    <if test="example != null and example.distinct">
       distinct
     </if>
     <choose>
-      <when test="selective != null and selective.length &gt; 0">
+      <when test="selective != null and selective.length > 0">
         <foreach collection="selective" item="column" separator=",">
           ${column.aliasedEscapedColumnName}
         </foreach>
@@ -111,10 +112,10 @@
       </otherwise>
     </choose>
     from announce_category
-    <if test="_parameter != null">
+    <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
-    <if test="example.orderByClause != null">
+    <if test="example != null and example.orderByClause != null">
       order by ${example.orderByClause}
     </if>
   </select>
@@ -142,7 +143,7 @@
   <select id="selectByPrimaryKeySelective" parameterType="map" resultMap="BaseResultMap">
     select
     <choose>
-      <when test="selective != null and selective.length &gt; 0">
+      <when test="selective != null and selective.length > 0">
         <foreach collection="selective" item="column" separator=",">
           ${column.aliasedEscapedColumnName}
         </foreach>
@@ -168,11 +169,13 @@
     insert into announce_category (`name`, keywords, `desc`, 
       pid, icon_url, pic_url, 
       `level`, sort_order, add_time, 
-      update_time, deleted)
+      update_time, deleted, kind
+      )
     values (#{name,jdbcType=VARCHAR}, #{keywords,jdbcType=VARCHAR}, #{desc,jdbcType=VARCHAR}, 
       #{pid,jdbcType=INTEGER}, #{iconUrl,jdbcType=VARCHAR}, #{picUrl,jdbcType=VARCHAR}, 
       #{level,jdbcType=VARCHAR}, #{sortOrder,jdbcType=TINYINT}, #{addTime,jdbcType=TIMESTAMP}, 
-      #{updateTime,jdbcType=TIMESTAMP}, #{deleted,jdbcType=BIT})
+      #{updateTime,jdbcType=TIMESTAMP}, #{deleted,jdbcType=BIT}, #{kind,jdbcType=VARCHAR}
+      )
   </insert>
   <insert id="insertSelective" parameterType="org.linlinjava.announce.db.domain.LitemallCategory" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
     insert into announce_category
@@ -210,6 +213,9 @@
       <if test="deleted != null">
         deleted,
       </if>
+      <if test="kind != null">
+        kind,
+      </if>
     </trim>
     <trim prefix="values (" suffix=")" suffixOverrides=",">
       <if test="name != null">
@@ -244,6 +250,9 @@
       </if>
       <if test="deleted != null">
         #{deleted,jdbcType=BIT},
+      </if>
+      <if test="kind != null">
+        #{kind,jdbcType=VARCHAR},
       </if>
     </trim>
   </insert>
@@ -292,6 +301,9 @@
       <if test="record.deleted != null">
         deleted = #{record.deleted,jdbcType=BIT},
       </if>
+      <if test="record.kind != null">
+        kind = #{record.kind,jdbcType=VARCHAR},
+      </if>
     </set>
     <if test="_parameter != null">
       <include refid="Update_By_Example_Where_Clause" />
@@ -310,7 +322,8 @@
       sort_order = #{record.sortOrder,jdbcType=TINYINT},
       add_time = #{record.addTime,jdbcType=TIMESTAMP},
       update_time = #{record.updateTime,jdbcType=TIMESTAMP},
-      deleted = #{record.deleted,jdbcType=BIT}
+      deleted = #{record.deleted,jdbcType=BIT},
+      kind = #{record.kind,jdbcType=VARCHAR}
     <if test="_parameter != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
@@ -351,6 +364,9 @@
       <if test="deleted != null">
         deleted = #{deleted,jdbcType=BIT},
       </if>
+      <if test="kind != null">
+        kind = #{kind,jdbcType=VARCHAR},
+      </if>
     </set>
     where id = #{id,jdbcType=INTEGER}
   </update>
@@ -366,7 +382,8 @@
       sort_order = #{sortOrder,jdbcType=TINYINT},
       add_time = #{addTime,jdbcType=TIMESTAMP},
       update_time = #{updateTime,jdbcType=TIMESTAMP},
-      deleted = #{deleted,jdbcType=BIT}
+      deleted = #{deleted,jdbcType=BIT},
+      kind = #{kind,jdbcType=VARCHAR}
     where id = #{id,jdbcType=INTEGER}
   </update>
   <select id="selectOneByExample" parameterType="org.linlinjava.announce.db.domain.LitemallCategoryExample" resultMap="BaseResultMap">
@@ -384,7 +401,7 @@
   <select id="selectOneByExampleSelective" parameterType="map" resultMap="BaseResultMap">
     select
     <choose>
-      <when test="selective != null and selective.length &gt; 0">
+      <when test="selective != null and selective.length > 0">
         <foreach collection="selective" item="column" separator=",">
           ${column.aliasedEscapedColumnName}
         </foreach>
@@ -394,10 +411,10 @@
       </otherwise>
     </choose>
     from announce_category
-    <if test="_parameter != null">
+    <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
-    <if test="example.orderByClause != null">
+    <if test="example != null and example.orderByClause != null">
       order by ${example.orderByClause}
     </if>
     limit 1

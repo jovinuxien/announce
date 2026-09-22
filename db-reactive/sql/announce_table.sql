@@ -158,8 +158,10 @@ CREATE TABLE `announce_category` (
   `add_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   `deleted` tinyint(1) DEFAULT '0' COMMENT '逻辑删除',
+  `kind` varchar(10) NOT NULL DEFAULT 'GOODS' COMMENT 'announce kind this category tree belongs to: GOODS, JOB, EVENT',
   PRIMARY KEY (`id`),
-  KEY `parent_id` (`pid`)
+  KEY `parent_id` (`pid`),
+  KEY `idx_category_kind` (`kind`, `pid`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1036007 DEFAULT CHARSET=utf8mb4 COMMENT='类目表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -209,10 +211,6 @@ CREATE TABLE `announce_comment` (
 ) ENGINE=InnoDB AUTO_INCREMENT=1012 DEFAULT CHARSET=utf8mb4 COMMENT='评论表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-/*!40101 SET character_set_client = @saved_cs_client */;
-
-/*!40101 SET character_set_client = @saved_cs_client */;
-
 --
 -- Table structure for table `announce_feedback`
 --
@@ -257,40 +255,105 @@ CREATE TABLE `announce_footprint` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `announce_goods`
+-- Table structure for table `announce` (read model of the Announce aggregate, fed by the announce-read-model projection)
+-- The id is the aggregate id chosen on the command side (subject /announce/{id}); the seed rows keep their old numeric ids.
 --
 
-DROP TABLE IF EXISTS `announce_goods`;
+DROP TABLE IF EXISTS `announce`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `announce_goods` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `goods_sn` varchar(63) NOT NULL DEFAULT '' COMMENT '商品编号',
-  `name` varchar(127) NOT NULL DEFAULT '' COMMENT '商品名称',
-  `category_id` int(11) DEFAULT '0' COMMENT '商品所属类目ID',
-  `brand_id` int(11) DEFAULT '0',
-  `gallery` varchar(1023) DEFAULT NULL COMMENT '商品宣传图片列表，采用JSON数组格式',
-  `keywords` varchar(255) DEFAULT '' COMMENT '商品关键字，采用逗号间隔',
-  `brief` varchar(255) DEFAULT '' COMMENT '商品简介',
-  `is_on_sale` tinyint(1) DEFAULT '1' COMMENT '是否上架',
-  `sort_order` smallint(4) DEFAULT '100',
-  `pic_url` varchar(255) DEFAULT NULL COMMENT '商品页面商品图片',
-  `share_url` varchar(255) DEFAULT NULL COMMENT '商品分享海报',
-  `is_new` tinyint(1) DEFAULT '0' COMMENT '是否新品首发，如果设置则可以在新品首发页面展示',
-  `is_hot` tinyint(1) DEFAULT '0' COMMENT '是否人气推荐，如果设置则可以在人气推荐页面展示',
-  `unit` varchar(31) DEFAULT '’件‘' COMMENT '商品单位，例如件、盒',
-  `counter_price` decimal(10,2) DEFAULT '0.00' COMMENT '专柜价格',
-  `retail_price` decimal(10,2) DEFAULT '100000.00' COMMENT '零售价格',
-  `detail` text COMMENT '商品详细介绍，是富文本格式',
-  `add_time` datetime DEFAULT NULL COMMENT '创建时间',
-  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
-  `deleted` tinyint(1) DEFAULT '0' COMMENT '逻辑删除',
+CREATE TABLE `announce` (
+  `id` varchar(36) NOT NULL COMMENT 'aggregate id (subject /announce/{id})',
+  `kind` varchar(10) NOT NULL COMMENT 'GOODS, JOB, EVENT',
+  `seller_id` int(11) NOT NULL COMMENT 'member who posted the announce (announce_user.id)',
+  `category_id` int(11) NOT NULL COMMENT 'announce_category.id (a category of the same kind)',
+  `title` varchar(127) NOT NULL DEFAULT '',
+  `brief` varchar(255) DEFAULT '',
+  `detail` text COMMENT 'description, rich text',
+  `gallery` varchar(1023) DEFAULT NULL COMMENT 'picture urls, JSON array',
+  `keywords` varchar(255) DEFAULT '' COMMENT 'comma separated',
+  `region_id` int(11) DEFAULT NULL COMMENT 'announce_region.id of the municipality / area',
+  `city` varchar(63) DEFAULT NULL,
+  `postal_code` varchar(16) DEFAULT NULL,
+  `latitude` decimal(9,6) DEFAULT NULL,
+  `longitude` decimal(9,6) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT, PUBLISHED, SOLD, WITHDRAWN, EXPIRED',
+  `published_at` datetime DEFAULT NULL,
+  `expires_at` datetime DEFAULT NULL COMMENT 'hidden after this time (scheduler expires it)',
+  `last_event_id` varchar(64) DEFAULT NULL COMMENT 'EventSourcingDB id of the last event applied (projection idempotency)',
+  `add_time` datetime DEFAULT NULL,
+  `update_time` datetime DEFAULT NULL,
+  `deleted` tinyint(1) DEFAULT '0',
   PRIMARY KEY (`id`),
-  KEY `goods_sn` (`goods_sn`),
-  KEY `cat_id` (`category_id`),
-  KEY `brand_id` (`brand_id`),
-  KEY `sort_order` (`sort_order`)
-) ENGINE=InnoDB AUTO_INCREMENT=1181004 DEFAULT CHARSET=utf8mb4 COMMENT='商品基本信息表';
+  KEY `idx_announce_kind_status` (`kind`, `status`, `expires_at`),
+  KEY `idx_announce_seller` (`seller_id`),
+  KEY `idx_announce_category` (`category_id`),
+  KEY `idx_announce_region` (`region_id`),
+  KEY `idx_announce_expires` (`status`, `expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Announce of any kind: shared columns';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `announce_goods_detail` (kind GOODS: the only biddable kind)
+--
+
+DROP TABLE IF EXISTS `announce_goods_detail`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `announce_goods_detail` (
+  `announce_id` varchar(36) NOT NULL,
+  `price` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT 'asking price; 0 for a giveaway or an auction',
+  `condition` varchar(20) DEFAULT NULL COMMENT 'NEW, LIKE_NEW, GOOD, FAIR, FOR_PARTS',
+  `sale_type` varchar(20) NOT NULL DEFAULT 'FIXED_PRICE' COMMENT 'FIXED_PRICE, AUCTION, GIVEAWAY',
+  `brand_id` int(11) DEFAULT NULL COMMENT 'announce_brand.id, optional',
+  `unit` varchar(31) DEFAULT 'pcs',
+  PRIMARY KEY (`announce_id`),
+  KEY `idx_goods_detail_price` (`price`),
+  KEY `idx_goods_detail_brand` (`brand_id`),
+  KEY `idx_goods_detail_sale_type` (`sale_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Goods-specific columns of an announce';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `announce_job` (kind JOB: never biddable)
+--
+
+DROP TABLE IF EXISTS `announce_job`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `announce_job` (
+  `announce_id` varchar(36) NOT NULL,
+  `employer` varchar(127) NOT NULL DEFAULT '',
+  `contract_type` varchar(20) NOT NULL DEFAULT 'FULL_TIME' COMMENT 'FULL_TIME, PART_TIME, TEMPORARY, INTERNSHIP, FREELANCE',
+  `salary_min` decimal(12,2) DEFAULT NULL,
+  `salary_max` decimal(12,2) DEFAULT NULL,
+  `currency` varchar(3) DEFAULT NULL COMMENT 'ISO 4217, set when a salary range is given',
+  `application_deadline` datetime DEFAULT NULL,
+  `apply_url_or_email` varchar(255) NOT NULL DEFAULT '' COMMENT 'how to apply',
+  PRIMARY KEY (`announce_id`),
+  KEY `idx_job_deadline` (`application_deadline`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Job-specific columns of an announce';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `announce_event` (kind EVENT: never biddable)
+--
+
+DROP TABLE IF EXISTS `announce_event`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `announce_event` (
+  `announce_id` varchar(36) NOT NULL,
+  `starts_at` datetime NOT NULL,
+  `ends_at` datetime NOT NULL,
+  `venue` varchar(255) DEFAULT NULL COMMENT 'free text; the location columns of announce give region / city / coordinates',
+  `organizer` varchar(127) DEFAULT NULL,
+  `ticketed` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0 = free, 1 = ticketed',
+  `ticket_price` decimal(10,2) DEFAULT NULL COMMENT 'set when ticketed',
+  `capacity` int(11) DEFAULT NULL,
+  PRIMARY KEY (`announce_id`),
+  KEY `idx_event_starts` (`starts_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Event-specific columns of an announce';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -302,14 +365,14 @@ DROP TABLE IF EXISTS `announce_goods_attribute`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `announce_goods_attribute` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `goods_id` int(11) NOT NULL DEFAULT '0' COMMENT '商品表的商品ID',
+  `announce_id` varchar(36) NOT NULL COMMENT 'announce.id (kind GOODS)',
   `attribute` varchar(255) NOT NULL COMMENT '商品参数名称',
   `value` varchar(255) NOT NULL COMMENT '商品参数值',
   `add_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   `deleted` tinyint(1) DEFAULT '0' COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
-  KEY `goods_id` (`goods_id`)
+  KEY `idx_attribute_announce` (`announce_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=877 DEFAULT CHARSET=utf8mb4 COMMENT='商品参数表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -322,7 +385,7 @@ DROP TABLE IF EXISTS `announce_goods_product`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `announce_goods_product` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `goods_id` int(11) NOT NULL DEFAULT '0' COMMENT '商品表的商品ID',
+  `announce_id` varchar(36) NOT NULL COMMENT 'announce.id (kind GOODS)',
   `specifications` varchar(1023) NOT NULL COMMENT '商品规格值列表，采用JSON数组格式',
   `price` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT '商品货品价格',
   `number` int(11) NOT NULL DEFAULT '0' COMMENT '商品货品数量',
@@ -331,7 +394,7 @@ CREATE TABLE `announce_goods_product` (
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   `deleted` tinyint(1) DEFAULT '0' COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
-  KEY `goods_id` (`goods_id`)
+  KEY `idx_product_announce` (`announce_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=251 DEFAULT CHARSET=utf8mb4 COMMENT='商品货品表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -344,7 +407,7 @@ DROP TABLE IF EXISTS `announce_goods_specification`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `announce_goods_specification` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `goods_id` int(11) NOT NULL DEFAULT '0' COMMENT '商品表的商品ID',
+  `announce_id` varchar(36) NOT NULL COMMENT 'announce.id (kind GOODS)',
   `specification` varchar(255) NOT NULL DEFAULT '' COMMENT '商品规格名称',
   `value` varchar(255) NOT NULL DEFAULT '' COMMENT '商品规格值',
   `pic_url` varchar(255) NOT NULL DEFAULT '' COMMENT '商品规格图片',
@@ -352,7 +415,7 @@ CREATE TABLE `announce_goods_specification` (
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   `deleted` tinyint(1) DEFAULT '0' COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
-  KEY `goods_id` (`goods_id`)
+  KEY `idx_specification_announce` (`announce_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=utf8mb4 COMMENT='商品规格表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 

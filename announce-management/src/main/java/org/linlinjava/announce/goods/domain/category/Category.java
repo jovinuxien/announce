@@ -1,6 +1,7 @@
 package org.linlinjava.announce.goods.domain.category;
 
 import org.linlinjava.announce.goods.domain.announce.AnnounceRuleViolation;
+import org.linlinjava.announce.goods.domain.announce.Kind;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -8,8 +9,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A node of the two-level category tree (announce_category): roots ("L1") and their children ("L2").
- * Its own aggregate: it changes when the site taxonomy changes, never because an announce changed.
+ * A node of the two-level category tree (announce_category): roots ("L1") and their children ("L2"). Every node
+ * belongs to one announce {@link Kind}: goods, jobs and events have separate trees, and a child inherits the kind
+ * of its root. Its own aggregate: it changes when the site taxonomy changes, never because an announce changed.
  */
 public final class Category {
 
@@ -17,6 +19,7 @@ public final class Category {
     public static final String CHILD_LEVEL = "L2";
 
     private CategoryId id;
+    private final Kind kind;
     private String name;
     private CategoryId parentId;
     private String keywords;
@@ -29,9 +32,10 @@ public final class Category {
     private LocalDateTime updatedAt;
     private final List<CategoryChanged> events = new ArrayList<>();
 
-    private Category(CategoryId id, String name, CategoryId parentId, String keywords, String description, String iconUrl,
+    private Category(CategoryId id, Kind kind, String name, CategoryId parentId, String keywords, String description, String iconUrl,
                      String pictureUrl, int sortOrder, boolean hidden, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
+        this.kind = Objects.requireNonNull(kind, "kind");
         this.name = validName(name);
         this.parentId = parentId;
         this.keywords = keywords == null ? "" : keywords;
@@ -44,9 +48,8 @@ public final class Category {
         this.updatedAt = updatedAt;
     }
 
-    public static Category root(String name, String description, String iconUrl, int sortOrder, LocalDateTime now) {
-        Category c = new Category(null, name, null, "", description, iconUrl, "", sortOrder, false, now, now);
-        return c;
+    public static Category root(Kind kind, String name, String description, String iconUrl, int sortOrder, LocalDateTime now) {
+        return new Category(null, kind, name, null, "", description, iconUrl, "", sortOrder, false, now, now);
     }
 
     /** Children hang under a root only: the tree has two levels. */
@@ -54,12 +57,12 @@ public final class Category {
         if (!parent.isRoot()) {
             throw new AnnounceRuleViolation("Category " + parent.name + " is not a root; the tree has two levels");
         }
-        return new Category(null, name, parent.id, "", description, iconUrl, "", sortOrder, false, now, now);
+        return new Category(null, parent.kind, name, parent.id, "", description, iconUrl, "", sortOrder, false, now, now);
     }
 
-    public static Category rehydrate(CategoryId id, String name, CategoryId parentId, String keywords, String description, String iconUrl,
+    public static Category rehydrate(CategoryId id, Kind kind, String name, CategoryId parentId, String keywords, String description, String iconUrl,
                                      String pictureUrl, int sortOrder, boolean hidden, LocalDateTime createdAt, LocalDateTime updatedAt) {
-        return new Category(Objects.requireNonNull(id, "id"), name, parentId, keywords, description, iconUrl, pictureUrl, sortOrder, hidden, createdAt, updatedAt);
+        return new Category(Objects.requireNonNull(id, "id"), kind, name, parentId, keywords, description, iconUrl, pictureUrl, sortOrder, hidden, createdAt, updatedAt);
     }
 
     public void rename(String newName, LocalDateTime now) {
@@ -86,6 +89,9 @@ public final class Category {
         }
         if (newParent.id.equals(id)) {
             throw new AnnounceRuleViolation("A category cannot be its own parent");
+        }
+        if (newParent.kind != kind) {
+            throw new AnnounceRuleViolation("A " + kind + " category cannot move under the " + newParent.kind + " tree");
         }
         this.parentId = newParent.id;
         touch(now, CategoryChanged.Kind.MOVED);
@@ -139,6 +145,7 @@ public final class Category {
     public boolean isRoot() { return parentId == null; }
     public String level() { return isRoot() ? ROOT_LEVEL : CHILD_LEVEL; }
     public CategoryId id() { return id; }
+    public Kind kind() { return kind; }
     public String name() { return name; }
     public CategoryId parentId() { return parentId; }
     public String keywords() { return keywords; }

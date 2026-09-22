@@ -96,6 +96,7 @@ class LitemallCategoryReactiveMapperTest {
         StepVerifier.create(categoryMapper.countByExample(l2ByIds)).expectNext(1L).verifyComplete();
 
         LitemallCategory patch = new LitemallCategory();
+        patch.setKind("GOODS");
         patch.setId(child.getId());
         patch.setDesc("updated");
         StepVerifier.create(categoryMapper.updateByPrimaryKeySelective(patch)).expectNext(1).verifyComplete();
@@ -121,6 +122,7 @@ class LitemallCategoryReactiveMapperTest {
 
     private static LitemallCategory newCategory(String level, Integer pid) {
         LitemallCategory c = new LitemallCategory();
+        c.setKind("GOODS");
         c.setName(PREFIX + level + "-" + System.nanoTime());
         c.setKeywords("[]");
         c.setDesc("integration test");

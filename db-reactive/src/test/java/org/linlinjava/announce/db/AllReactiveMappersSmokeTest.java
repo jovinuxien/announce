@@ -44,11 +44,12 @@ class AllReactiveMappersSmokeTest {
                 Object first = ((Flux<?>) page.invoke(bean, example, 0L, 1)).blockFirst();
                 if (total > 0) {
                     assertNotNull(first, "table has rows but the page was empty");
-                    Object id = first.getClass().getMethod("getId").invoke(first);
+                    Method key = primaryKeyGetter(first.getClass());
+                    Object id = key.invoke(first);
                     Method byKey = find(mapper, "selectByPrimaryKey");
                     Object again = ((Mono<?>) byKey.invoke(bean, id)).block();
                     assertNotNull(again, "row " + id + " must be readable by primary key");
-                    assertTrue(again.getClass().getMethod("getId").invoke(again).equals(id));
+                    assertTrue(key.invoke(again).equals(id));
                 }
             }));
         }
@@ -61,6 +62,12 @@ class AllReactiveMappersSmokeTest {
             if (itf.getName().startsWith("org.linlinjava.announce.db.dao.reactive.")) return itf;
         }
         return null;
+    }
+
+    /** Generated rows expose {@code getId()}; the per-kind detail tables of the announce read model are keyed by {@code announce_id}. */
+    private static Method primaryKeyGetter(Class<?> row) throws NoSuchMethodException {
+        Method id = find(row, "getId");
+        return id != null ? id : row.getMethod("getAnnounceId");
     }
 
     private static Method find(Class<?> type, String name) {

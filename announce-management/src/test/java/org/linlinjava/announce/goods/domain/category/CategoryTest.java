@@ -2,6 +2,7 @@ package org.linlinjava.announce.goods.domain.category;
 
 import org.junit.jupiter.api.Test;
 import org.linlinjava.announce.goods.domain.announce.AnnounceRuleViolation;
+import org.linlinjava.announce.goods.domain.announce.Kind;
 
 import java.time.LocalDateTime;
 
@@ -14,7 +15,7 @@ class CategoryTest {
     static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 20, 12, 0);
 
     static Category root(int id, String name) {
-        Category c = Category.root(name, "", "", 10, NOW);
+        Category c = Category.root(Kind.GOODS, name, "", "", 10, NOW);
         c.assignId(new CategoryId(id));
         c.pullEvents();
         return c;
@@ -42,6 +43,16 @@ class CategoryTest {
         bikes.moveUnder(home, NOW);
         assertEquals(home.id(), bikes.parentId());
         assertEquals(CategoryChanged.Kind.MOVED, bikes.pullEvents().get(0).kind());
+    }
+
+    @Test
+    void childrenInheritTheKindAndTreesOfDifferentKindsDoNotMix() {
+        Category jobs = Category.root(Kind.JOB, "Jobs", "", "", 1, NOW);
+        jobs.assignId(new CategoryId(9));
+        Category it = Category.childOf(jobs, "IT", "", "", 1, NOW);
+        assertEquals(Kind.JOB, it.kind());
+        it.assignId(new CategoryId(10));
+        assertThrows(AnnounceRuleViolation.class, () -> it.moveUnder(root(1, "Vehicles"), NOW));
     }
 
     @Test

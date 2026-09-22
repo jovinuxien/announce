@@ -7,7 +7,7 @@
 <mapper namespace="org.linlinjava.announce.db.dao.reactive.LitemallGoodsAttributeMapper">
   <resultMap id="BaseResultMap" type="org.linlinjava.announce.db.domain.LitemallGoodsAttribute">
     <id column="id" jdbcType="INTEGER" property="id" />
-    <result column="goods_id" jdbcType="INTEGER" property="goodsId" />
+    <result column="announce_id" jdbcType="VARCHAR" property="announceId" />
     <result column="attribute" jdbcType="VARCHAR" property="attribute" />
     <result column="value" jdbcType="VARCHAR" property="value" />
     <result column="add_time" jdbcType="TIMESTAMP" property="addTime" />
@@ -73,7 +73,7 @@
     </where>
   </sql>
   <sql id="Base_Column_List">
-    id, goods_id, `attribute`, `value`, add_time, update_time, deleted
+    id, announce_id, `attribute`, `value`, add_time, update_time, deleted
   </sql>
   <select id="selectByExample" parameterType="org.linlinjava.announce.db.domain.LitemallGoodsAttributeExample" resultMap="BaseResultMap">
     select
@@ -91,11 +91,11 @@
   </select>
   <select id="selectByExampleSelective" parameterType="map" resultMap="BaseResultMap">
     select
-    <if test="example.distinct">
+    <if test="example != null and example.distinct">
       distinct
     </if>
     <choose>
-      <when test="selective != null and selective.length &gt; 0">
+      <when test="selective != null and selective.length > 0">
         <foreach collection="selective" item="column" separator=",">
           ${column.aliasedEscapedColumnName}
         </foreach>
@@ -105,10 +105,10 @@
       </otherwise>
     </choose>
     from announce_goods_attribute
-    <if test="_parameter != null">
+    <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
-    <if test="example.orderByClause != null">
+    <if test="example != null and example.orderByClause != null">
       order by ${example.orderByClause}
     </if>
   </select>
@@ -136,7 +136,7 @@
   <select id="selectByPrimaryKeySelective" parameterType="map" resultMap="BaseResultMap">
     select
     <choose>
-      <when test="selective != null and selective.length &gt; 0">
+      <when test="selective != null and selective.length > 0">
         <foreach collection="selective" item="column" separator=",">
           ${column.aliasedEscapedColumnName}
         </foreach>
@@ -159,18 +159,18 @@
     </if>
   </delete>
   <insert id="insert" parameterType="org.linlinjava.announce.db.domain.LitemallGoodsAttribute" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-    insert into announce_goods_attribute (goods_id, `attribute`, `value`, 
+    insert into announce_goods_attribute (announce_id, `attribute`, `value`, 
       add_time, update_time, deleted
       )
-    values (#{goodsId,jdbcType=INTEGER}, #{attribute,jdbcType=VARCHAR}, #{value,jdbcType=VARCHAR}, 
+    values (#{announceId,jdbcType=VARCHAR}, #{attribute,jdbcType=VARCHAR}, #{value,jdbcType=VARCHAR}, 
       #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, #{deleted,jdbcType=BIT}
       )
   </insert>
   <insert id="insertSelective" parameterType="org.linlinjava.announce.db.domain.LitemallGoodsAttribute" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
     insert into announce_goods_attribute
     <trim prefix="(" suffix=")" suffixOverrides=",">
-      <if test="goodsId != null">
-        goods_id,
+      <if test="announceId != null">
+        announce_id,
       </if>
       <if test="attribute != null">
         `attribute`,
@@ -189,8 +189,8 @@
       </if>
     </trim>
     <trim prefix="values (" suffix=")" suffixOverrides=",">
-      <if test="goodsId != null">
-        #{goodsId,jdbcType=INTEGER},
+      <if test="announceId != null">
+        #{announceId,jdbcType=VARCHAR},
       </if>
       <if test="attribute != null">
         #{attribute,jdbcType=VARCHAR},
@@ -221,8 +221,8 @@
       <if test="record.id != null">
         id = #{record.id,jdbcType=INTEGER},
       </if>
-      <if test="record.goodsId != null">
-        goods_id = #{record.goodsId,jdbcType=INTEGER},
+      <if test="record.announceId != null">
+        announce_id = #{record.announceId,jdbcType=VARCHAR},
       </if>
       <if test="record.attribute != null">
         `attribute` = #{record.attribute,jdbcType=VARCHAR},
@@ -247,7 +247,7 @@
   <update id="updateByExample" parameterType="map">
     update announce_goods_attribute
     set id = #{record.id,jdbcType=INTEGER},
-      goods_id = #{record.goodsId,jdbcType=INTEGER},
+      announce_id = #{record.announceId,jdbcType=VARCHAR},
       `attribute` = #{record.attribute,jdbcType=VARCHAR},
       `value` = #{record.value,jdbcType=VARCHAR},
       add_time = #{record.addTime,jdbcType=TIMESTAMP},
@@ -260,8 +260,8 @@
   <update id="updateByPrimaryKeySelective" parameterType="org.linlinjava.announce.db.domain.LitemallGoodsAttribute">
     update announce_goods_attribute
     <set>
-      <if test="goodsId != null">
-        goods_id = #{goodsId,jdbcType=INTEGER},
+      <if test="announceId != null">
+        announce_id = #{announceId,jdbcType=VARCHAR},
       </if>
       <if test="attribute != null">
         `attribute` = #{attribute,jdbcType=VARCHAR},
@@ -283,7 +283,7 @@
   </update>
   <update id="updateByPrimaryKey" parameterType="org.linlinjava.announce.db.domain.LitemallGoodsAttribute">
     update announce_goods_attribute
-    set goods_id = #{goodsId,jdbcType=INTEGER},
+    set announce_id = #{announceId,jdbcType=VARCHAR},
       `attribute` = #{attribute,jdbcType=VARCHAR},
       `value` = #{value,jdbcType=VARCHAR},
       add_time = #{addTime,jdbcType=TIMESTAMP},
@@ -306,7 +306,7 @@
   <select id="selectOneByExampleSelective" parameterType="map" resultMap="BaseResultMap">
     select
     <choose>
-      <when test="selective != null and selective.length &gt; 0">
+      <when test="selective != null and selective.length > 0">
         <foreach collection="selective" item="column" separator=",">
           ${column.aliasedEscapedColumnName}
         </foreach>
@@ -316,10 +316,10 @@
       </otherwise>
     </choose>
     from announce_goods_attribute
-    <if test="_parameter != null">
+    <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
-    <if test="example.orderByClause != null">
+    <if test="example != null and example.orderByClause != null">
       order by ${example.orderByClause}
     </if>
     limit 1

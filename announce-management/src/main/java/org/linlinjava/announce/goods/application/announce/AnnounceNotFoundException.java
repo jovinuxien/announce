@@ -1,9 +1,8 @@
 package org.linlinjava.announce.goods.application.announce;
 
-import org.linlinjava.announce.goods.domain.announce.AnnounceId;
-
+/** The announce does not exist in the read model or is not visible to the caller. */
 public class AnnounceNotFoundException extends RuntimeException {
-    public AnnounceNotFoundException(AnnounceId id) {
-        super("Announce " + id.value() + " does not exist");
+    public AnnounceNotFoundException(String id) {
+        super("Announce " + id + " not found");
     }
 }

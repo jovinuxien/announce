@@ -1,0 +1,867 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Reactive mapper for announce (reactive-mybatis-support / R2DBC), derived from the MyBatis Generator output.
+  Differences: inserts use useGeneratedKeys/keyColumn; selectPageByExample* replace the PageHelper plugin.
+-->
+<mapper namespace="org.linlinjava.announce.db.dao.reactive.AnnounceBaseMapper">
+  <resultMap id="BaseResultMap" type="org.linlinjava.announce.db.domain.AnnounceBase">
+    <id column="id" jdbcType="VARCHAR" property="id" />
+    <result column="kind" jdbcType="VARCHAR" property="kind" />
+    <result column="seller_id" jdbcType="INTEGER" property="sellerId" />
+    <result column="category_id" jdbcType="INTEGER" property="categoryId" />
+    <result column="title" jdbcType="VARCHAR" property="title" />
+    <result column="brief" jdbcType="VARCHAR" property="brief" />
+    <result column="gallery" jdbcType="VARCHAR" property="gallery" typeHandler="org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler" />
+    <result column="keywords" jdbcType="VARCHAR" property="keywords" />
+    <result column="region_id" jdbcType="INTEGER" property="regionId" />
+    <result column="city" jdbcType="VARCHAR" property="city" />
+    <result column="postal_code" jdbcType="VARCHAR" property="postalCode" />
+    <result column="latitude" jdbcType="DECIMAL" property="latitude" />
+    <result column="longitude" jdbcType="DECIMAL" property="longitude" />
+    <result column="status" jdbcType="VARCHAR" property="status" />
+    <result column="published_at" jdbcType="TIMESTAMP" property="publishedAt" />
+    <result column="expires_at" jdbcType="TIMESTAMP" property="expiresAt" />
+    <result column="last_event_id" jdbcType="VARCHAR" property="lastEventId" />
+    <result column="add_time" jdbcType="TIMESTAMP" property="addTime" />
+    <result column="update_time" jdbcType="TIMESTAMP" property="updateTime" />
+    <result column="deleted" jdbcType="BIT" property="deleted" />
+  </resultMap>
+  <resultMap extends="BaseResultMap" id="ResultMapWithBLOBs" type="org.linlinjava.announce.db.domain.AnnounceBase">
+    <result column="detail" jdbcType="LONGVARCHAR" property="detail" />
+  </resultMap>
+  <sql id="Example_Where_Clause">
+    <where>
+      <foreach collection="oredCriteria" item="criteria" separator="or">
+        <if test="criteria.valid">
+          <trim prefix="(" prefixOverrides="and" suffix=")">
+            <foreach collection="criteria.criteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value} and #{criterion.secondValue}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+            <foreach collection="criteria.galleryCriteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler} and #{criterion.secondValue,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+          </trim>
+        </if>
+      </foreach>
+    </where>
+  </sql>
+  <sql id="Update_By_Example_Where_Clause">
+    <where>
+      <foreach collection="example.oredCriteria" item="criteria" separator="or">
+        <if test="criteria.valid">
+          <trim prefix="(" prefixOverrides="and" suffix=")">
+            <foreach collection="criteria.criteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value} and #{criterion.secondValue}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+            <foreach collection="criteria.galleryCriteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler} and #{criterion.secondValue,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+          </trim>
+        </if>
+      </foreach>
+    </where>
+  </sql>
+  <sql id="Base_Column_List">
+    id, kind, seller_id, category_id, title, brief, gallery, keywords, region_id, city, 
+    postal_code, latitude, longitude, `status`, published_at, expires_at, last_event_id, 
+    add_time, update_time, deleted
+  </sql>
+  <sql id="Blob_Column_List">
+    detail
+  </sql>
+  <select id="selectByExampleWithBLOBs" parameterType="org.linlinjava.announce.db.domain.AnnounceBaseExample" resultMap="ResultMapWithBLOBs">
+    select
+    <if test="distinct">
+      distinct
+    </if>
+    <include refid="Base_Column_List" />
+    ,
+    <include refid="Blob_Column_List" />
+    from announce
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+  </select>
+  <select id="selectByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceBaseExample" resultMap="BaseResultMap">
+    select
+    <if test="distinct">
+      distinct
+    </if>
+    <include refid="Base_Column_List" />
+    from announce
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+  </select>
+  <select id="selectByExampleSelective" parameterType="map" resultMap="ResultMapWithBLOBs">
+    select
+    <if test="example != null and example.distinct">
+      distinct
+    </if>
+    <choose>
+      <when test="selective != null and selective.length > 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+        ,
+        <include refid="Blob_Column_List" />
+      </otherwise>
+    </choose>
+    from announce
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example != null and example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+  </select>
+  <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="ResultMapWithBLOBs">
+    select 
+    <include refid="Base_Column_List" />
+    ,
+    <include refid="Blob_Column_List" />
+    from announce
+    where id = #{id,jdbcType=VARCHAR}
+  </select>
+  <select id="selectByPrimaryKeyWithLogicalDelete" parameterType="map" resultMap="ResultMapWithBLOBs">
+    select 
+    <include refid="Base_Column_List" />
+    ,
+    <include refid="Blob_Column_List" />
+    from announce
+    where id = #{id,jdbcType=VARCHAR}
+      and deleted = 
+    <choose>
+      <when test="andLogicalDeleted">
+        1
+      </when>
+      <otherwise>
+        0
+      </otherwise>
+    </choose>
+  </select>
+  <select id="selectByPrimaryKeySelective" parameterType="map" resultMap="ResultMapWithBLOBs">
+    select
+    <choose>
+      <when test="selective != null and selective.length > 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+        ,
+        <include refid="Blob_Column_List" />
+      </otherwise>
+    </choose>
+    from announce
+    where id = #{id,jdbcType=VARCHAR}
+  </select>
+  <delete id="deleteByPrimaryKey" parameterType="java.lang.String">
+    delete from announce
+    where id = #{id,jdbcType=VARCHAR}
+  </delete>
+  <delete id="deleteByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceBaseExample">
+    delete from announce
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+  </delete>
+  <insert id="insert" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
+    insert into announce (id, kind, seller_id, 
+      category_id, title, brief, 
+      gallery, 
+      keywords, region_id, city, 
+      postal_code, latitude, longitude, 
+      `status`, published_at, expires_at, 
+      last_event_id, add_time, update_time, 
+      deleted, detail)
+    values (#{id,jdbcType=VARCHAR}, #{kind,jdbcType=VARCHAR}, #{sellerId,jdbcType=INTEGER}, 
+      #{categoryId,jdbcType=INTEGER}, #{title,jdbcType=VARCHAR}, #{brief,jdbcType=VARCHAR}, 
+      #{gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler}, 
+      #{keywords,jdbcType=VARCHAR}, #{regionId,jdbcType=INTEGER}, #{city,jdbcType=VARCHAR}, 
+      #{postalCode,jdbcType=VARCHAR}, #{latitude,jdbcType=DECIMAL}, #{longitude,jdbcType=DECIMAL}, 
+      #{status,jdbcType=VARCHAR}, #{publishedAt,jdbcType=TIMESTAMP}, #{expiresAt,jdbcType=TIMESTAMP}, 
+      #{lastEventId,jdbcType=VARCHAR}, #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, 
+      #{deleted,jdbcType=BIT}, #{detail,jdbcType=LONGVARCHAR})
+  </insert>
+  <insert id="insertSelective" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
+    insert into announce
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="id != null">
+        id,
+      </if>
+      <if test="kind != null">
+        kind,
+      </if>
+      <if test="sellerId != null">
+        seller_id,
+      </if>
+      <if test="categoryId != null">
+        category_id,
+      </if>
+      <if test="title != null">
+        title,
+      </if>
+      <if test="brief != null">
+        brief,
+      </if>
+      <if test="gallery != null">
+        gallery,
+      </if>
+      <if test="keywords != null">
+        keywords,
+      </if>
+      <if test="regionId != null">
+        region_id,
+      </if>
+      <if test="city != null">
+        city,
+      </if>
+      <if test="postalCode != null">
+        postal_code,
+      </if>
+      <if test="latitude != null">
+        latitude,
+      </if>
+      <if test="longitude != null">
+        longitude,
+      </if>
+      <if test="status != null">
+        `status`,
+      </if>
+      <if test="publishedAt != null">
+        published_at,
+      </if>
+      <if test="expiresAt != null">
+        expires_at,
+      </if>
+      <if test="lastEventId != null">
+        last_event_id,
+      </if>
+      <if test="addTime != null">
+        add_time,
+      </if>
+      <if test="updateTime != null">
+        update_time,
+      </if>
+      <if test="deleted != null">
+        deleted,
+      </if>
+      <if test="detail != null">
+        detail,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="id != null">
+        #{id,jdbcType=VARCHAR},
+      </if>
+      <if test="kind != null">
+        #{kind,jdbcType=VARCHAR},
+      </if>
+      <if test="sellerId != null">
+        #{sellerId,jdbcType=INTEGER},
+      </if>
+      <if test="categoryId != null">
+        #{categoryId,jdbcType=INTEGER},
+      </if>
+      <if test="title != null">
+        #{title,jdbcType=VARCHAR},
+      </if>
+      <if test="brief != null">
+        #{brief,jdbcType=VARCHAR},
+      </if>
+      <if test="gallery != null">
+        #{gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler},
+      </if>
+      <if test="keywords != null">
+        #{keywords,jdbcType=VARCHAR},
+      </if>
+      <if test="regionId != null">
+        #{regionId,jdbcType=INTEGER},
+      </if>
+      <if test="city != null">
+        #{city,jdbcType=VARCHAR},
+      </if>
+      <if test="postalCode != null">
+        #{postalCode,jdbcType=VARCHAR},
+      </if>
+      <if test="latitude != null">
+        #{latitude,jdbcType=DECIMAL},
+      </if>
+      <if test="longitude != null">
+        #{longitude,jdbcType=DECIMAL},
+      </if>
+      <if test="status != null">
+        #{status,jdbcType=VARCHAR},
+      </if>
+      <if test="publishedAt != null">
+        #{publishedAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="expiresAt != null">
+        #{expiresAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="lastEventId != null">
+        #{lastEventId,jdbcType=VARCHAR},
+      </if>
+      <if test="addTime != null">
+        #{addTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="updateTime != null">
+        #{updateTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="deleted != null">
+        #{deleted,jdbcType=BIT},
+      </if>
+      <if test="detail != null">
+        #{detail,jdbcType=LONGVARCHAR},
+      </if>
+    </trim>
+  </insert>
+  <select id="countByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceBaseExample" resultType="java.lang.Long">
+    select count(*) from announce
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+  </select>
+  <update id="updateByExampleSelective" parameterType="map">
+    update announce
+    <set>
+      <if test="record.id != null">
+        id = #{record.id,jdbcType=VARCHAR},
+      </if>
+      <if test="record.kind != null">
+        kind = #{record.kind,jdbcType=VARCHAR},
+      </if>
+      <if test="record.sellerId != null">
+        seller_id = #{record.sellerId,jdbcType=INTEGER},
+      </if>
+      <if test="record.categoryId != null">
+        category_id = #{record.categoryId,jdbcType=INTEGER},
+      </if>
+      <if test="record.title != null">
+        title = #{record.title,jdbcType=VARCHAR},
+      </if>
+      <if test="record.brief != null">
+        brief = #{record.brief,jdbcType=VARCHAR},
+      </if>
+      <if test="record.gallery != null">
+        gallery = #{record.gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler},
+      </if>
+      <if test="record.keywords != null">
+        keywords = #{record.keywords,jdbcType=VARCHAR},
+      </if>
+      <if test="record.regionId != null">
+        region_id = #{record.regionId,jdbcType=INTEGER},
+      </if>
+      <if test="record.city != null">
+        city = #{record.city,jdbcType=VARCHAR},
+      </if>
+      <if test="record.postalCode != null">
+        postal_code = #{record.postalCode,jdbcType=VARCHAR},
+      </if>
+      <if test="record.latitude != null">
+        latitude = #{record.latitude,jdbcType=DECIMAL},
+      </if>
+      <if test="record.longitude != null">
+        longitude = #{record.longitude,jdbcType=DECIMAL},
+      </if>
+      <if test="record.status != null">
+        `status` = #{record.status,jdbcType=VARCHAR},
+      </if>
+      <if test="record.publishedAt != null">
+        published_at = #{record.publishedAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.expiresAt != null">
+        expires_at = #{record.expiresAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.lastEventId != null">
+        last_event_id = #{record.lastEventId,jdbcType=VARCHAR},
+      </if>
+      <if test="record.addTime != null">
+        add_time = #{record.addTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.updateTime != null">
+        update_time = #{record.updateTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.deleted != null">
+        deleted = #{record.deleted,jdbcType=BIT},
+      </if>
+      <if test="record.detail != null">
+        detail = #{record.detail,jdbcType=LONGVARCHAR},
+      </if>
+    </set>
+    <if test="_parameter != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="updateByExampleWithBLOBs" parameterType="map">
+    update announce
+    set id = #{record.id,jdbcType=VARCHAR},
+      kind = #{record.kind,jdbcType=VARCHAR},
+      seller_id = #{record.sellerId,jdbcType=INTEGER},
+      category_id = #{record.categoryId,jdbcType=INTEGER},
+      title = #{record.title,jdbcType=VARCHAR},
+      brief = #{record.brief,jdbcType=VARCHAR},
+      gallery = #{record.gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler},
+      keywords = #{record.keywords,jdbcType=VARCHAR},
+      region_id = #{record.regionId,jdbcType=INTEGER},
+      city = #{record.city,jdbcType=VARCHAR},
+      postal_code = #{record.postalCode,jdbcType=VARCHAR},
+      latitude = #{record.latitude,jdbcType=DECIMAL},
+      longitude = #{record.longitude,jdbcType=DECIMAL},
+      `status` = #{record.status,jdbcType=VARCHAR},
+      published_at = #{record.publishedAt,jdbcType=TIMESTAMP},
+      expires_at = #{record.expiresAt,jdbcType=TIMESTAMP},
+      last_event_id = #{record.lastEventId,jdbcType=VARCHAR},
+      add_time = #{record.addTime,jdbcType=TIMESTAMP},
+      update_time = #{record.updateTime,jdbcType=TIMESTAMP},
+      deleted = #{record.deleted,jdbcType=BIT},
+      detail = #{record.detail,jdbcType=LONGVARCHAR}
+    <if test="_parameter != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="updateByExample" parameterType="map">
+    update announce
+    set id = #{record.id,jdbcType=VARCHAR},
+      kind = #{record.kind,jdbcType=VARCHAR},
+      seller_id = #{record.sellerId,jdbcType=INTEGER},
+      category_id = #{record.categoryId,jdbcType=INTEGER},
+      title = #{record.title,jdbcType=VARCHAR},
+      brief = #{record.brief,jdbcType=VARCHAR},
+      gallery = #{record.gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler},
+      keywords = #{record.keywords,jdbcType=VARCHAR},
+      region_id = #{record.regionId,jdbcType=INTEGER},
+      city = #{record.city,jdbcType=VARCHAR},
+      postal_code = #{record.postalCode,jdbcType=VARCHAR},
+      latitude = #{record.latitude,jdbcType=DECIMAL},
+      longitude = #{record.longitude,jdbcType=DECIMAL},
+      `status` = #{record.status,jdbcType=VARCHAR},
+      published_at = #{record.publishedAt,jdbcType=TIMESTAMP},
+      expires_at = #{record.expiresAt,jdbcType=TIMESTAMP},
+      last_event_id = #{record.lastEventId,jdbcType=VARCHAR},
+      add_time = #{record.addTime,jdbcType=TIMESTAMP},
+      update_time = #{record.updateTime,jdbcType=TIMESTAMP},
+      deleted = #{record.deleted,jdbcType=BIT}
+    <if test="_parameter != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="updateByPrimaryKeySelective" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
+    update announce
+    <set>
+      <if test="kind != null">
+        kind = #{kind,jdbcType=VARCHAR},
+      </if>
+      <if test="sellerId != null">
+        seller_id = #{sellerId,jdbcType=INTEGER},
+      </if>
+      <if test="categoryId != null">
+        category_id = #{categoryId,jdbcType=INTEGER},
+      </if>
+      <if test="title != null">
+        title = #{title,jdbcType=VARCHAR},
+      </if>
+      <if test="brief != null">
+        brief = #{brief,jdbcType=VARCHAR},
+      </if>
+      <if test="gallery != null">
+        gallery = #{gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler},
+      </if>
+      <if test="keywords != null">
+        keywords = #{keywords,jdbcType=VARCHAR},
+      </if>
+      <if test="regionId != null">
+        region_id = #{regionId,jdbcType=INTEGER},
+      </if>
+      <if test="city != null">
+        city = #{city,jdbcType=VARCHAR},
+      </if>
+      <if test="postalCode != null">
+        postal_code = #{postalCode,jdbcType=VARCHAR},
+      </if>
+      <if test="latitude != null">
+        latitude = #{latitude,jdbcType=DECIMAL},
+      </if>
+      <if test="longitude != null">
+        longitude = #{longitude,jdbcType=DECIMAL},
+      </if>
+      <if test="status != null">
+        `status` = #{status,jdbcType=VARCHAR},
+      </if>
+      <if test="publishedAt != null">
+        published_at = #{publishedAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="expiresAt != null">
+        expires_at = #{expiresAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="lastEventId != null">
+        last_event_id = #{lastEventId,jdbcType=VARCHAR},
+      </if>
+      <if test="addTime != null">
+        add_time = #{addTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="updateTime != null">
+        update_time = #{updateTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="deleted != null">
+        deleted = #{deleted,jdbcType=BIT},
+      </if>
+      <if test="detail != null">
+        detail = #{detail,jdbcType=LONGVARCHAR},
+      </if>
+    </set>
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKeyWithBLOBs" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
+    update announce
+    set kind = #{kind,jdbcType=VARCHAR},
+      seller_id = #{sellerId,jdbcType=INTEGER},
+      category_id = #{categoryId,jdbcType=INTEGER},
+      title = #{title,jdbcType=VARCHAR},
+      brief = #{brief,jdbcType=VARCHAR},
+      gallery = #{gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler},
+      keywords = #{keywords,jdbcType=VARCHAR},
+      region_id = #{regionId,jdbcType=INTEGER},
+      city = #{city,jdbcType=VARCHAR},
+      postal_code = #{postalCode,jdbcType=VARCHAR},
+      latitude = #{latitude,jdbcType=DECIMAL},
+      longitude = #{longitude,jdbcType=DECIMAL},
+      `status` = #{status,jdbcType=VARCHAR},
+      <if test="publishedAt != null">published_at = #{publishedAt,jdbcType=TIMESTAMP},</if>
+      <if test="expiresAt != null">expires_at = #{expiresAt,jdbcType=TIMESTAMP},</if>
+      last_event_id = #{lastEventId,jdbcType=VARCHAR},
+      add_time = #{addTime,jdbcType=TIMESTAMP},
+      update_time = #{updateTime,jdbcType=TIMESTAMP},
+      deleted = #{deleted,jdbcType=BIT},
+      detail = #{detail,jdbcType=LONGVARCHAR}
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
+    update announce
+    set kind = #{kind,jdbcType=VARCHAR},
+      seller_id = #{sellerId,jdbcType=INTEGER},
+      category_id = #{categoryId,jdbcType=INTEGER},
+      title = #{title,jdbcType=VARCHAR},
+      brief = #{brief,jdbcType=VARCHAR},
+      gallery = #{gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler},
+      keywords = #{keywords,jdbcType=VARCHAR},
+      region_id = #{regionId,jdbcType=INTEGER},
+      city = #{city,jdbcType=VARCHAR},
+      postal_code = #{postalCode,jdbcType=VARCHAR},
+      latitude = #{latitude,jdbcType=DECIMAL},
+      longitude = #{longitude,jdbcType=DECIMAL},
+      `status` = #{status,jdbcType=VARCHAR},
+      <if test="publishedAt != null">published_at = #{publishedAt,jdbcType=TIMESTAMP},</if>
+      <if test="expiresAt != null">expires_at = #{expiresAt,jdbcType=TIMESTAMP},</if>
+      last_event_id = #{lastEventId,jdbcType=VARCHAR},
+      add_time = #{addTime,jdbcType=TIMESTAMP},
+      update_time = #{updateTime,jdbcType=TIMESTAMP},
+      deleted = #{deleted,jdbcType=BIT}
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+  <select id="selectOneByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceBaseExample" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from announce
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+    limit 1
+  </select>
+  <select id="selectOneByExampleWithBLOBs" parameterType="org.linlinjava.announce.db.domain.AnnounceBaseExample" resultMap="ResultMapWithBLOBs">
+    select
+    <include refid="Base_Column_List" />
+    ,
+    <include refid="Blob_Column_List" />
+    from announce
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+    limit 1
+  </select>
+  <select id="selectOneByExampleSelective" parameterType="map" resultMap="ResultMapWithBLOBs">
+    select
+    <choose>
+      <when test="selective != null and selective.length > 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+        ,
+        <include refid="Blob_Column_List" />
+      </otherwise>
+    </choose>
+    from announce
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example != null and example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+    limit 1
+  </select>
+  <update id="logicalDeleteByExample" parameterType="map">
+    update announce set deleted = 1
+    <if test="_parameter != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="logicalDeleteByPrimaryKey" parameterType="java.lang.String">
+    update announce set deleted = 1
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+
+  <select id="selectPageByExample" parameterType="map" resultMap="BaseResultMap">
+    select
+    <if test="example.distinct">
+      distinct
+    </if>
+    <include refid="Base_Column_List" />
+    from announce
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+    limit #{limit} offset #{offset}
+  </select>
+  <select id="selectPageByExampleSelective" parameterType="map" resultMap="BaseResultMap">
+    select
+    <if test="example.distinct">
+      distinct
+    </if>
+    <choose>
+      <when test="selective != null and selective.length &gt; 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+      </otherwise>
+    </choose>
+    from announce
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+    limit #{limit} offset #{offset}
+  </select>
+  <!-- hand-written: idempotent write for projections (insert, or overwrite every column when the row exists) -->
+  <insert id="upsert" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
+    insert into announce (id, kind, seller_id, 
+      category_id, title, brief, 
+      gallery, 
+      keywords, region_id, city, 
+      postal_code, latitude, longitude, 
+      `status`, published_at, expires_at, 
+      last_event_id, add_time, update_time, 
+      deleted, detail)
+    values (#{id,jdbcType=VARCHAR}, #{kind,jdbcType=VARCHAR}, #{sellerId,jdbcType=INTEGER}, 
+      #{categoryId,jdbcType=INTEGER}, #{title,jdbcType=VARCHAR}, #{brief,jdbcType=VARCHAR}, 
+      #{gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler}, 
+      #{keywords,jdbcType=VARCHAR}, #{regionId,jdbcType=INTEGER}, #{city,jdbcType=VARCHAR}, 
+      #{postalCode,jdbcType=VARCHAR}, #{latitude,jdbcType=DECIMAL}, #{longitude,jdbcType=DECIMAL}, 
+      #{status,jdbcType=VARCHAR}, #{publishedAt,jdbcType=TIMESTAMP}, #{expiresAt,jdbcType=TIMESTAMP}, 
+      #{lastEventId,jdbcType=VARCHAR}, #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, 
+      #{deleted,jdbcType=BIT}, #{detail,jdbcType=LONGVARCHAR})
+    on duplicate key update
+      kind = values(kind),
+      seller_id = values(seller_id),
+      category_id = values(category_id),
+      title = values(title),
+      brief = values(brief),
+      gallery = values(gallery),
+      keywords = values(keywords),
+      region_id = values(region_id),
+      city = values(city),
+      postal_code = values(postal_code),
+      latitude = values(latitude),
+      longitude = values(longitude),
+      `status` = values(`status`),
+      published_at = values(published_at),
+      expires_at = values(expires_at),
+      last_event_id = values(last_event_id),
+      add_time = values(add_time),
+      update_time = values(update_time),
+      deleted = values(deleted),
+      detail = values(detail)
+  </insert>
+  <!-- hand-written: the announce-read-model projection rewrites only the content columns on AnnounceEdited -->
+  <update id="updateContent" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
+    update announce set
+      category_id = #{categoryId,jdbcType=INTEGER},
+      title = #{title,jdbcType=VARCHAR},
+      brief = #{brief,jdbcType=VARCHAR},
+      detail = #{detail,jdbcType=LONGVARCHAR},
+      gallery = #{gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler},
+      keywords = #{keywords,jdbcType=VARCHAR},
+      region_id = #{regionId,jdbcType=INTEGER},
+      city = #{city,jdbcType=VARCHAR},
+      postal_code = #{postalCode,jdbcType=VARCHAR},
+      latitude = #{latitude,jdbcType=DECIMAL},
+      longitude = #{longitude,jdbcType=DECIMAL},
+      last_event_id = #{lastEventId,jdbcType=VARCHAR},
+      update_time = #{updateTime,jdbcType=TIMESTAMP}
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+  <!-- hand-written: lifecycle transitions (published, withdrawn, sold, expired) -->
+  <update id="updateStatus" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
+    update announce set
+      `status` = #{status,jdbcType=VARCHAR},
+      <if test="publishedAt != null">published_at = #{publishedAt,jdbcType=TIMESTAMP},</if>
+      <if test="expiresAt != null">expires_at = #{expiresAt,jdbcType=TIMESTAMP},</if>
+      last_event_id = #{lastEventId,jdbcType=VARCHAR},
+      update_time = #{updateTime,jdbcType=TIMESTAMP}
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+  <!-- hand-written: listing query over announce joined with the detail table of every kind -->
+  <resultMap id="SummaryResultMap" type="org.linlinjava.announce.db.domain.AnnounceSummaryRow">
+    <id column="id" jdbcType="VARCHAR" property="id" />
+    <result column="kind" jdbcType="VARCHAR" property="kind" />
+    <result column="seller_id" jdbcType="INTEGER" property="sellerId" />
+    <result column="category_id" jdbcType="INTEGER" property="categoryId" />
+    <result column="title" jdbcType="VARCHAR" property="title" />
+    <result column="brief" jdbcType="VARCHAR" property="brief" />
+    <result column="gallery" jdbcType="VARCHAR" property="gallery" typeHandler="org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler" />
+    <result column="region_id" jdbcType="INTEGER" property="regionId" />
+    <result column="city" jdbcType="VARCHAR" property="city" />
+    <result column="postal_code" jdbcType="VARCHAR" property="postalCode" />
+    <result column="latitude" jdbcType="DECIMAL" property="latitude" />
+    <result column="longitude" jdbcType="DECIMAL" property="longitude" />
+    <result column="status" jdbcType="VARCHAR" property="status" />
+    <result column="published_at" jdbcType="TIMESTAMP" property="publishedAt" />
+    <result column="expires_at" jdbcType="TIMESTAMP" property="expiresAt" />
+    <result column="add_time" jdbcType="TIMESTAMP" property="addTime" />
+    <result column="price" jdbcType="DECIMAL" property="price" />
+    <result column="sale_type" jdbcType="VARCHAR" property="saleType" />
+    <result column="condition" jdbcType="VARCHAR" property="condition" />
+    <result column="brand_id" jdbcType="INTEGER" property="brandId" />
+    <result column="employer" jdbcType="VARCHAR" property="employer" />
+    <result column="contract_type" jdbcType="VARCHAR" property="contractType" />
+    <result column="application_deadline" jdbcType="TIMESTAMP" property="applicationDeadline" />
+    <result column="starts_at" jdbcType="TIMESTAMP" property="startsAt" />
+    <result column="ends_at" jdbcType="TIMESTAMP" property="endsAt" />
+    <result column="ticketed" jdbcType="BIT" property="ticketed" />
+    <result column="ticket_price" jdbcType="DECIMAL" property="ticketPrice" />
+  </resultMap>
+  <sql id="Summary_From_Where">
+    from announce a
+    left join announce_goods_detail g on g.announce_id = a.id
+    left join announce_job j on j.announce_id = a.id
+    left join announce_event e on e.announce_id = a.id
+    where a.deleted = 0
+    <if test="kind != null">and a.kind = #{kind}</if>
+    <if test="status != null">and a.`status` = #{status}</if>
+    <if test="sellerId != null">and a.seller_id = #{sellerId}</if>
+    <if test="regionId != null">and a.region_id = #{regionId}</if>
+    <if test="categoryIds != null and categoryIds.size() > 0">
+      and a.category_id in
+      <foreach collection="categoryIds" item="c" open="(" separator="," close=")">#{c}</foreach>
+    </if>
+    <if test="brandId != null">and g.brand_id = #{brandId}</if>
+    <if test="saleType != null">and g.sale_type = #{saleType}</if>
+    <if test="keywords != null">and (a.title like concat('%', #{keywords}, '%') or a.keywords like concat('%', #{keywords}, '%'))</if>
+  </sql>
+  <select id="selectSummaries" parameterType="map" resultMap="SummaryResultMap">
+    select a.id, a.kind, a.seller_id, a.category_id, a.title, a.brief, a.gallery, a.region_id, a.city, a.postal_code,
+      a.latitude, a.longitude, a.`status`, a.published_at, a.expires_at, a.add_time,
+      g.price, g.sale_type, g.`condition`, g.brand_id,
+      j.employer, j.contract_type, j.application_deadline,
+      e.starts_at, e.ends_at, e.ticketed, e.ticket_price
+    <include refid="Summary_From_Where" />
+    order by ${orderBy}
+    limit #{limit} offset #{offset}
+  </select>
+  <select id="countSummaries" parameterType="map" resultType="java.lang.Long">
+    select count(*)
+    <include refid="Summary_From_Where" />
+  </select>
+</mapper>

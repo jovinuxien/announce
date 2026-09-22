@@ -1,10 +1,8 @@
 package org.linlinjava.announce.goods.domain.announce.events;
 
-import org.linlinjava.announce.goods.domain.announce.AnnounceId;
-import org.linlinjava.announce.goods.domain.announce.SellerId;
 
-public final class AnnounceWithdrawn extends AnnounceEvent {
-    public AnnounceWithdrawn(AnnounceId announceId, SellerId sellerId) {
-        super(announceId, sellerId);
-    }
+import java.time.LocalDateTime;
+
+/** The owner took the announce down; it can be published again. Top-level class: EventSourcingDB rejects the {@code $} of a nested class name. */
+public record AnnounceWithdrawn(LocalDateTime at) {
 }

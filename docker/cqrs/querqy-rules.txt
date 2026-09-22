@@ -1,0 +1,12 @@
+# Querqy common rules applied by the OCS searcher at query time (docker/cqrs/application.search-service.yml).
+# Format: https://querqy.org/docs/querqy/rewriters/common-rules.html
+# One block per input; SYNONYM lines add terms, UP/DOWN boost, FILTER restricts. Restart the searcher after edits.
+
+bike =>
+  SYNONYM: bicycle
+
+sofa =>
+  SYNONYM: couch
+
+flat =>
+  SYNONYM: apartment

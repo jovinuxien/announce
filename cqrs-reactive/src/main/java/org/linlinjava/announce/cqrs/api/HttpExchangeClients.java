@@ -1,0 +1,84 @@
+package org.linlinjava.announce.cqrs.api;
+
+import org.linlinjava.announce.cqrs.CqrsProperties;
+import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreaker;
+import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory;
+import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.support.WebClientAdapter;
+import org.springframework.web.service.annotation.HttpExchange;
+import org.springframework.web.service.invoker.HttpServiceProxyFactory;
+
+import reactor.core.publisher.Mono;
+
+import java.util.Objects;
+
+/**
+ * Turns an {@link HttpExchange @HttpExchange} interface (the service descriptor, kept in the provider's
+ * {@code <name>-api} module) into a client that is
+ * <ul>
+ *   <li>discovered and load-balanced: the base URL is {@code http://<serviceId>} resolved through Spring Cloud
+ *       LoadBalancer (Eureka), unless {@code cqrs.api.clients.<serviceId>.base-url} pins a fixed URL, as for
+ *       services outside the registry such as the OCS search tier;</li>
+ *   <li>wrapped in a Resilience4j circuit breaker and time limiter named after the service id
+ *       ({@code resilience4j.circuitbreaker.instances.<serviceId>.*}); connection failures, timeouts and
+ *       5xx answers count as failures, 4xx answers do not;</li>
+ *   <li>traced and metered through the auto-configured {@link WebClient.Builder}.</li>
+ * </ul>
+ *
+ * <pre>{@code
+ * @Bean
+ * AnnounceApi announceApi(HttpExchangeClients clients) {
+ *     return clients.create(AnnounceApi.class, "announce-management");
+ * }
+ * }</pre>
+ */
+public class HttpExchangeClients {
+
+    private final WebClient.Builder webClientBuilder;
+    private final ExchangeFilterFunction loadBalancerFilter;
+    private final ReactiveCircuitBreakerFactory<?, ?> circuitBreakerFactory;
+    private final CqrsProperties.Api properties;
+
+    /**
+     * @param webClientBuilder      the Boot-provided builder (observation-instrumented); a fresh clone is used per client
+     * @param loadBalancerFilter    the LoadBalancer exchange filter, or {@code null} when discovery is not configured
+     * @param circuitBreakerFactory the Resilience4j factory, or {@code null} to build clients without a breaker
+     * @param properties            per service-id overrides
+     */
+    public HttpExchangeClients(WebClient.Builder webClientBuilder, ExchangeFilterFunction loadBalancerFilter,
+                               ReactiveCircuitBreakerFactory<?, ?> circuitBreakerFactory, CqrsProperties.Api properties) {
+        this.webClientBuilder = Objects.requireNonNull(webClientBuilder, "webClientBuilder");
+        this.loadBalancerFilter = loadBalancerFilter;
+        this.circuitBreakerFactory = circuitBreakerFactory;
+        this.properties = Objects.requireNonNull(properties, "properties");
+    }
+
+    public <T> T create(Class<T> exchangeInterface, String serviceId) {
+        return HttpServiceProxyFactory.builderFor(WebClientAdapter.create(webClient(serviceId))).build()
+                .createClient(exchangeInterface);
+    }
+
+    /** The configured {@link WebClient} for a service, for callers that need it directly. */
+    public WebClient webClient(String serviceId) {
+        Objects.requireNonNull(serviceId, "serviceId");
+        CqrsProperties.Api.Client overrides = properties.getClients().get(serviceId);
+        String baseUrl = overrides != null && overrides.getBaseUrl() != null ? overrides.getBaseUrl() : null;
+        WebClient.Builder builder = webClientBuilder.clone();
+        if (baseUrl != null) {
+            builder.baseUrl(baseUrl);
+        } else {
+            builder.baseUrl("http://" + serviceId);
+            if (loadBalancerFilter != null) {
+                builder.filter(loadBalancerFilter);
+            }
+        }
+        if (circuitBreakerFactory != null) {
+            ReactiveCircuitBreaker breaker = circuitBreakerFactory.create(serviceId);
+            // a 5xx answer is a provider failure and must count against the breaker; 4xx answers are the caller's fault
+            builder.filter((request, next) -> breaker.run(next.exchange(request).flatMap(response ->
+                    response.statusCode().is5xxServerError() ? response.createException().flatMap(Mono::error) : Mono.just(response))));
+        }
+        return builder.build();
+    }
+}

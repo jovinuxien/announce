@@ -1,0 +1,185 @@
+# OCS indexer field configuration for the announce classifieds index.
+#
+# Mounted as application-custom.yml into commerceexperts/ocs-indexer-service (profile "custom").
+# The search bounded context builds one document per PUBLISHED announce from the public events
+# announce.published / announce.updated / announce.price-changed and removes it on
+# announce.withdrawn / announce.sold / announce.expired.
+#
+# Usage semantics (OCS): Search = full-text matched, Result = returned in hits, Facet = aggregated,
+# Filter = filterable but not aggregated, Sort = sortable, Score = available to the searcher's
+# scoring-configuration.
+spring:
+  logging:
+    level:
+      de.cxp.ocs: INFO
+
+ocs:
+  index-config:
+    announce_index:
+      field-configuration:
+        fields:
+
+          id:
+            name: announce_id
+            type: id
+            usage:
+              - Result
+
+          title:
+            name: title
+            type: string
+            usage:
+              - Search
+              - Result
+              - Sort
+
+          description:
+            name: description
+            type: string
+            usage:
+              - Search
+              - Result
+
+          # fixed price in cents (0 for pure auctions); the searcher exposes a price range facet
+          price:
+            name: price
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Facet
+
+          # FIXED_PRICE or AUCTION
+          sale_type:
+            name: sale_type
+            type: string
+            usage:
+              - Result
+              - Facet
+
+          # current highest bid in cents, kept fresh from the auction context's public events
+          current_bid:
+            name: current_bid
+            type: number
+            usage:
+              - Result
+              - Sort
+
+          # DRAFT announces are never indexed; PUBLISHED is the only value present, kept for future states
+          status:
+            name: status
+            type: string
+            usage:
+              - Result
+              - Filter
+
+          category_names:
+            name: category_names
+            type: string
+            usage:
+              - Search
+              - Result
+              - Facet
+
+          category_ids:
+            name: category_ids
+            type: string
+            usage:
+              - Facet
+
+          brand:
+            name: brand
+            type: string
+            usage:
+              - Search
+              - Result
+              - Facet
+
+          # location (announce Location value object): region id from announce_region, city, postal code
+          region_id:
+            name: region_id
+            type: string
+            usage:
+              - Facet
+
+          city:
+            name: city
+            type: string
+            usage:
+              - Search
+              - Result
+              - Facet
+
+          postal_code:
+            name: postal_code
+            type: string
+            usage:
+              - Result
+              - Filter
+
+          seller_id:
+            name: seller_id
+            type: string
+            usage:
+              - Result
+              - Filter
+
+          image_url:
+            name: image_url
+            type: string
+            usage:
+              - Result
+
+          # epoch seconds; Sort drives "newest first" and "ending soon", Score lets the searcher boost recency
+          created_epoch:
+            name: created_epoch
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Score
+
+          expire_epoch:
+            name: expire_epoch
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Filter
+
+          # per-variant fields (announce_goods_product): price and stock of each variant
+          variant_price:
+            name: variant_price
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Facet
+            field-level: variant
+
+          stock:
+            name: stock
+            type: number
+            usage:
+              - Result
+              - Filter
+              - Score
+            field-level: variant
+
+        # Curated announce_goods_attribute name->value pairs ride as extra flat data keys and become facets
+        # without per-attribute configuration. The negative lookahead keeps the fixed schema keys out.
+        dynamic-fields:
+          - name: attribute_string
+            type: string
+            source-names:
+              - '^(?!(announce_id|title|description|price|sale_type|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch)$).*$'
+            usage:
+              - Facet
+              - Result
+          - name: attribute_number
+            type: number
+            source-names:
+              - '^(?!(announce_id|title|description|price|sale_type|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch)$).*$'
+            usage:
+              - Facet
+              - Result

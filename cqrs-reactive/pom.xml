@@ -12,8 +12,9 @@
 
     <artifactId>cqrs-reactive</artifactId>
     <packaging>jar</packaging>
-    <name>Announce CQRS reactive adapter</name>
-    <description>Reactive (Project Reactor) adapter over the blocking OpenCQRS CommandRouter</description>
+    <name>Announce CQRS reactive framework</name>
+    <description>Lagom-style reactive CQRS framework over OpenCQRS / EventSourcingDB: command side, read side,
+        messaging (Spring Cloud Stream / Kafka), service clients and observability</description>
 
     <properties>
         <!-- OpenCQRS 1.0.0 is the last line built against Spring Boot 3.5.x.
@@ -21,19 +22,8 @@
         <opencqrs.version>1.0.0</opencqrs.version>
     </properties>
 
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring-boot.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
     <dependencies>
+        <!-- command side: OpenCQRS over EventSourcingDB -->
         <dependency>
             <groupId>com.opencqrs</groupId>
             <artifactId>framework-spring-boot-starter</artifactId>
@@ -47,6 +37,53 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- WebFlux: problem details, correlation filter -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webflux</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- read side: R2DBC progress tracker and command log -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-r2dbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.r2dbc</groupId>
+            <artifactId>r2dbc-spi</artifactId>
+        </dependency>
+
+        <!-- messaging: Spring Cloud Stream over Kafka -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-stream</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-stream-binder-kafka</artifactId>
+        </dependency>
+
+        <!-- api: discovered, load-balanced, circuit-broken HTTP service clients -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+        </dependency>
+
+        <!-- observability: micrometer-tracing comes from the parent POM -->
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -54,8 +91,18 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

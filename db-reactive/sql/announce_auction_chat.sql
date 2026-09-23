@@ -4,7 +4,7 @@
 --  Derived from the ActionBazaar domain model in "EJB 3 in Action, 2nd ed."
 --  (Manning 2014): Seller/Bidder/User, Item, Bid, Category, Order, snag-it
 --  ordering, featured item, shipping request, CSR chat and bulletin.
---  Mapped onto our existing tables (announce_goods = an announce/listing,
+--  Mapped onto our existing tables (announce = an announce/listing of any kind,
 --  announce_user = member, announce_admin = staff/CSR, announce_order).
 --
 --  Conventions kept from litemall: int(11) AUTO_INCREMENT ids, add_time /
@@ -21,12 +21,12 @@ SET NAMES utf8mb4;
 -- 1. Auction bounded context
 -- ---------------------------------------------------------------------
 
--- One auction per announce (announce_goods). An announce is fixed-price by
+-- One auction per announce (announce.id of a GOODS announce). An announce is fixed-price by
 -- default; inserting a row here turns it into a timed auction (book: Item
 -- with initialPrice, bids, timed end, highest bidder wins).
 CREATE TABLE IF NOT EXISTS `announce_auction` (
   `id`              int(11)        NOT NULL AUTO_INCREMENT,
-  `goods_id`        int(11)        NOT NULL COMMENT 'announce being auctioned (announce_goods.id)',
+  `goods_id`        int(11)        NOT NULL COMMENT 'announce being auctioned (announce.id, numeric part; auction context)',
   `seller_id`       int(11)        NOT NULL COMMENT 'member who posted the announce (announce_user.id)',
   `initial_price`   decimal(10,2)  NOT NULL COMMENT 'starting bid (book: Item.initialPrice)',
   `reserve_price`   decimal(10,2)  DEFAULT NULL COMMENT 'minimum price the seller accepts; NULL = no reserve',
@@ -241,11 +241,6 @@ BEGIN
 END$$
 DELIMITER ;
 
--- An announce belongs to a member (book: Item sold by Seller). Mall goods had no owner.
-CALL announce_add_column('announce_goods', 'seller_id',   '`seller_id` int(11) DEFAULT NULL COMMENT ''member who posted the announce (announce_user.id)'' AFTER `brand_id`');
-CALL announce_add_column('announce_goods', 'sale_type',   '`sale_type` varchar(20) NOT NULL DEFAULT ''FIXED_PRICE'' COMMENT ''FIXED_PRICE, AUCTION, GIVEAWAY'' AFTER `seller_id`');
-CALL announce_add_column('announce_goods', 'expire_time', '`expire_time` datetime DEFAULT NULL COMMENT ''announce is hidden after this time'' AFTER `sale_type`');
-
 -- Member trading profile (book: User.status gold/silver, numTrades; Seller.commissionRate).
 CALL announce_add_column('announce_user', 'trade_tier',      '`trade_tier` varchar(10) NOT NULL DEFAULT ''BRONZE'' COMMENT ''BRONZE, SILVER, GOLD, PLATINUM; recomputed from num_trades'' AFTER `user_level`');
 CALL announce_add_column('announce_user', 'num_trades',      '`num_trades` int(11) NOT NULL DEFAULT ''0'' AFTER `trade_tier`');
@@ -256,22 +251,8 @@ CALL announce_add_column('announce_user', 'seller_verified', '`seller_verified` 
 CALL announce_add_column('announce_order', 'auction_id', '`auction_id` int(11) DEFAULT NULL COMMENT ''set when the order settles an auction'' AFTER `user_id`');
 CALL announce_add_column('announce_order', 'seller_id',  '`seller_id` int(11) DEFAULT NULL COMMENT ''counterparty member'' AFTER `auction_id`');
 
--- ---------------------------------------------------------------------
--- 4. Announce lifecycle status and location (Blocket / DBA style)
--- ---------------------------------------------------------------------
--- Lifecycle: DRAFT -> PUBLISHED -> SOLD | WITHDRAWN | EXPIRED. is_on_sale stays in sync (PUBLISHED = 1).
-CALL announce_add_column('announce_goods', 'status',      '`status` varchar(20) NOT NULL DEFAULT ''DRAFT'' COMMENT ''DRAFT, PUBLISHED, SOLD, WITHDRAWN, EXPIRED'' AFTER `expire_time`');
--- Where the item is. region_id references announce_region (country/region/municipality tree);
--- city and postal code are what members type; latitude/longitude enable distance search.
-CALL announce_add_column('announce_goods', 'region_id',   '`region_id` int(11) DEFAULT NULL COMMENT ''announce_region.id of the municipality / area'' AFTER `status`');
-CALL announce_add_column('announce_goods', 'city',        '`city` varchar(63) DEFAULT NULL AFTER `region_id`');
-CALL announce_add_column('announce_goods', 'postal_code', '`postal_code` varchar(16) DEFAULT NULL AFTER `city`');
-CALL announce_add_column('announce_goods', 'latitude',    '`latitude` decimal(9,6) DEFAULT NULL AFTER `postal_code`');
-CALL announce_add_column('announce_goods', 'longitude',   '`longitude` decimal(9,6) DEFAULT NULL AFTER `latitude`');
-
--- Backfill status for rows that predate the column (idempotent: only touches DRAFT rows still flagged on sale / deleted)
-UPDATE `announce_goods` SET `status` = CASE WHEN `deleted` = 1 THEN 'WITHDRAWN' WHEN `is_on_sale` = 1 THEN 'PUBLISHED' ELSE 'DRAFT' END
- WHERE `status` = 'DRAFT' AND (`deleted` = 1 OR `is_on_sale` = 1);
+-- Note: seller_id, sale_type, expire_time, status and the location columns of the former announce_goods table
+-- now live in `announce` and `announce_goods_detail` (announce_table.sql); nothing is altered on goods here.
 
 DROP PROCEDURE IF EXISTS announce_add_index;
 DELIMITER $$
@@ -284,9 +265,8 @@ BEGIN
   END IF;
 END$$
 DELIMITER ;
-CALL announce_add_index('announce_goods', 'idx_goods_status',  '(`status`, `expire_time`)');
-CALL announce_add_index('announce_goods', 'idx_goods_region',  '(`region_id`)');
-CALL announce_add_index('announce_goods', 'idx_goods_seller',  '(`seller_id`)');
+CALL announce_add_index('announce_order', 'idx_order_auction', '(`auction_id`)');
+CALL announce_add_index('announce_order', 'idx_order_seller',  '(`seller_id`)');
 DROP PROCEDURE IF EXISTS announce_add_index;
 
 DROP PROCEDURE IF EXISTS announce_add_column;

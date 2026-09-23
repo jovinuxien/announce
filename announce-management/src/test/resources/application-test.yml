@@ -1,0 +1,44 @@
+# Profile "test": the container-backed suite. Connections (EventSourcingDB, MySQL) come from @DynamicPropertySource.
+spring:
+  main:
+    banner-mode: off
+  cloud:
+    config:
+      enabled: false
+    discovery:
+      enabled: false
+    stream:
+      kafka:
+        binder:
+          brokers: localhost:9092      # no topic is used by this service yet; the binder stays idle
+eureka:
+  client:
+    enabled: false
+management:
+  health:
+    binders:
+      enabled: false
+
+opencqrs:
+  event-handling:
+    standard:
+      retry:
+        policy: exponential_backoff
+        initial-interval: 200ms
+        max-interval: 2s
+        max-attempts: 30
+
+cqrs:
+  readside:
+    handler-timeout: 15s
+
+announce:
+  expiry:
+    enabled: false
+  search:
+    mode: recording        # the test supplies a recording AnnounceIndexer bean instead of the OCS client
+
+logging:
+  level:
+    org.linlinjava.announce: INFO
+    org.linlinjava.announce.cqrs: DEBUG

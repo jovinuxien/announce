@@ -140,3 +140,92 @@ Built in `announce-management` (package `org.linlinjava.announce.goods`):
 Schema additions (in `announce_auction_chat.sql`, section 4): `announce_goods.status` (DRAFT, PUBLISHED, SOLD, WITHDRAWN, EXPIRED),
 `region_id`, `city`, `postal_code`, `latitude`, `longitude`, plus indexes on status/expiry, region and seller.
 The goods mapper gained these columns and a hand-written `updateAnnounce` statement that rewrites exactly the aggregate's columns.
+
+## 8. Announce kinds and the read model (2026-09-22)
+
+The Announce aggregate became a generic announce with three kinds, event-sourced on OpenCQRS through the
+`cqrs-reactive` framework (`doc/cqrs-reactive.md`). The `db-reactive` tables are now read models fed by projections.
+
+### The aggregate
+
+`Announce` (`domain.announce`) is an immutable record rebuilt from its events under subject `/announce/{id}`: owner
+(`SellerId`), `AnnounceContent` (title, brief, description, keywords, gallery, category, `Location`), a sealed
+`AnnounceKind`, status, `publishedAt`, `expiresAt`. Ids are UUID strings chosen by the command side (the read
+tables carry `varchar(36)`; migrated seed rows keep their numeric ids as strings).
+
+| kind | details record | specific fields | biddable | ends as |
+|---|---|---|---|---|
+| GOODS | `GoodsDetails` | price (`Money`), condition, `SaleType` (FIXED_PRICE, AUCTION, GIVEAWAY), brand, unit, variants, attributes, specifications | yes (AUCTION) | SOLD, WITHDRAWN, EXPIRED |
+| JOB | `JobDetails` | employer, contract type, optional `SalaryRange`, application deadline, how to apply | never | WITHDRAWN, EXPIRED |
+| EVENT | `EventDetails` | start and end, venue (free text; the location gives region and city), organizer, free or ticketed, capacity | never | WITHDRAWN, EXPIRED |
+
+The invariants live in `AnnounceRules` and answer with RFC 7807 problems carrying a stable `code`:
+
+| rule | code | when |
+|---|---|---|
+| a job or event cannot have an auction sale type | `not-biddable` | post, edit |
+| the kind never changes | `kind-immutable` | edit |
+| a location is required | `location-required` | publish |
+| a fixed-price goods announce needs a price (own or on a variant) | `price-required` | publish |
+| an event starts before it ends, and the end is in the future | `event-dates`, `event-in-the-past` | publish |
+| a job whose deadline has passed is not published | `deadline-passed` | publish |
+| SOLD applies to goods only | `sold-not-applicable` | mark sold |
+| only the owner writes | `not-owner` (403) | every member command |
+
+Commands (`AnnounceCommands`): `PostAnnounce`, `EditAnnounce`, `PublishAnnounce`, `WithdrawAnnounce`, `MarkSold`,
+`ExpireAnnounce` (system, idempotent). Events, one top-level record each in `domain.announce.events`:
+`AnnouncePosted`, `AnnounceEdited`, `AnnouncePublished`, `AnnounceWithdrawn`, `AnnounceSold`, `AnnounceExpired`.
+`AnnounceHandlers` holds the explicit OpenCQRS definitions; `AnnouncePublishing` checks the references the aggregate
+cannot see (a visible category of the same kind, the brand) and dispatches through `ReactiveCommandRouter`, with the
+`X-Command-Id` header as idempotency key. Variants and stock are no longer separate commands: they are part of
+`GoodsDetails` and change through `EditAnnounce` (stock reservation belongs to the order context).
+
+### Read-model tables (`db-reactive/sql/announce_table.sql`)
+
+| table | key | holds |
+|---|---|---|
+| `announce` | `id` varchar(36) | kind, seller_id, category_id, title, brief, detail, gallery (JSON), keywords, region/city/postal code/coordinates, status, published_at, expires_at, last_event_id, add/update_time, deleted |
+| `announce_goods_detail` | announce_id | price, condition, sale_type, brand_id, unit |
+| `announce_job` | announce_id | employer, contract_type, salary_min/max, currency, application_deadline, apply_url_or_email |
+| `announce_event` | announce_id | starts_at, ends_at, venue, organizer, ticketed, ticket_price, capacity |
+| `announce_goods_product`, `announce_goods_attribute`, `announce_goods_specification` | id, keyed by announce_id | goods children as before |
+| `announce_category` | id | gains `kind`: goods, jobs and events have separate trees; a child inherits its root's kind |
+
+The former `announce_goods` table is gone; the auction columns it had gained (seller_id, sale_type, expire_time,
+status, location) live in `announce` and `announce_goods_detail`. `announce_auction_chat.sql` no longer alters goods.
+The seed (`announce_data_en.sql`) was migrated with `announce_migrate_goods.sql`: every goods row became kind GOODS,
+fixed price, owned by member 1, published when it was on sale, without location or expiry. Other contexts keep
+their `goods_id int` columns; the migrated ids still match by value.
+
+Mappers: `AnnounceBaseMapper` (table `announce`, with hand-written `upsert`, `updateContent`, `updateStatus` and the
+joined `selectSummaries` / `countSummaries` listing query), `AnnounceGoodsDetailMapper`, `AnnounceJobDetailMapper`,
+`AnnounceEventDetailMapper` (each with `upsert`). Regenerate with the `mbg` profile of `db-reactive/pom.xml` and
+`mybatis-generator/reactify_mapper.py`.
+
+### Projections (`infrastructure.projection`)
+
+| group | projection | writes |
+|---|---|---|
+| `announce-read-model` | `AnnounceReadModelProjection` | the tables above: `AnnouncePosted` upserts base + detail + children, `AnnounceEdited` rewrites the content columns and the detail, the lifecycle events update status and dates; `last_event_id` records the event applied |
+| `announce-search` | `AnnounceSearchProjection` | one document per visible announce to the `AnnounceIndexer` port (`OcsAnnounceIndexer` pushes to the OCS indexer of `docker/cqrs`, index `announce_index`, `kind` as facet); removal on withdraw, sold and expire |
+
+Both groups checkpoint in `cqrs_readside_progress` (`R2dbcProgressTracker`) and are at-least-once: every handler is
+idempotent. The search projection builds its document from the read model; when the read-model group has not yet
+applied the event (`last_event_id` older than the event), the handler fails and the framework retries it. Queries
+(`AnnounceBrowsing` over `AnnounceReadRepository`) read the tables only, never the event store. The expiry job reads
+the due ids from `announce` and sends one `ExpireAnnounce` each.
+
+### REST (`/api/announces`)
+
+The body carries `kind` and one of `goods`, `job`, `event`; listing filters on `kind` (and category, brand, seller,
+region, keywords, sale type, sort). `X-Seller-Id` stays the owner header, `X-Command-Id` makes a write idempotent.
+Writes answer with the state the command produced (201 on post); reads come from the projection a moment later.
+`/api/categories` takes and returns `kind` (`?kind=JOB` lists that tree).
+
+### Tests
+
+`AnnounceTest` drives the aggregate through `CommandFixture`; `AnnounceKindsEndToEndTest` boots the service with
+Testcontainers only (EventSourcingDB, MySQL loaded with the schema and the migrated seed), posts and publishes one
+announce of each kind, reads the kind-specific fields back from the projection, checks the invariants over HTTP and
+a recording indexer. `mvn -pl announce-management -P '!webapp' test` runs them; `MyBatisRepositoriesIT` (category
+and brand against the live database) runs with `-Dtest=MyBatisRepositoriesIT`.

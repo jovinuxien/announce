@@ -42,14 +42,12 @@
         </commentGenerator>
 
         <!--数据库连接信息-->
+        <!-- announce_reactive_db; the mbg profile of db-reactive/pom.xml supplies these properties -->
         <jdbcConnection driverClass="com.mysql.cj.jdbc.Driver"
-                        connectionURL="jdbc:mysql://127.0.0.1:3306/litemall?useUnicode=true&amp;characterEncoding=UTF-8&amp;serverTimezone=UTC&amp;verifyServerCertificate=false&amp;useSSL=false&amp;nullCatalogMeansCurrent=true"
-                        userId="litemall"
-                        password="litemall123456"/>
+                        connectionURL="${mbg.url}"
+                        userId="${mbg.user}"
+                        password="${mbg.password}"/>
 
-        <typeHandlers>
-            <typeHanlder handler="org.linlinjava.announce.db.typehandler.BigDecimalTypeHandler" />
-        </typeHandlers>
         <javaTypeResolver>
             <property name="useJSR310Types" value="true"/>
         </javaTypeResolver>
@@ -78,7 +76,7 @@
             <columnOverride column="specifications" javaType="java.lang.String[]"
                             typeHandler="org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler"/>
         </table>
-        <table tableName="announce_category">
+        <table tableName="announce_category" domainObjectName="LitemallCategory">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
         <table tableName="announce_collect">
@@ -99,18 +97,21 @@
         <table tableName="announce_footprint">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
-        <table tableName="announce_goods">
-            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
+        <!-- Announce read model (sql/announce_table.sql): the id is chosen by the command side, no generated key -->
+        <table tableName="announce" domainObjectName="AnnounceBase">
             <columnOverride column="gallery" javaType="java.lang.String[]"
                             typeHandler="org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler"/>
         </table>
-        <table tableName="announce_goods_attribute">
+        <table tableName="announce_goods_detail" domainObjectName="AnnounceGoodsDetail"/>
+        <table tableName="announce_job" domainObjectName="AnnounceJobDetail"/>
+        <table tableName="announce_event" domainObjectName="AnnounceEventDetail"/>
+        <table tableName="announce_goods_attribute" domainObjectName="LitemallGoodsAttribute">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
-        <table tableName="announce_goods_specification">
+        <table tableName="announce_goods_specification" domainObjectName="LitemallGoodsSpecification">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
-        <table tableName="announce_goods_product">
+        <table tableName="announce_goods_product" domainObjectName="LitemallGoodsProduct">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
             <columnOverride column="specifications" javaType="java.lang.String[]"
                             typeHandler="org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler"/>

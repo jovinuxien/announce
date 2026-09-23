@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Reactive mapper for announce_event (reactive-mybatis-support / R2DBC), derived from the MyBatis Generator output.
+  Differences: inserts use useGeneratedKeys/keyColumn; selectPageByExample* replace the PageHelper plugin.
+-->
+<mapper namespace="org.linlinjava.announce.db.dao.reactive.AnnounceEventDetailMapper">
+  <resultMap id="BaseResultMap" type="org.linlinjava.announce.db.domain.AnnounceEventDetail">
+    <id column="announce_id" jdbcType="VARCHAR" property="announceId" />
+    <result column="starts_at" jdbcType="TIMESTAMP" property="startsAt" />
+    <result column="ends_at" jdbcType="TIMESTAMP" property="endsAt" />
+    <result column="venue" jdbcType="VARCHAR" property="venue" />
+    <result column="organizer" jdbcType="VARCHAR" property="organizer" />
+    <result column="ticketed" jdbcType="BIT" property="ticketed" />
+    <result column="ticket_price" jdbcType="DECIMAL" property="ticketPrice" />
+    <result column="capacity" jdbcType="INTEGER" property="capacity" />
+  </resultMap>
+  <sql id="Example_Where_Clause">
+    <where>
+      <foreach collection="oredCriteria" item="criteria" separator="or">
+        <if test="criteria.valid">
+          <trim prefix="(" prefixOverrides="and" suffix=")">
+            <foreach collection="criteria.criteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value} and #{criterion.secondValue}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+          </trim>
+        </if>
+      </foreach>
+    </where>
+  </sql>
+  <sql id="Update_By_Example_Where_Clause">
+    <where>
+      <foreach collection="example.oredCriteria" item="criteria" separator="or">
+        <if test="criteria.valid">
+          <trim prefix="(" prefixOverrides="and" suffix=")">
+            <foreach collection="criteria.criteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value} and #{criterion.secondValue}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+          </trim>
+        </if>
+      </foreach>
+    </where>
+  </sql>
+  <sql id="Base_Column_List">
+    announce_id, starts_at, ends_at, venue, organizer, ticketed, ticket_price, capacity
+  </sql>
+  <select id="selectByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceEventDetailExample" resultMap="BaseResultMap">
+    select
+    <if test="distinct">
+      distinct
+    </if>
+    <include refid="Base_Column_List" />
+    from announce_event
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+  </select>
+  <select id="selectByExampleSelective" parameterType="map" resultMap="BaseResultMap">
+    select
+    <if test="example != null and example.distinct">
+      distinct
+    </if>
+    <choose>
+      <when test="selective != null and selective.length > 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+      </otherwise>
+    </choose>
+    from announce_event
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example != null and example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+  </select>
+  <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from announce_event
+    where announce_id = #{announceId,jdbcType=VARCHAR}
+  </select>
+  <select id="selectByPrimaryKeySelective" parameterType="map" resultMap="BaseResultMap">
+    select
+    <choose>
+      <when test="selective != null and selective.length > 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+      </otherwise>
+    </choose>
+    from announce_event
+    where announce_id = #{announceId,jdbcType=VARCHAR}
+  </select>
+  <delete id="deleteByPrimaryKey" parameterType="java.lang.String">
+    delete from announce_event
+    where announce_id = #{announceId,jdbcType=VARCHAR}
+  </delete>
+  <delete id="deleteByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceEventDetailExample">
+    delete from announce_event
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+  </delete>
+  <insert id="insert" parameterType="org.linlinjava.announce.db.domain.AnnounceEventDetail">
+    insert into announce_event (announce_id, starts_at, ends_at, 
+      venue, organizer, ticketed, 
+      ticket_price, capacity)
+    values (#{announceId,jdbcType=VARCHAR}, #{startsAt,jdbcType=TIMESTAMP}, #{endsAt,jdbcType=TIMESTAMP}, 
+      #{venue,jdbcType=VARCHAR}, #{organizer,jdbcType=VARCHAR}, #{ticketed,jdbcType=BIT}, 
+      #{ticketPrice,jdbcType=DECIMAL}, #{capacity,jdbcType=INTEGER})
+  </insert>
+  <insert id="insertSelective" parameterType="org.linlinjava.announce.db.domain.AnnounceEventDetail">
+    insert into announce_event
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="announceId != null">
+        announce_id,
+      </if>
+      <if test="startsAt != null">
+        starts_at,
+      </if>
+      <if test="endsAt != null">
+        ends_at,
+      </if>
+      <if test="venue != null">
+        venue,
+      </if>
+      <if test="organizer != null">
+        organizer,
+      </if>
+      <if test="ticketed != null">
+        ticketed,
+      </if>
+      <if test="ticketPrice != null">
+        ticket_price,
+      </if>
+      <if test="capacity != null">
+        capacity,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="announceId != null">
+        #{announceId,jdbcType=VARCHAR},
+      </if>
+      <if test="startsAt != null">
+        #{startsAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="endsAt != null">
+        #{endsAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="venue != null">
+        #{venue,jdbcType=VARCHAR},
+      </if>
+      <if test="organizer != null">
+        #{organizer,jdbcType=VARCHAR},
+      </if>
+      <if test="ticketed != null">
+        #{ticketed,jdbcType=BIT},
+      </if>
+      <if test="ticketPrice != null">
+        #{ticketPrice,jdbcType=DECIMAL},
+      </if>
+      <if test="capacity != null">
+        #{capacity,jdbcType=INTEGER},
+      </if>
+    </trim>
+  </insert>
+  <select id="countByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceEventDetailExample" resultType="java.lang.Long">
+    select count(*) from announce_event
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+  </select>
+  <update id="updateByExampleSelective" parameterType="map">
+    update announce_event
+    <set>
+      <if test="record.announceId != null">
+        announce_id = #{record.announceId,jdbcType=VARCHAR},
+      </if>
+      <if test="record.startsAt != null">
+        starts_at = #{record.startsAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.endsAt != null">
+        ends_at = #{record.endsAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.venue != null">
+        venue = #{record.venue,jdbcType=VARCHAR},
+      </if>
+      <if test="record.organizer != null">
+        organizer = #{record.organizer,jdbcType=VARCHAR},
+      </if>
+      <if test="record.ticketed != null">
+        ticketed = #{record.ticketed,jdbcType=BIT},
+      </if>
+      <if test="record.ticketPrice != null">
+        ticket_price = #{record.ticketPrice,jdbcType=DECIMAL},
+      </if>
+      <if test="record.capacity != null">
+        capacity = #{record.capacity,jdbcType=INTEGER},
+      </if>
+    </set>
+    <if test="_parameter != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="updateByExample" parameterType="map">
+    update announce_event
+    set announce_id = #{record.announceId,jdbcType=VARCHAR},
+      starts_at = #{record.startsAt,jdbcType=TIMESTAMP},
+      ends_at = #{record.endsAt,jdbcType=TIMESTAMP},
+      venue = #{record.venue,jdbcType=VARCHAR},
+      organizer = #{record.organizer,jdbcType=VARCHAR},
+      ticketed = #{record.ticketed,jdbcType=BIT},
+      ticket_price = #{record.ticketPrice,jdbcType=DECIMAL},
+      capacity = #{record.capacity,jdbcType=INTEGER}
+    <if test="_parameter != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="updateByPrimaryKeySelective" parameterType="org.linlinjava.announce.db.domain.AnnounceEventDetail">
+    update announce_event
+    <set>
+      <if test="startsAt != null">
+        starts_at = #{startsAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="endsAt != null">
+        ends_at = #{endsAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="venue != null">
+        venue = #{venue,jdbcType=VARCHAR},
+      </if>
+      <if test="organizer != null">
+        organizer = #{organizer,jdbcType=VARCHAR},
+      </if>
+      <if test="ticketed != null">
+        ticketed = #{ticketed,jdbcType=BIT},
+      </if>
+      <if test="ticketPrice != null">
+        ticket_price = #{ticketPrice,jdbcType=DECIMAL},
+      </if>
+      <if test="capacity != null">
+        capacity = #{capacity,jdbcType=INTEGER},
+      </if>
+    </set>
+    where announce_id = #{announceId,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="org.linlinjava.announce.db.domain.AnnounceEventDetail">
+    update announce_event
+    set starts_at = #{startsAt,jdbcType=TIMESTAMP},
+      ends_at = #{endsAt,jdbcType=TIMESTAMP},
+      venue = #{venue,jdbcType=VARCHAR},
+      organizer = #{organizer,jdbcType=VARCHAR},
+      ticketed = #{ticketed,jdbcType=BIT},
+      ticket_price = #{ticketPrice,jdbcType=DECIMAL},
+      capacity = #{capacity,jdbcType=INTEGER}
+    where announce_id = #{announceId,jdbcType=VARCHAR}
+  </update>
+  <select id="selectOneByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceEventDetailExample" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from announce_event
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+    limit 1
+  </select>
+  <select id="selectOneByExampleSelective" parameterType="map" resultMap="BaseResultMap">
+    select
+    <choose>
+      <when test="selective != null and selective.length > 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+      </otherwise>
+    </choose>
+    from announce_event
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example != null and example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+    limit 1
+  </select>
+
+  <select id="selectPageByExample" parameterType="map" resultMap="BaseResultMap">
+    select
+    <if test="example.distinct">
+      distinct
+    </if>
+    <include refid="Base_Column_List" />
+    from announce_event
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+    limit #{limit} offset #{offset}
+  </select>
+  <select id="selectPageByExampleSelective" parameterType="map" resultMap="BaseResultMap">
+    select
+    <if test="example.distinct">
+      distinct
+    </if>
+    <choose>
+      <when test="selective != null and selective.length &gt; 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+      </otherwise>
+    </choose>
+    from announce_event
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+    limit #{limit} offset #{offset}
+  </select>
+  <!-- hand-written: idempotent write for projections (insert, or overwrite every column when the row exists) -->
+  <insert id="upsert" parameterType="org.linlinjava.announce.db.domain.AnnounceEventDetail">
+    insert into announce_event (announce_id, starts_at, ends_at, 
+      venue, organizer, ticketed, 
+      ticket_price, capacity)
+    values (#{announceId,jdbcType=VARCHAR}, #{startsAt,jdbcType=TIMESTAMP}, #{endsAt,jdbcType=TIMESTAMP}, 
+      #{venue,jdbcType=VARCHAR}, #{organizer,jdbcType=VARCHAR}, #{ticketed,jdbcType=BIT}, 
+      #{ticketPrice,jdbcType=DECIMAL}, #{capacity,jdbcType=INTEGER})
+    on duplicate key update
+      starts_at = values(starts_at),
+      ends_at = values(ends_at),
+      venue = values(venue),
+      organizer = values(organizer),
+      ticketed = values(ticketed),
+      ticket_price = values(ticket_price),
+      capacity = values(capacity)
+  </insert>
+</mapper>

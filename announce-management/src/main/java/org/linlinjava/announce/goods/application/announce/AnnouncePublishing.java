@@ -1,115 +1,99 @@
 package org.linlinjava.announce.goods.application.announce;
 
-import org.linlinjava.announce.goods.application.announce.AnnounceCommands.ChangeAnnouncePrice;
-import org.linlinjava.announce.goods.application.announce.AnnounceCommands.DraftAnnounce;
-import org.linlinjava.announce.goods.application.announce.AnnounceCommands.EditAnnounce;
-import org.linlinjava.announce.goods.application.announce.AnnounceCommands.MarkAnnounceSold;
-import org.linlinjava.announce.goods.application.announce.AnnounceCommands.PublishAnnounce;
-import org.linlinjava.announce.goods.application.announce.AnnounceCommands.WithdrawAnnounce;
+import org.linlinjava.announce.cqrs.command.ReactiveCommandRouter;
+import org.linlinjava.announce.cqrs.observability.MetaDataKeys;
 import org.linlinjava.announce.goods.application.brand.BrandNotFoundException;
-import org.linlinjava.announce.goods.application.category.CategoryNotFoundException;
+import org.linlinjava.announce.goods.application.category.CategoryTreeManagement;
 import org.linlinjava.announce.goods.domain.announce.Announce;
-import org.linlinjava.announce.goods.domain.announce.AnnounceDetails;
-import org.linlinjava.announce.goods.domain.announce.AnnounceId;
-import org.linlinjava.announce.goods.domain.announce.AnnounceRepository;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.EditAnnounce;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ExpireAnnounce;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.MarkSold;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PostAnnounce;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PublishAnnounce;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.WithdrawAnnounce;
+import org.linlinjava.announce.goods.domain.announce.AnnounceContent;
+import org.linlinjava.announce.goods.domain.announce.AnnounceKind;
+import org.linlinjava.announce.goods.domain.announce.AnnounceReadRepository;
+import org.linlinjava.announce.goods.domain.announce.GoodsDetails;
 import org.linlinjava.announce.goods.domain.announce.SellerId;
 import org.linlinjava.announce.goods.domain.brand.BrandRepository;
-import org.linlinjava.announce.goods.domain.category.CategoryRepository;
-import org.linlinjava.announce.goods.domain.model.events.LitemallDomainEventPublisher;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.function.Consumer;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * Use cases of the announce lifecycle: draft, publish, edit, change price, withdraw, mark sold, expire.
- * Each one loads the aggregate, checks ownership, lets the aggregate apply the rule, saves it and publishes its events.
+ * Use cases of the announce lifecycle: post, edit, publish, withdraw, mark sold, expire. The rules live in the
+ * aggregate; this facade checks the references the aggregate cannot see (category of the right kind, brand) and
+ * dispatches the command through the framework router. A caller-supplied command id makes the dispatch idempotent.
  */
 @Service
 public class AnnouncePublishing {
 
-    private final AnnounceRepository announces;
-    private final CategoryRepository categories;
+    private final ReactiveCommandRouter router;
+    private final CategoryTreeManagement categories;
     private final BrandRepository brands;
-    private final LitemallDomainEventPublisher events;
+    private final AnnounceReadRepository readModel;
     private final Clock clock;
 
-    public AnnouncePublishing(AnnounceRepository announces, CategoryRepository categories, BrandRepository brands,
-                              LitemallDomainEventPublisher events, Clock clock) {
-        this.announces = announces;
+    public AnnouncePublishing(ReactiveCommandRouter router, CategoryTreeManagement categories, BrandRepository brands,
+                              AnnounceReadRepository readModel, Clock clock) {
+        this.router = router;
         this.categories = categories;
         this.brands = brands;
-        this.events = events;
+        this.readModel = readModel;
         this.clock = clock;
     }
 
-    public Mono<Announce> draft(DraftAnnounce command) {
-        return checkReferences(command.details())
-                .then(Mono.fromSupplier(() -> Announce.draft(command.sellerId(), command.details(), now())))
-                .flatMap(this::saveAndPublish);
+    /** Creates a draft with a fresh id and returns the resulting state. */
+    public Mono<Announce> post(SellerId seller, AnnounceContent content, AnnounceKind details, String commandId) {
+        return checkReferences(content, details)
+                .then(Mono.defer(() -> send(new PostAnnounce(UUID.randomUUID().toString(), seller, content, details), commandId)));
     }
 
-    public Mono<Announce> publish(PublishAnnounce command) {
-        return change(command.announceId(), command.sellerId(),
-                a -> a.publish(command.validity() == null ? Announce.DEFAULT_VALIDITY : command.validity(), now()));
+    public Mono<Announce> edit(String id, SellerId seller, AnnounceContent content, AnnounceKind details, String commandId) {
+        return checkReferences(content, details)
+                .then(Mono.defer(() -> send(new EditAnnounce(id, seller, content, details), commandId)));
     }
 
-    public Mono<Announce> edit(EditAnnounce command) {
-        return checkReferences(command.details())
-                .then(change(command.announceId(), command.sellerId(), a -> a.edit(command.details(), now())));
+    /** {@code validity} null means the default (60 days). */
+    public Mono<Announce> publish(String id, SellerId seller, Duration validity, String commandId) {
+        return send(new PublishAnnounce(id, seller, validity), commandId);
     }
 
-    public Mono<Announce> changePrice(ChangeAnnouncePrice command) {
-        return change(command.announceId(), command.sellerId(), a -> a.changePrice(command.price(), now()));
+    public Mono<Announce> withdraw(String id, SellerId seller, String commandId) {
+        return send(new WithdrawAnnounce(id, seller), commandId);
     }
 
-    public Mono<Announce> withdraw(WithdrawAnnounce command) {
-        return change(command.announceId(), command.sellerId(), a -> a.withdraw(now()));
+    public Mono<Announce> markSold(String id, SellerId seller, String commandId) {
+        return send(new MarkSold(id, seller), commandId);
     }
 
-    public Mono<Announce> markSold(MarkAnnounceSold command) {
-        return change(command.announceId(), command.sellerId(), a -> a.markSold(now()));
-    }
-
-    /** Expires every published announce past its date. Returns how many were expired. Run by the scheduler. */
+    /** Expires every published announce past its date (read model lookup, one command per announce). Returns how many. */
     public Mono<Long> expireDue(int batchSize) {
-        LocalDateTime now = now();
-        return announces.findPublishedExpiredBefore(now, batchSize)
-                .filter(a -> a.expireIfDue(now))
-                .flatMap(this::saveAndPublish)
+        LocalDateTime now = LocalDateTime.now(clock);
+        return readModel.findPublishedExpiredBefore(now, batchSize)
+                .flatMap(id -> send(new ExpireAnnounce(id), null), 4)
                 .count();
     }
 
-    /** Loads the announce for its owner (404 when unknown, 403 when someone else's). */
-    public Mono<Announce> loadOwned(AnnounceId id, SellerId sellerId) {
-        return announces.findById(id)
-                .switchIfEmpty(Mono.error(() -> new AnnounceNotFoundException(id)))
-                .flatMap(a -> a.isOwnedBy(sellerId) ? Mono.just(a) : Mono.error(new NotAnnounceOwnerException(id, sellerId)));
+    private Mono<Announce> send(com.opencqrs.framework.command.Command command, String commandId) {
+        Map<String, ?> metaData = commandId == null || commandId.isBlank() ? Map.of() : Map.of(MetaDataKeys.COMMAND_ID, commandId);
+        return router.send(command, metaData, Announce.class);
     }
 
-    Mono<Announce> change(AnnounceId id, SellerId sellerId, Consumer<Announce> action) {
-        return loadOwned(id, sellerId)
-                .flatMap(a -> Mono.fromRunnable(() -> action.accept(a)).thenReturn(a))
-                .flatMap(this::saveAndPublish);
-    }
-
-    Mono<Announce> saveAndPublish(Announce announce) {
-        return announces.save(announce)
-                .flatMap(saved -> Flux.fromIterable(saved.pullEvents()).doOnNext(events::publish).then(Mono.just(saved)));
-    }
-
-    private Mono<Void> checkReferences(AnnounceDetails details) {
-        Mono<Void> category = categories.existsVisible(details.categoryId())
-                .flatMap(exists -> exists ? Mono.empty() : Mono.error(new CategoryNotFoundException(details.categoryId())));
-        Mono<Void> brand = details.brandId() == null ? Mono.empty()
-                : brands.findById(details.brandId()).switchIfEmpty(Mono.error(() -> new BrandNotFoundException(details.brandId()))).then();
+    private Mono<Void> checkReferences(AnnounceContent content, AnnounceKind details) {
+        if (content == null || details == null) {
+            return Mono.error(new IllegalArgumentException("Content and kind-specific details are required"));
+        }
+        Mono<Void> category = categories.requireVisible(content.categoryId(), details.kind()).then();
+        Mono<Void> brand = details instanceof GoodsDetails goods && goods.brandId() != null
+                ? brands.findById(goods.brandId()).switchIfEmpty(Mono.error(() -> new BrandNotFoundException(goods.brandId()))).then()
+                : Mono.empty();
         return category.then(brand);
-    }
-
-    LocalDateTime now() {
-        return LocalDateTime.now(clock);
     }
 }

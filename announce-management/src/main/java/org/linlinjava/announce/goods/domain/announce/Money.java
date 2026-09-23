@@ -1,5 +1,6 @@
 package org.linlinjava.announce.goods.domain.announce;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Objects;
@@ -26,6 +27,7 @@ public record Money(BigDecimal amount) {
         return new Money(BigDecimal.ZERO);
     }
 
+    @JsonIgnore
     public boolean isZero() {
         return amount.signum() == 0;
     }

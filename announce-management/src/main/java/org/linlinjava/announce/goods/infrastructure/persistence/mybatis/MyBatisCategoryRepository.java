@@ -3,6 +3,7 @@ package org.linlinjava.announce.goods.infrastructure.persistence.mybatis;
 import org.linlinjava.announce.db.dao.reactive.LitemallCategoryMapper;
 import org.linlinjava.announce.db.domain.LitemallCategory;
 import org.linlinjava.announce.db.domain.LitemallCategoryExample;
+import org.linlinjava.announce.goods.domain.announce.Kind;
 import org.linlinjava.announce.goods.domain.category.Category;
 import org.linlinjava.announce.goods.domain.category.CategoryId;
 import org.linlinjava.announce.goods.domain.category.CategoryRepository;
@@ -35,9 +36,12 @@ public class MyBatisCategoryRepository implements CategoryRepository {
     }
 
     @Override
-    public Flux<Category> findRoots() {
+    public Flux<Category> findRoots(Kind kind) {
         LitemallCategoryExample example = new LitemallCategoryExample();
-        example.or().andPidEqualTo(0).andDeletedEqualTo(false);
+        LitemallCategoryExample.Criteria criteria = example.or().andPidEqualTo(0).andDeletedEqualTo(false);
+        if (kind != null) {
+            criteria.andKindEqualTo(kind.name());
+        }
         example.setOrderByClause("sort_order asc, id asc");
         return categories.selectByExample(example).map(MyBatisCategoryRepository::toCategory);
     }
@@ -56,7 +60,7 @@ public class MyBatisCategoryRepository implements CategoryRepository {
     }
 
     static Category toCategory(LitemallCategory c) {
-        return Category.rehydrate(new CategoryId(c.getId()), c.getName(),
+        return Category.rehydrate(new CategoryId(c.getId()), c.getKind() == null ? Kind.GOODS : Kind.valueOf(c.getKind()), c.getName(),
                 c.getPid() == null || c.getPid() == 0 ? null : new CategoryId(c.getPid()),
                 c.getKeywords(), c.getDesc(), c.getIconUrl(), c.getPicUrl(),
                 c.getSortOrder() == null ? 50 : c.getSortOrder(), Boolean.TRUE.equals(c.getDeleted()), c.getAddTime(), c.getUpdateTime());
@@ -65,6 +69,7 @@ public class MyBatisCategoryRepository implements CategoryRepository {
     static LitemallCategory toRow(Category c) {
         LitemallCategory row = new LitemallCategory();
         row.setId(c.id() == null ? null : c.id().value());
+        row.setKind(c.kind().name());
         row.setName(c.name());
         row.setPid(c.parentId() == null ? 0 : c.parentId().value());
         row.setLevel(c.level());

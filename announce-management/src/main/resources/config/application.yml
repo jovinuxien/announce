@@ -73,11 +73,52 @@ r2dbc:
     configuration:
       map-underscore-to-camel-case: true
 
-# Announces expire automatically (see AnnounceExpiryJob)
+# Command side: the Announce aggregate lives in EventSourcingDB under /announce/{id} (docker/cqrs/docker-compose.yml)
+esdb:
+  server:
+    uri: ${ANNOUNCE_ESDB_URI:http://localhost:3000}
+    api-token: ${ANNOUNCE_ESDB_TOKEN:secret}
+
+# Read side: the two projection groups of this service (checkpoints in cqrs_readside_progress, same database)
+opencqrs:
+  event-handling:
+    standard:
+      fetch:
+        subject: /announce
+        recursive: true
+      retry:
+        policy: exponential_backoff
+        initial-interval: 500ms
+        max-interval: 30s
+        max-elapsed-time: 1h
+      life-cycle:
+        controller: application_context
+    groups:
+      announce-read-model: {}
+      announce-search: {}
+
+cqrs:
+  readside:
+    handler-timeout: 30s
+    progress:
+      tracker: r2dbc
+  command:
+    idempotency:
+      enabled: true
+  api:
+    clients:
+      ocs-indexer:
+        base-url: ${ANNOUNCE_OCS_INDEXER_URL:http://localhost:8535}
+
 announce:
+  # Announces expire automatically (see AnnounceExpiryJob)
   expiry:
     enabled: true
     cron: "0 */15 * * * *"
+  # The search projection pushes every visible announce to the OCS indexer (mode ocs) or nowhere (any other value)
+  search:
+    mode: ocs
+    index: announce_index
 
 logging:
   level:

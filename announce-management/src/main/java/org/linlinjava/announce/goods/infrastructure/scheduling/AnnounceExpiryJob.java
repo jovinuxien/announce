@@ -8,7 +8,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** Expires published announces past their date. Disable with {@code announce.expiry.enabled=false}. */
+/**
+ * Expires published announces past their date: reads the due ids from the read model and sends one
+ * {@code ExpireAnnounce} command each (the aggregate ignores announces that are not due). Disable with
+ * {@code announce.expiry.enabled=false}.
+ */
 @Component
 @EnableScheduling
 @ConditionalOnProperty(prefix = "announce.expiry", name = "enabled", havingValue = "true", matchIfMissing = true)

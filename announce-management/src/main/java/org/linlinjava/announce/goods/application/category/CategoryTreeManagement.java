@@ -1,5 +1,6 @@
 package org.linlinjava.announce.goods.application.category;
 
+import org.linlinjava.announce.goods.domain.announce.Kind;
 import org.linlinjava.announce.goods.domain.category.Category;
 import org.linlinjava.announce.goods.domain.category.CategoryId;
 import org.linlinjava.announce.goods.domain.category.CategoryRepository;
@@ -28,8 +29,8 @@ public class CategoryTreeManagement {
         this.clock = clock;
     }
 
-    public Mono<Category> createRoot(String name, String description, String iconUrl, int sortOrder) {
-        return save(Category.root(name, description, iconUrl, sortOrder, now()));
+    public Mono<Category> createRoot(Kind kind, String name, String description, String iconUrl, int sortOrder) {
+        return save(Category.root(kind == null ? Kind.GOODS : kind, name, description, iconUrl, sortOrder, now()));
     }
 
     public Mono<Category> createChild(CategoryId parentId, String name, String description, String iconUrl, int sortOrder) {
@@ -61,10 +62,23 @@ public class CategoryTreeManagement {
         return load(id);
     }
 
-    /** Visible roots with their visible children. */
-    public Flux<CategoryNode> tree() {
-        return categories.findRoots()
+    /** Visible roots of one kind (null: all) with their visible children. */
+    public Flux<CategoryNode> tree(Kind kind) {
+        return categories.findRoots(kind)
                 .concatMap(root -> categories.findChildren(root.id()).collectList().map(children -> new CategoryNode(root, children)));
+    }
+
+    /** The category an announce of {@code kind} may use: it must exist, be visible and belong to that kind's tree. */
+    public Mono<Category> requireVisible(CategoryId id, Kind kind) {
+        return load(id).flatMap(c -> {
+            if (c.isHidden()) {
+                return Mono.error(new CategoryNotFoundException(id));
+            }
+            if (c.kind() != kind) {
+                return Mono.error(new IllegalArgumentException("Category " + id.value() + " belongs to the " + c.kind() + " tree, not to " + kind));
+            }
+            return Mono.just(c);
+        });
     }
 
     private Mono<Category> load(CategoryId id) {

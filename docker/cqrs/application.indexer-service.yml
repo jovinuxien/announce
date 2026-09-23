@@ -25,6 +25,117 @@ ocs:
             usage:
               - Result
 
+          kind:
+            name: kind
+            type: string
+            usage:
+              - Result
+              - Facet
+              - Filter
+
+          condition:
+            name: condition
+            type: string
+            usage:
+              - Result
+              - Facet
+
+          brand_id:
+            name: brand_id
+            type: string
+            usage:
+              - Facet
+
+          employer:
+            name: employer
+            type: string
+            usage:
+              - Search
+              - Result
+              - Facet
+
+          contract_type:
+            name: contract_type
+            type: string
+            usage:
+              - Result
+              - Facet
+
+          application_deadline_epoch:
+            name: application_deadline_epoch
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Filter
+
+          salary_min:
+            name: salary_min
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Filter
+
+          salary_max:
+            name: salary_max
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Filter
+
+          currency:
+            name: currency
+            type: string
+            usage:
+              - Result
+
+          starts_epoch:
+            name: starts_epoch
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Filter
+
+          ends_epoch:
+            name: ends_epoch
+            type: number
+            usage:
+              - Result
+              - Filter
+
+          venue:
+            name: venue
+            type: string
+            usage:
+              - Search
+              - Result
+
+          organizer:
+            name: organizer
+            type: string
+            usage:
+              - Search
+              - Result
+              - Facet
+
+          ticketed:
+            name: ticketed
+            type: string
+            usage:
+              - Result
+              - Facet
+
+          ticket_price:
+            name: ticket_price
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Facet
+
           title:
             name: title
             type: string
@@ -166,20 +277,21 @@ ocs:
               - Score
             field-level: variant
 
+        # kind (GOODS, JOB, EVENT) is the first facet; job and event fields are only present on those kinds.
         # Curated announce_goods_attribute name->value pairs ride as extra flat data keys and become facets
         # without per-attribute configuration. The negative lookahead keeps the fixed schema keys out.
         dynamic-fields:
           - name: attribute_string
             type: string
             source-names:
-              - '^(?!(announce_id|title|description|price|sale_type|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch)$).*$'
+              - '^(?!(announce_id|kind|title|description|price|sale_type|condition|brand_id|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch|employer|contract_type|application_deadline_epoch|salary_min|salary_max|currency|starts_epoch|ends_epoch|venue|organizer|ticketed|ticket_price)$).*$'
             usage:
               - Facet
               - Result
           - name: attribute_number
             type: number
             source-names:
-              - '^(?!(announce_id|title|description|price|sale_type|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch)$).*$'
+              - '^(?!(announce_id|kind|title|description|price|sale_type|condition|brand_id|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch|employer|contract_type|application_deadline_epoch|salary_min|salary_max|currency|starts_epoch|ends_epoch|venue|organizer|ticketed|ticket_price)$).*$'
             usage:
               - Facet
               - Result

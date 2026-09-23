@@ -4,17 +4,28 @@ import org.linlinjava.announce.goods.domain.category.CategoryId;
 
 import java.time.LocalDateTime;
 
-/** What a listing page shows per announce (no description, no children). Read side of the catalog. */
-public record AnnounceSummary(AnnounceId id,
+/**
+ * What a listing page shows per announce, read from the {@code announce} table joined with the detail table of its
+ * kind: the shared columns plus the few kind-specific ones a list needs. {@code kindFacts} holds those:
+ * price, sale type, condition for goods; employer, contract type, deadline for jobs; start, end, ticketed for events.
+ */
+public record AnnounceSummary(String id,
+                              Kind kind,
                               SellerId sellerId,
                               String title,
                               String brief,
                               String pictureUrl,
-                              Money price,
-                              SaleType saleType,
                               AnnounceStatus status,
                               CategoryId categoryId,
                               Location location,
                               LocalDateTime createdAt,
-                              LocalDateTime expiresAt) {
+                              LocalDateTime publishedAt,
+                              LocalDateTime expiresAt,
+                              KindFacts kindFacts) {
+
+    /** The kind-specific columns of a summary; fields of the other kinds are null. */
+    public record KindFacts(Money price, SaleType saleType, Condition condition,
+                            String employer, ContractType contractType, LocalDateTime applicationDeadline,
+                            LocalDateTime startsAt, LocalDateTime endsAt, Boolean ticketed, Money ticketPrice) {
+    }
 }

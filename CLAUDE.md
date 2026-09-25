@@ -133,3 +133,110 @@ or `target/`.
   `announce_data_en.sql` loads into the new schema (existing goods rows
   migrated to kind GOODS); `doc/announce-management-context.md` gains a
   section on the three kinds and the read-model tables.
+
+### Worktree: `crawled-listings` — Crawled listings as a second search source (2026-09-25)
+
+- **Prerequisite:** `feat/announce-kinds` merged into `announce-jo-branch`
+  (done). `docker/cqrs` up (Elasticsearch, OCS indexer 8535, searcher 8534,
+  suggest). Read `doc/announce-management-context.md` §8 first.
+- **Decision (option A):** listings crawled from dba.dk and tradera.com are
+  NOT announces. They never enter the event store or the `announce*` read
+  models. They live in their own table, are indexed into the same
+  `announce_index` with a `source` facet, and a click on a hit redirects to
+  the source page. The aggregate, its commands and `AnnounceSearchProjection`
+  stay untouched.
+- **Task:** add a `listing` sub-context to `announce-management` (package
+  `org.linlinjava.announce.listing` with `domain`, `application`,
+  `infrastructure`, `interfaces`; nothing in `goods` imports from `listing`
+  and vice versa; split into its own module later if it grows) plus schema
+  in `db-reactive`.
+  1. Schema (`db-reactive/sql/announce_table.sql`, also
+     `build_announce_reactive_db.sh`): table `crawled_listing` with
+     `id` varchar(64) PK = `{source}-{external_id}` (deterministic: the
+     same listing always maps to the same row and the same index document),
+     `source` (DBA, TRADERA), `external_id`, `url` (canonical, 1023),
+     `content_hash` char(64), `kind` (GOODS now; JOB/EVENT later),
+     `title`, `brief` varchar(255) (snippet only, never the full text),
+     `image_url`, `price` decimal(10,2), `currency` char(3), `sale_type`
+     (FIXED_PRICE, AUCTION), `ends_at` (tradera auctions),
+     `source_category` varchar(255) (site's own path, e.g. "Cars/Private
+     Car"), `category_id` nullable (mapped `announce_category` of kind
+     GOODS), `attributes` JSON (km, model year, ...), `address_raw`,
+     `region_id`, `city`, `postal_code`, `published_at` (from the source),
+     `first_seen_at`, `last_seen_at`, `status` (ACTIVE, GONE),
+     `click_count`, `add_time`, `update_time`; unique key
+     (`source`, `external_id`), keys on (`status`, `last_seen_at`) and
+     (`source`, `content_hash`). Table `listing_category_map` (`source`,
+     `source_category`, `category_id`) so category mapping is data, not
+     code. Regenerate mappers with `mybatis-generator/generatorConfig.xml` +
+     `reactify_mapper.py`.
+  2. Domain: `CrawledListing` entity + `ListingSource` enum + value object
+     `CrawledItem` (the normalised shape a parser produces). Rules:
+     `brief` is truncated to 255 chars; content hash covers title, brief,
+     price, sale_type, ends_at, attributes, image, address; a listing is
+     GONE when not seen for `announce.listing.gone-after` (default 7 days)
+     and comes back to ACTIVE if seen again.
+  3. Feed parsers (`infrastructure.feed`): one per source reading the
+     scrapy JSON. `DbaFeedParser` maps `itemName/itemDescription/itemUrl/
+     itemImage/itemPris/itemCategory/itemSubCategory/itemKm/itemModelYear/
+     itemAddress/itemPublishedDate` (each is a one-element list, values
+     carry `\r\n` padding); `external_id` is the `id-<digits>` segment of
+     the URL. `TraderaFeedParser` maps `itemId/description/itemType/
+     startDate/endDate` with `sale_type` AUCTION and `ends_at` = endDate.
+     Address normaliser: "6580 Vamdrup" -> postal_code + city; `region_id`
+     from `announce_region` by city name, null when unknown (no geocoding).
+  4. Importer (`application`): `ListingImportService.importFile(source,
+     path)` streams items, upserts by id, and for each row: new or hash
+     changed -> index; unchanged -> touch `last_seen_at` only. A
+     `ListingSweepJob` (`@Scheduled`, next to `AnnounceExpiryJob`) marks
+     stale rows GONE and removes them from the index. `ListingImportJob`
+     polls `announce.listing.import.dir` (default
+     `/home/bimeni/announce_crawled_data`), one file per source pattern
+     (`dba_*.json`, `tradera_*.json`), and moves a processed file to
+     `done/` so a run is never imported twice. Admin triggers: `POST
+     /api/admin/listings/import` (file path in body) and
+     `POST /api/admin/listings/reindex` (full pass over ACTIVE rows in
+     batches of 500; used after an index rebuild).
+  5. Index: move `OcsIndexerApi` and `OcsAnnounceIndexer` behind a shared
+     `org.linlinjava.announce.search` package used by both sub-contexts
+     (one `SearchIndexer` port: `index(id, data)`, `remove(id)`;
+     `AnnounceIndexer` delegates to it). In
+     `docker/cqrs/application.indexer-service.yml` add `source` (string,
+     Result + Facet, values `local`, `dba`, `tradera`; never used as a
+     default scope), `external_url` (string, Result), `source_category`
+     (string, Result), `ends_epoch` already exists (auction end); extend
+     the dynamic-field negative-lookahead with the new names.
+     `AnnounceDocument.of` emits `source: local`. Listing documents use the
+     same `kind`, `title`, `description`, `price`, `sale_type`, `image_url`,
+     `city`, `postal_code`, `region_id`, `category_ids`, `created_epoch`
+     names so facets and sorts work across both sources; km and model year
+     ride as dynamic attribute facets like goods attributes.
+  6. Click-out: `GET /out/{id}` (`interfaces.rest`) increments
+     `click_count` and answers 302 to `url`; 410 when the row is GONE, 404
+     when unknown. The frontend uses `external_url` only to show the
+     domain; the click goes through `/out/{id}`.
+  7. Scrapy side (outside this repo, `~/Desktop/python_projects/
+     scrapy_projects/tutorial`): document in `doc/crawled-listings.md`
+     what the importer expects and fix the pipeline: `DuplicatesPipeline`
+     reads JSON lines but `FEEDS` writes an indented array, and it keys on
+     `itmeUrl` (typo). Switch the feed to `jsonlines`, one file per run
+     named `dba_<yyyyMMddHHmm>.jsonl`, and drop the pipeline's own dedup
+     (the importer dedups). Nutch is a later discovery step that feeds
+     start URLs to scrapy; nothing here depends on it.
+  8. Kafka is the follow-up transport (scrapy producer -> topic
+     `crawled-listings` -> `PublicEventSubscribers.forTopic`), not part of
+     this task; keep `ListingImportService` transport-agnostic (takes a
+     `Flux<CrawledItem>`).
+- **Out of scope:** geocoding, image mirroring, jobs/events from crawled
+  sources, nutch integration, Kafka transport, frontend changes.
+- **Acceptance:** `mvn -pl db-reactive test` and
+  `mvn -pl announce-management -P '!webapp' test` pass with
+  `announce.search.mode=noop` (fake indexer records calls). A test imports
+  a fixture of three dba items and two tradera items twice: five rows,
+  five index calls on the first run, zero on the second; a changed price
+  yields one reindex; a row with `last_seen_at` older than the grace period
+  is set GONE and removed from the index; `GET /out/{id}` redirects for
+  ACTIVE and answers 410 for GONE. `AnnounceDocument` carries
+  `source=local`. The real `dba_cars.json` in the import dir loads without
+  errors. `doc/crawled-listings.md` explains the table, the feed format,
+  the index fields and the legal stance (snippet + link out, no full text).

@@ -36,7 +36,12 @@ announce:
   expiry:
     enabled: false
   search:
-    mode: recording        # the test supplies a recording AnnounceIndexer bean instead of the OCS client
+    mode: noop             # RecordingSearchIndexer stands in for the OCS client and remembers every call
+  listing:
+    import:
+      enabled: false       # the end-to-end test enables the polling flow itself with a temporary directory
+    sweep:
+      enabled: false
 
 logging:
   level:

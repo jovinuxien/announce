@@ -207,7 +207,7 @@ joined `selectSummaries` / `countSummaries` listing query), `AnnounceGoodsDetail
 | group | projection | writes |
 |---|---|---|
 | `announce-read-model` | `AnnounceReadModelProjection` | the tables above: `AnnouncePosted` upserts base + detail + children, `AnnounceEdited` rewrites the content columns and the detail, the lifecycle events update status and dates; `last_event_id` records the event applied |
-| `announce-search` | `AnnounceSearchProjection` | one document per visible announce to the `AnnounceIndexer` port (`OcsAnnounceIndexer` pushes to the OCS indexer of `docker/cqrs`, index `announce_index`, `kind` as facet); removal on withdraw, sold and expire |
+| `announce-search` | `AnnounceSearchProjection` | one document per visible announce to the `AnnounceIndexer` port, which delegates to the shared `org.linlinjava.announce.search.SearchIndexer` (`OcsSearchIndexer` pushes to the OCS indexer of `docker/cqrs`, index `announce_index`, `kind` and `source=local` as facets); removal on withdraw, sold and expire |
 
 Both groups checkpoint in `cqrs_readside_progress` (`R2dbcProgressTracker`) and are at-least-once: every handler is
 idempotent. The search projection builds its document from the read model; when the read-model group has not yet
@@ -227,5 +227,13 @@ Writes answer with the state the command produced (201 on post); reads come from
 `AnnounceTest` drives the aggregate through `CommandFixture`; `AnnounceKindsEndToEndTest` boots the service with
 Testcontainers only (EventSourcingDB, MySQL loaded with the schema and the migrated seed), posts and publishes one
 announce of each kind, reads the kind-specific fields back from the projection, checks the invariants over HTTP and
-a recording indexer. `mvn -pl announce-management -P '!webapp' test` runs them; `MyBatisRepositoriesIT` (category
+the recording indexer of `announce.search.mode=noop`. `mvn -pl announce-management -P '!webapp' test` runs them; `MyBatisRepositoriesIT` (category
 and brand against the live database) runs with `-Dtest=MyBatisRepositoriesIT`.
+
+## 9. Crawled listings as a second search source (2026-09-26)
+
+Listings crawled from dba.dk and tradera.com are not announces: they never enter the event store or the `announce*`
+tables. The `listing` sub-context (`org.linlinjava.announce.listing`, same module, nothing shared with `goods` but
+the `search` package) keeps them in `crawled_listing`, imports the scrapy feeds through a Spring Integration file
+flow, indexes them into the same `announce_index` with `source` as a facet, and links out through `GET /out/{id}`.
+Design, schema, feed format, index fields and the legal stance (snippet + link, no full text): `doc/crawled-listings.md`.

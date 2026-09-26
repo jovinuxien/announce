@@ -1,4 +1,4 @@
-package org.linlinjava.announce.goods.infrastructure.search;
+package org.linlinjava.announce.search;
 
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;

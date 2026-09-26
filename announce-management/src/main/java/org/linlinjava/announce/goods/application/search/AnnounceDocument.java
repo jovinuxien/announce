@@ -15,14 +15,19 @@ import java.util.Map;
 /**
  * The search document of an announce, as the OCS indexer expects it: an id and flat fields. Field names follow
  * {@code docker/cqrs/application.indexer-service.yml}; {@code kind} is a facet, the kind-specific fields are only
- * present for that kind, goods attributes become dynamic {@code attribute_*} facets.
+ * present for that kind, goods attributes become dynamic {@code attribute_*} facets. {@code source} is {@code local}
+ * (crawled listings of the {@code listing} sub-context share the index with {@code dba} / {@code tradera}).
  */
 public record AnnounceDocument(String id, Map<String, Object> data) {
+
+    /** Value of the {@code source} facet for announces posted here; crawled listings carry their site instead. */
+    public static final String SOURCE = "local";
 
     public static AnnounceDocument of(Announce a) {
         AnnounceContent c = a.content();
         Map<String, Object> d = new LinkedHashMap<>();
         d.put("announce_id", a.id());
+        d.put("source", SOURCE);
         d.put("kind", a.kind().name());
         d.put("title", c.title());
         d.put("description", c.brief().isEmpty() ? c.description() : c.brief());

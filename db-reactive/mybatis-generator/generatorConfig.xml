@@ -105,6 +105,10 @@
         <table tableName="announce_goods_detail" domainObjectName="AnnounceGoodsDetail"/>
         <table tableName="announce_job" domainObjectName="AnnounceJobDetail"/>
         <table tableName="announce_event" domainObjectName="AnnounceEventDetail"/>
+        <table tableName="crawled_listing" domainObjectName="CrawledListing">
+            <columnOverride column="attributes" javaType="java.lang.String" jdbcType="VARCHAR"/>
+        </table>
+        <table tableName="listing_category_map" domainObjectName="ListingCategoryMap"/>
         <table tableName="announce_goods_attribute" domainObjectName="LitemallGoodsAttribute">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>

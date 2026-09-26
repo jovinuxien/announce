@@ -115,10 +115,22 @@ announce:
   expiry:
     enabled: true
     cron: "0 */15 * * * *"
-  # The search projection pushes every visible announce to the OCS indexer (mode ocs) or nowhere (any other value)
+  # Announces and crawled listings share one OCS index: mode ocs pushes to the indexer, mode noop records in memory
   search:
     mode: ocs
     index: announce_index
+  # Crawled listings (dba.dk, tradera.com): feed files polled from import.dir (Spring Integration), stale rows swept
+  listing:
+    gone-after: P7D
+    import:
+      enabled: true
+      dir: ${ANNOUNCE_LISTING_IMPORT_DIR:/home/bimeni/announce_crawled_data}
+      poll: PT1M
+    sweep:
+      enabled: true
+      cron: "0 30 * * * *"
+    reindex:
+      batch: 500
 
 logging:
   level:

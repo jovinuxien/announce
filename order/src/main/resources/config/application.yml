@@ -1,0 +1,165 @@
+# The order module (doc/order-context.md): auction, order, payment and shipping contexts in one service.
+spring:
+  application:
+    name: order
+  main:
+    banner-mode: off
+  cloud:
+    config:
+      enabled: false
+    function:
+      # one subscriber bean per (context, topic); see each context's *Messaging configuration
+      definition: auctionAnnounceEvents;auctionPaymentEvents;orderAnnounceEvents;orderAuctionEvents;orderMessagingEvents;orderPaymentEvents;orderShippingEvents;paymentOrderEvents;shippingOrderEvents
+    stream:
+      bindings:
+        # out: one relay per context
+        auction-out-0:
+          destination: auction.v1
+        order-out-0:
+          destination: order.v1
+        payment-out-0:
+          destination: payment.v1
+        shipping-out-0:
+          destination: shipping.v1
+        # in: auction context
+        auctionAnnounceEvents-in-0:
+          destination: announce.v1
+          group: order-auction
+        auctionPaymentEvents-in-0:
+          destination: payment.v1
+          group: order-auction
+        # in: order context
+        orderAnnounceEvents-in-0:
+          destination: announce.v1
+          group: order-order
+        orderAuctionEvents-in-0:
+          destination: auction.v1
+          group: order-order
+        orderMessagingEvents-in-0:
+          destination: messaging.v1
+          group: order-order
+        orderPaymentEvents-in-0:
+          destination: payment.v1
+          group: order-order
+        orderShippingEvents-in-0:
+          destination: shipping.v1
+          group: order-order
+        # in: payment context
+        paymentOrderEvents-in-0:
+          destination: order.v1
+          group: order-payment
+        # in: shipping context
+        shippingOrderEvents-in-0:
+          destination: order.v1
+          group: order-shipping
+      kafka:
+        binder:
+          brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9092}
+          auto-create-topics: true
+          replication-factor: 1
+  # announce_reactive_db through reactive-mybatis-support; the read models of this module are the announce_order*,
+  # announce_auction*, announce_payment, announce_seller_account and announce_shipment tables (db-reactive/sql/announce_order.sql)
+  r2dbc:
+    mybatis:
+      r2dbc-url: ${ANNOUNCE_R2DBC_URL:r2dbc:mysql://localhost:3306/announce_reactive_db}
+      username: ${ANNOUNCE_DB_USER:announce}
+      password: ${ANNOUNCE_DB_PASSWORD:Calliste_1006}
+      pool:
+        initial-size: 2
+        max-size: 20
+
+server:
+  port: 8083
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+r2dbc:
+  mybatis:
+    mapper-locations: classpath:org/linlinjava/announce/db/dao/reactive/*.xml
+    configuration:
+      map-underscore-to-camel-case: true
+
+esdb:
+  server:
+    uri: ${ANNOUNCE_ESDB_URI:http://localhost:3000}
+    api-token: ${ANNOUNCE_ESDB_TOKEN:secret}
+
+opencqrs:
+  event-handling:
+    standard:
+      fetch:
+        # four aggregate types share the store; every group reads the whole log and dispatches by event class
+        subject: /
+        recursive: true
+      retry:
+        policy: exponential_backoff
+        initial-interval: 500ms
+        max-interval: 30s
+        max-elapsed-time: 1h
+      life-cycle:
+        controller: application_context
+    groups:
+      auction-read-model: {}
+      auction-public: {}
+      order-read-model: {}
+      order-public: {}
+      payment-read-model: {}
+      payment-public: {}
+      shipping-read-model: {}
+      shipping-public: {}
+
+cqrs:
+  readside:
+    handler-timeout: 30s
+    progress:
+      tracker: r2dbc
+  command:
+    idempotency:
+      enabled: true
+
+# ---- the contexts' own settings (doc/order-context.md §3) ----
+order:
+  currency: DKK
+  window:
+    pay: 48h            # after AGREED; 12h .. 7d
+    ship: 7d            # after PAID; 3d .. 7d
+  release:
+    on: DELIVERY        # DELIVERY (default) or DISPATCH
+    delivery-grace: 3d  # after DELIVERED; 0 .. 14d (or earlier on ConfirmReceipt)
+    dispatch-grace: 14d # after DISPATCHED with no delivery event; 7 .. 30d
+  seller-account:
+    required: true      # AcceptPurchase refused until the seller's payout account is enabled
+  fee:
+    default:
+      percent: 8
+      fixed-cents: 500
+    categories: {}      # <categoryId>: {percent: .., fixed-cents: ..}
+  jobs:
+    enabled: true
+    cron: "0 * * * * *"
+auction:
+  seller-account:
+    required: true      # OpenAuction refused until the seller's payout account is enabled
+  default-increment-cents: 1000
+  default-auto-extend-sec: 120
+  jobs:
+    enabled: true
+    cron: "0 * * * * *"
+payment:
+  provider: fake        # fake | stripe (stub)
+  fake:
+    secret: fake-webhook-secret   # HMAC-SHA256 key of the fake provider's webhooks
+shipping:
+  carrier: fake         # fake | postnord (stub)
+  fake:
+    secret: fake-carrier-secret
+  jobs:
+    enabled: true
+    cron: "0 */5 * * * *"

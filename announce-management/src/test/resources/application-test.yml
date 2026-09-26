@@ -7,10 +7,18 @@ spring:
       enabled: false
     discovery:
       enabled: false
+    function:
+      definition: orderEvents;announceProbe          # the service's subscriber plus the test's probe of announce.v1
     stream:
+      bindings:
+        announceProbe-in-0:
+          destination: announce.v1
+          group: announce-management-test
       kafka:
         binder:
-          brokers: localhost:9092      # no topic is used by this service yet; the binder stays idle
+          brokers: localhost:9092      # replaced by the Kafka container through @DynamicPropertySource
+          auto-create-topics: true
+          replication-factor: 1
 eureka:
   client:
     enabled: false
@@ -41,4 +49,5 @@ announce:
 logging:
   level:
     org.linlinjava.announce: INFO
+    org.linlinjava.announce.goods.infrastructure.projection: DEBUG
     org.linlinjava.announce.cqrs: DEBUG

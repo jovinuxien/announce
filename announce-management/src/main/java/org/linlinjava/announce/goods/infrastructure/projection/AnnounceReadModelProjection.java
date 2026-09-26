@@ -29,6 +29,8 @@ import org.linlinjava.announce.goods.domain.announce.events.AnnounceSold;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceWithdrawn;
 import org.linlinjava.announce.goods.infrastructure.persistence.mybatis.AnnounceRows;
 import org.springframework.r2dbc.core.DatabaseClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
@@ -47,6 +49,8 @@ import java.time.LocalDateTime;
  */
 @Component
 public class AnnounceReadModelProjection implements ReactiveProjection {
+
+    private static final Logger log = LoggerFactory.getLogger(AnnounceReadModelProjection.class);
 
     public static final String GROUP = "announce-read-model";
 
@@ -118,7 +122,9 @@ public class AnnounceReadModelProjection implements ReactiveProjection {
         row.setExpiresAt(expiresAt);
         row.setUpdateTime(at);
         row.setLastEventId(envelope.eventId());
-        return announces.updateStatus(row).then();
+        return announces.updateStatus(row)
+                .doOnNext(n -> log.debug("announce {}: status {} after event {} ({} row)", row.getId(), status, envelope.eventId(), n))
+                .then();
     }
 
     private Mono<Void> writeDetails(String id, AnnounceKind details, LocalDateTime at) {

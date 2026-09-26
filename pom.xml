@@ -89,6 +89,17 @@
                 <artifactId>cqrs-reactive-test</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- Public contracts (versioned public events, @HttpExchange interfaces) of each service -->
+            <dependency>
+                <groupId>org.joviste</groupId>
+                <artifactId>announce-management-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.joviste</groupId>
+                <artifactId>order-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>tech.jhipster</groupId>
@@ -163,7 +174,9 @@
         <module>cqrs-reactive</module>
         <module>cqrs-reactive-test</module>
         <module>core</module>
+        <module>announce-management-api</module>
         <module>announce-management</module>
+        <module>order-api</module>
         <module>order</module>
     </modules>
 

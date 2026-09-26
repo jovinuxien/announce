@@ -8,24 +8,16 @@
         from announce_user
         group by substr(add_time,1,10)
     </select>
+    <!-- a deal counts once it is paid; the day is the day it was paid -->
     <select id="statOrder" resultType="map">
         select
-        substr(add_time,1,10) as day,
+        substr(paid_at,1,10) as day,
         count(id) as orders,
-        count(distinct user_id) as customers,
-        sum(actual_price) as amount,
-        round(sum(actual_price)/count(distinct user_id),2) as pcr
+        count(distinct buyer_id) as customers,
+        sum(agreed_price) as amount,
+        round(sum(agreed_price)/count(distinct buyer_id),2) as pcr
         from announce_order
-        where order_status in(401,402)
-        group by substr(add_time,1,10)
-    </select>
-    <select id="statGoods" resultType="map">
-        select
-        substr(add_time,1, 10) as day,
-        count(distinct order_id) as orders,
-        sum(number) as products,
-        sum(number*price) as amount
-        from announce_order_goods
-        group by substr(add_time,1, 10)
+        where paid_at is not null and deleted = 0
+        group by substr(paid_at,1,10)
     </select>
 </mapper>

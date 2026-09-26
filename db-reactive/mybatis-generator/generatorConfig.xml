@@ -71,11 +71,6 @@
         <table tableName="announce_brand">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
-        <table tableName="announce_cart">
-            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
-            <columnOverride column="specifications" javaType="java.lang.String[]"
-                            typeHandler="org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler"/>
-        </table>
         <table tableName="announce_category" domainObjectName="LitemallCategory">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
@@ -122,14 +117,6 @@
         <table tableName="announce_keyword">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
-        <table tableName="announce_order">
-            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
-        </table>
-        <table tableName="announce_order_goods">
-            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
-            <columnOverride column="specifications" javaType="java.lang.String[]"
-                            typeHandler="org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler"/>
-        </table>
         <table tableName="announce_region">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
@@ -166,16 +153,20 @@
         <table tableName="announce_notice_admin">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
-        <!-- Announce auction + chat tables (sql/announce_auction_chat.sql) -->
-        <table tableName="announce_auction">
+        <!-- Order module read models (sql/announce_order.sql): ids come from the command side, no generated keys -->
+        <table tableName="announce_auction" domainObjectName="AnnounceAuction"/>
+        <table tableName="announce_bid" domainObjectName="AnnounceBid"/>
+        <table tableName="announce_auction_event" domainObjectName="AnnounceAuctionEvent">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
-        <table tableName="announce_bid">
-            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
-        </table>
-        <table tableName="announce_auction_event">
-            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
-        </table>
+        <table tableName="announce_auction_seller" domainObjectName="AnnounceAuctionSeller"/>
+        <table tableName="announce_order" domainObjectName="AnnounceOrder"/>
+        <table tableName="announce_order_snapshot" domainObjectName="AnnounceOrderSnapshot"/>
+        <table tableName="announce_order_seller" domainObjectName="AnnounceOrderSeller"/>
+        <table tableName="announce_payment" domainObjectName="AnnouncePayment"/>
+        <table tableName="announce_seller_account" domainObjectName="AnnounceSellerAccount"/>
+        <table tableName="announce_shipment" domainObjectName="AnnounceShipment"/>
+        <!-- Announce chat tables (sql/announce_auction_chat.sql) -->
         <table tableName="announce_featured_item">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>

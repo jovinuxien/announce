@@ -87,6 +87,11 @@ public final class AnnounceRules {
         }
     }
 
+    /** Relisting (a deal fell through) is a no-op unless the announce is SOLD. */
+    public static boolean canBeRelisted(Announce state) {
+        return state.status() == AnnounceStatus.SOLD;
+    }
+
     /** Expiry is a no-op unless the announce is published and its date has passed. */
     public static boolean isDueToExpire(Announce state, LocalDateTime now) {
         return state.status() == AnnounceStatus.PUBLISHED && state.expiresAt() != null && !state.expiresAt().isAfter(now);

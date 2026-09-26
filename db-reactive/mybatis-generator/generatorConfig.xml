@@ -185,16 +185,14 @@
         <table tableName="announce_billing_info">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
-        <table tableName="announce_conversation">
+        <!-- Messaging read models (sql/announce_messaging.sql): conversation and message ids are chosen by the
+             Conversation aggregate (UUID), participant and bulletin rows keep an auto-increment id -->
+        <table tableName="announce_conversation" domainObjectName="AnnounceConversation"/>
+        <table tableName="announce_conversation_participant" domainObjectName="AnnounceConversationParticipant">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
-        <table tableName="announce_conversation_participant">
-            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
-        </table>
-        <table tableName="announce_chat_message">
-            <generatedKey column="id" sqlStatement="MySql" identity="true"/>
-        </table>
-        <table tableName="announce_bulletin">
+        <table tableName="announce_chat_message" domainObjectName="AnnounceChatMessage"/>
+        <table tableName="announce_bulletin" domainObjectName="AnnounceBulletin">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>
     </context>

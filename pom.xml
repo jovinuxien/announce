@@ -89,6 +89,11 @@
                 <artifactId>cqrs-reactive-test</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.joviste</groupId>
+                <artifactId>messaging-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>tech.jhipster</groupId>
@@ -165,6 +170,8 @@
         <module>core</module>
         <module>announce-management</module>
         <module>order</module>
+        <module>messaging-api</module>
+        <module>messaging</module>
     </modules>
 
     <dependencies>

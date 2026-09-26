@@ -1,0 +1,56 @@
+# Profile "test": EventSourcingDB and Kafka come from Testcontainers (@DynamicPropertySource); the read model is the
+# live announce_reactive_db on localhost:3306 (see MessagingEndToEndTest, which removes the rows it created).
+spring:
+  main:
+    banner-mode: off
+  cloud:
+    config:
+      enabled: false
+    discovery:
+      enabled: false
+    function:
+      definition: orderEvents;liveEvents;publicEventsProbe
+    stream:
+      bindings:
+        publicEventsProbe-in-0:
+          destination: messaging.v1
+          group: messaging-test-probe
+      kafka:
+        binder:
+          auto-create-topics: true
+          replication-factor: 1
+        bindings:
+          liveEvents-in-0:
+            consumer:
+              start-offset: latest
+eureka:
+  client:
+    enabled: false
+management:
+  health:
+    binders:
+      enabled: false
+
+opencqrs:
+  event-handling:
+    standard:
+      retry:
+        policy: exponential_backoff
+        initial-interval: 200ms
+        max-interval: 2s
+        max-attempts: 30
+
+cqrs:
+  readside:
+    handler-timeout: 15s
+  api:
+    clients:
+      announce-management:
+        base-url: http://localhost:1     # never called: the test supplies a stub AnnounceLookup
+
+logging:
+  level:
+    org.linlinjava.announce: INFO
+    org.linlinjava.announce.cqrs: DEBUG
+    org.apache.kafka: WARN
+    org.springframework.kafka: WARN

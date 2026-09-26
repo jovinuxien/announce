@@ -1,0 +1,119 @@
+spring:
+  application:
+    name: messaging
+  cloud:
+    config:
+      enabled: false
+    function:
+      # the Spring Cloud Stream consumers of this service (see infrastructure.messaging)
+      definition: orderEvents;liveEvents
+    stream:
+      bindings:
+        # public events of this service (PublicEventRelay group messaging-public)
+        messaging-out-0:
+          destination: messaging.v1
+        # live fan-out of conversation events to every node holding WebSocket sessions (group messaging-live)
+        messaging-live-out-0:
+          destination: messaging.live
+        # the order context: SYSTEM messages into the listing conversation (agreed, paid, shipped, settled)
+        orderEvents-in-0:
+          destination: order.v1
+          group: messaging
+        # every node reads the whole live topic from its own consumer group and pushes to its local sockets
+        liveEvents-in-0:
+          destination: messaging.live
+          group: messaging-live-${random.uuid}
+      kafka:
+        binder:
+          brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9092}
+          auto-create-topics: true
+          replication-factor: 1
+        bindings:
+          liveEvents-in-0:
+            consumer:
+              start-offset: latest
+  # announce_reactive_db through reactive-mybatis-support (it builds the pooled ConnectionFactory that
+  # Spring Data R2DBC and the cqrs-reactive tables also use). Override with the ANNOUNCE_* environment variables.
+  r2dbc:
+    mybatis:
+      r2dbc-url: ${ANNOUNCE_R2DBC_URL:r2dbc:mysql://localhost:3306/announce_reactive_db}
+      username: ${ANNOUNCE_DB_USER:announce}
+      password: ${ANNOUNCE_DB_PASSWORD:Calliste_1006}
+      pool:
+        initial-size: 2
+        max-size: 20
+
+server:
+  port: 8086
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+# reactive-mybatis-support: where the announce_* mapper XML lives (db-reactive jar)
+r2dbc:
+  mybatis:
+    mapper-locations: classpath:org/linlinjava/announce/db/dao/reactive/*.xml
+    configuration:
+      map-underscore-to-camel-case: true
+
+# Command side: the Conversation aggregate lives in EventSourcingDB under /conversation/{id}
+esdb:
+  server:
+    uri: ${ANNOUNCE_ESDB_URI:http://localhost:3000}
+    api-token: ${ANNOUNCE_ESDB_TOKEN:secret}
+
+# Read side: the projection groups of this service (checkpoints in cqrs_readside_progress, same database)
+opencqrs:
+  event-handling:
+    standard:
+      fetch:
+        subject: /conversation
+        recursive: true
+      retry:
+        policy: exponential_backoff
+        initial-interval: 500ms
+        max-interval: 30s
+        max-elapsed-time: 1h
+      life-cycle:
+        controller: application_context
+    groups:
+      conversation-read-model: {}
+      messaging-public: {}
+      messaging-live: {}
+
+cqrs:
+  readside:
+    handler-timeout: 30s
+    progress:
+      tracker: r2dbc
+  command:
+    idempotency:
+      enabled: true
+  api:
+    clients:
+      # the announce API answers who owns an announce when a listing conversation is opened
+      announce-management:
+        base-url: ${ANNOUNCE_MANAGEMENT_URL:http://localhost:8085}
+
+messaging:
+  # a TEXT message may hold this many characters
+  max-text-length: 4000
+  # how many messages one history page returns at most
+  max-page-size: 200
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+logging:
+  level:
+    root: INFO
+    org.linlinjava.announce: INFO

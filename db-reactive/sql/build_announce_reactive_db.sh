@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Regenerates announce_reactive_db.sql from announce_table.sql + announce_auction_chat.sql.
-# Edit those two source files, never the generated one.
+# Regenerates announce_reactive_db.sql from announce_table.sql + announce_auction_chat.sql + announce_messaging.sql.
+# Edit those source files, never the generated one.
 set -euo pipefail
 cd "$(dirname "$0")"
 python3 - <<'PY'
@@ -10,6 +10,7 @@ head = gen[:gen.index('-- 1. Base tables')]
 head = head[:head.rindex('-- -------')]
 base = open('announce_table.sql').read().replace('-- Host: 127.0.0.1    Database: litemall\n', '')
 ext  = open('announce_auction_chat.sql').read()
+msg  = open('announce_messaging.sql').read()
 out = (head
   + "-- ---------------------------------------------------------------------\n"
   + "-- 1. Base tables (generated from announce_table.sql; regenerate this file\n"
@@ -17,9 +18,13 @@ out = (head
   + "-- ---------------------------------------------------------------------\n"
   + base
   + "\n-- ---------------------------------------------------------------------\n"
-  + "-- 2. Auction and chat extension (announce_auction_chat.sql)\n"
+  + "-- 2. Auction extension (announce_auction_chat.sql)\n"
   + "-- ---------------------------------------------------------------------\n"
-  + ext)
+  + ext
+  + "\n-- ---------------------------------------------------------------------\n"
+  + "-- 3. Messaging context (announce_messaging.sql)\n"
+  + "-- ---------------------------------------------------------------------\n"
+  + msg)
 open('announce_reactive_db.sql', 'w').write(out)
 print("announce_reactive_db.sql regenerated")
 PY

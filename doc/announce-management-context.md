@@ -210,8 +210,12 @@ joined `selectSummaries` / `countSummaries` listing query), `AnnounceGoodsDetail
 | `announce-search` | `AnnounceSearchProjection` | one document per visible announce to the `AnnounceIndexer` port, which delegates to the shared `org.linlinjava.announce.search.SearchIndexer` (`OcsSearchIndexer` pushes to the OCS indexer of `docker/cqrs`, index `announce_index`, `kind` and `source=local` as facets); removal on withdraw, sold and expire |
 
 Both groups checkpoint in `cqrs_readside_progress` (`R2dbcProgressTracker`) and are at-least-once: every handler is
-idempotent. The search projection builds its document from the read model; when the read-model group has not yet
-applied the event (`last_event_id` older than the event), the handler fails and the framework retries it. Queries
+idempotent. The search projection builds its document from the read model, reading the row once
+(`AnnounceReadRepository.findApplied`: state and `last_event_id` from the same snapshot); when the read-model group
+has not yet applied the event (`last_event_id` older than the event), the handler fails and the framework retries
+it. When the read model is already *ahead* (the announce was sold while the search group was still catching up on
+the publish), the document reflects that later state and the intermediate one is skipped: the index converges to the
+read model, but not every event produces an index call. Queries
 (`AnnounceBrowsing` over `AnnounceReadRepository`) read the tables only, never the event store. The expiry job reads
 the due ids from `announce` and sends one `ExpireAnnounce` each.
 
@@ -237,3 +241,31 @@ tables. The `listing` sub-context (`org.linlinjava.announce.listing`, same modul
 the `search` package) keeps them in `crawled_listing`, imports the scrapy feeds through a Spring Integration file
 flow, indexes them into the same `announce_index` with `source` as a facet, and links out through `GET /out/{id}`.
 Design, schema, feed format, index fields and the legal stance (snippet + link, no full text): `doc/crawled-listings.md`.
+
+## 10. Public events: `announce.v1` in, `order.v1` out (2026-09-26)
+
+The service now has a public face over Kafka, built with the `messaging` package of `doc/cqrs-reactive.md` §3. The
+contracts live in the module `announce-management-api` (package `org.linlinjava.announce.goods.api`), which consumers
+depend on instead of the service itself.
+
+| direction | binding / function | topic | records |
+|---|---|---|---|
+| out (relay group `announce-public`) | `announce-out-0` | `announce.v1` | `AnnouncePublishedV1` (id, kind, sellerId, title, mainPicture, priceCents, currency, saleType, categoryId, publishedAt, expiresAt), `AnnounceEditedV1` (same snapshot without seller and dates), `AnnounceWithdrawnV1`, `AnnounceExpiredV1`, `AnnounceSoldV1` (id, at) |
+| in (function `orderEvents`) | `orderEvents-in-0`, group `announce-management` | `order.v1` (module `order-api`) | `OrderPaidV1` -> `MarkSold` on behalf of the seller; `OrderCancelledV1` and `OrderRefundedV1` -> `RelistAnnounce` |
+
+Two changes to the aggregate made this a pure mapping:
+
+- `AnnouncePublished` carries the owner, content and details as they were at publication, so the relay builds the
+  public record from the event alone (no read-model lookup on the relay thread). Prices travel in minor units with
+  the site currency, `announce.currency` (default `DKK`), because `Money` has no currency of its own.
+- A new system command `RelistAnnounce(id)` turns a SOLD announce back into PUBLISHED when the deal behind the sale
+  falls through, keeping the expiry when it is still ahead (else the default validity). Any other status is left
+  untouched, so the command is idempotent. `AnnounceStatus.canBePublished()` is unchanged: the owner still cannot
+  republish a sold announce by hand.
+
+The subscriber uses the record's `event-id` as command id (`mark-sold:<id>`, `relist:<id>`), so a redelivered record
+replays the stored result. A paid deal on an announce that is no longer PUBLISHED (sold by hand, withdrawn, unknown)
+is logged and skipped rather than retried: the order module owns that inconsistency, not this service.
+
+`AnnounceKindsEndToEndTest` gained the Kafka container: it probes `announce.v1` and injects `order.v1` records with
+the test kit's `PublicEventTestProducer`, standing in for the order module.

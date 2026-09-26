@@ -8,7 +8,6 @@ import java.util.Map;
 public interface StatMapper {
     Flux<Map<String, Object>> statUser();
 
+    /** Paid deals per day from the order module's read model: orders, distinct buyers, amount, amount per buyer. */
     Flux<Map<String, Object>> statOrder();
-
-    Flux<Map<String, Object>> statGoods();
 }

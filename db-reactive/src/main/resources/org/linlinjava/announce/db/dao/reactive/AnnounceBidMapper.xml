@@ -1,0 +1,478 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Reactive mapper for announce_bid (reactive-mybatis-support / R2DBC), derived from the MyBatis Generator output.
+  Differences: inserts use useGeneratedKeys/keyColumn; selectPageByExample* replace the PageHelper plugin.
+-->
+<mapper namespace="org.linlinjava.announce.db.dao.reactive.AnnounceBidMapper">
+  <resultMap id="BaseResultMap" type="org.linlinjava.announce.db.domain.AnnounceBid">
+    <id column="id" jdbcType="VARCHAR" property="id" />
+    <result column="auction_id" jdbcType="VARCHAR" property="auctionId" />
+    <result column="announce_id" jdbcType="VARCHAR" property="announceId" />
+    <result column="bidder_id" jdbcType="INTEGER" property="bidderId" />
+    <result column="amount" jdbcType="DECIMAL" property="amount" />
+    <result column="max_amount" jdbcType="DECIMAL" property="maxAmount" />
+    <result column="bid_time" jdbcType="TIMESTAMP" property="bidTime" />
+    <result column="status" jdbcType="VARCHAR" property="status" />
+    <result column="cancel_reason" jdbcType="VARCHAR" property="cancelReason" />
+    <result column="cancelled_by" jdbcType="INTEGER" property="cancelledBy" />
+    <result column="add_time" jdbcType="TIMESTAMP" property="addTime" />
+    <result column="update_time" jdbcType="TIMESTAMP" property="updateTime" />
+    <result column="deleted" jdbcType="BIT" property="deleted" />
+  </resultMap>
+  <sql id="Example_Where_Clause">
+    <where>
+      <foreach collection="oredCriteria" item="criteria" separator="or">
+        <if test="criteria.valid">
+          <trim prefix="(" prefixOverrides="and" suffix=")">
+            <foreach collection="criteria.criteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value} and #{criterion.secondValue}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+          </trim>
+        </if>
+      </foreach>
+    </where>
+  </sql>
+  <sql id="Update_By_Example_Where_Clause">
+    <where>
+      <foreach collection="example.oredCriteria" item="criteria" separator="or">
+        <if test="criteria.valid">
+          <trim prefix="(" prefixOverrides="and" suffix=")">
+            <foreach collection="criteria.criteria" item="criterion">
+              <choose>
+                <when test="criterion.noValue">
+                  and ${criterion.condition}
+                </when>
+                <when test="criterion.singleValue">
+                  and ${criterion.condition} #{criterion.value}
+                </when>
+                <when test="criterion.betweenValue">
+                  and ${criterion.condition} #{criterion.value} and #{criterion.secondValue}
+                </when>
+                <when test="criterion.listValue">
+                  and ${criterion.condition}
+                  <foreach close=")" collection="criterion.value" item="listItem" open="(" separator=",">
+                    #{listItem}
+                  </foreach>
+                </when>
+              </choose>
+            </foreach>
+          </trim>
+        </if>
+      </foreach>
+    </where>
+  </sql>
+  <sql id="Base_Column_List">
+    id, auction_id, announce_id, bidder_id, amount, max_amount, bid_time, `status`, cancel_reason, 
+    cancelled_by, add_time, update_time, deleted
+  </sql>
+  <select id="selectByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceBidExample" resultMap="BaseResultMap">
+    select
+    <if test="distinct">
+      distinct
+    </if>
+    <include refid="Base_Column_List" />
+    from announce_bid
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+  </select>
+  <select id="selectByExampleSelective" parameterType="map" resultMap="BaseResultMap">
+    select
+    <if test="example != null and example.distinct">
+      distinct
+    </if>
+    <choose>
+      <when test="selective != null and selective.length > 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+      </otherwise>
+    </choose>
+    from announce_bid
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example != null and example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+  </select>
+  <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from announce_bid
+    where id = #{id,jdbcType=VARCHAR}
+  </select>
+  <select id="selectByPrimaryKeyWithLogicalDelete" parameterType="map" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from announce_bid
+    where id = #{id,jdbcType=VARCHAR}
+      and deleted = 
+    <choose>
+      <when test="andLogicalDeleted">
+        1
+      </when>
+      <otherwise>
+        0
+      </otherwise>
+    </choose>
+  </select>
+  <select id="selectByPrimaryKeySelective" parameterType="map" resultMap="BaseResultMap">
+    select
+    <choose>
+      <when test="selective != null and selective.length > 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+      </otherwise>
+    </choose>
+    from announce_bid
+    where id = #{id,jdbcType=VARCHAR}
+  </select>
+  <delete id="deleteByPrimaryKey" parameterType="java.lang.String">
+    delete from announce_bid
+    where id = #{id,jdbcType=VARCHAR}
+  </delete>
+  <delete id="deleteByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceBidExample">
+    delete from announce_bid
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+  </delete>
+  <insert id="insert" parameterType="org.linlinjava.announce.db.domain.AnnounceBid">
+    insert into announce_bid (id, auction_id, announce_id, 
+      bidder_id, amount, max_amount, 
+      bid_time, `status`, cancel_reason, 
+      cancelled_by, add_time, update_time, 
+      deleted)
+    values (#{id,jdbcType=VARCHAR}, #{auctionId,jdbcType=VARCHAR}, #{announceId,jdbcType=VARCHAR}, 
+      #{bidderId,jdbcType=INTEGER}, #{amount,jdbcType=DECIMAL}, #{maxAmount,jdbcType=DECIMAL}, 
+      #{bidTime,jdbcType=TIMESTAMP}, #{status,jdbcType=VARCHAR}, #{cancelReason,jdbcType=VARCHAR}, 
+      #{cancelledBy,jdbcType=INTEGER}, #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, 
+      #{deleted,jdbcType=BIT})
+  </insert>
+  <insert id="insertSelective" parameterType="org.linlinjava.announce.db.domain.AnnounceBid">
+    insert into announce_bid
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="id != null">
+        id,
+      </if>
+      <if test="auctionId != null">
+        auction_id,
+      </if>
+      <if test="announceId != null">
+        announce_id,
+      </if>
+      <if test="bidderId != null">
+        bidder_id,
+      </if>
+      <if test="amount != null">
+        amount,
+      </if>
+      <if test="maxAmount != null">
+        max_amount,
+      </if>
+      <if test="bidTime != null">
+        bid_time,
+      </if>
+      <if test="status != null">
+        `status`,
+      </if>
+      <if test="cancelReason != null">
+        cancel_reason,
+      </if>
+      <if test="cancelledBy != null">
+        cancelled_by,
+      </if>
+      <if test="addTime != null">
+        add_time,
+      </if>
+      <if test="updateTime != null">
+        update_time,
+      </if>
+      <if test="deleted != null">
+        deleted,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="id != null">
+        #{id,jdbcType=VARCHAR},
+      </if>
+      <if test="auctionId != null">
+        #{auctionId,jdbcType=VARCHAR},
+      </if>
+      <if test="announceId != null">
+        #{announceId,jdbcType=VARCHAR},
+      </if>
+      <if test="bidderId != null">
+        #{bidderId,jdbcType=INTEGER},
+      </if>
+      <if test="amount != null">
+        #{amount,jdbcType=DECIMAL},
+      </if>
+      <if test="maxAmount != null">
+        #{maxAmount,jdbcType=DECIMAL},
+      </if>
+      <if test="bidTime != null">
+        #{bidTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="status != null">
+        #{status,jdbcType=VARCHAR},
+      </if>
+      <if test="cancelReason != null">
+        #{cancelReason,jdbcType=VARCHAR},
+      </if>
+      <if test="cancelledBy != null">
+        #{cancelledBy,jdbcType=INTEGER},
+      </if>
+      <if test="addTime != null">
+        #{addTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="updateTime != null">
+        #{updateTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="deleted != null">
+        #{deleted,jdbcType=BIT},
+      </if>
+    </trim>
+  </insert>
+  <select id="countByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceBidExample" resultType="java.lang.Long">
+    select count(*) from announce_bid
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+  </select>
+  <update id="updateByExampleSelective" parameterType="map">
+    update announce_bid
+    <set>
+      <if test="record.id != null">
+        id = #{record.id,jdbcType=VARCHAR},
+      </if>
+      <if test="record.auctionId != null">
+        auction_id = #{record.auctionId,jdbcType=VARCHAR},
+      </if>
+      <if test="record.announceId != null">
+        announce_id = #{record.announceId,jdbcType=VARCHAR},
+      </if>
+      <if test="record.bidderId != null">
+        bidder_id = #{record.bidderId,jdbcType=INTEGER},
+      </if>
+      <if test="record.amount != null">
+        amount = #{record.amount,jdbcType=DECIMAL},
+      </if>
+      <if test="record.maxAmount != null">
+        max_amount = #{record.maxAmount,jdbcType=DECIMAL},
+      </if>
+      <if test="record.bidTime != null">
+        bid_time = #{record.bidTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.status != null">
+        `status` = #{record.status,jdbcType=VARCHAR},
+      </if>
+      <if test="record.cancelReason != null">
+        cancel_reason = #{record.cancelReason,jdbcType=VARCHAR},
+      </if>
+      <if test="record.cancelledBy != null">
+        cancelled_by = #{record.cancelledBy,jdbcType=INTEGER},
+      </if>
+      <if test="record.addTime != null">
+        add_time = #{record.addTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.updateTime != null">
+        update_time = #{record.updateTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.deleted != null">
+        deleted = #{record.deleted,jdbcType=BIT},
+      </if>
+    </set>
+    <if test="_parameter != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="updateByExample" parameterType="map">
+    update announce_bid
+    set id = #{record.id,jdbcType=VARCHAR},
+      auction_id = #{record.auctionId,jdbcType=VARCHAR},
+      announce_id = #{record.announceId,jdbcType=VARCHAR},
+      bidder_id = #{record.bidderId,jdbcType=INTEGER},
+      amount = #{record.amount,jdbcType=DECIMAL},
+      max_amount = #{record.maxAmount,jdbcType=DECIMAL},
+      bid_time = #{record.bidTime,jdbcType=TIMESTAMP},
+      `status` = #{record.status,jdbcType=VARCHAR},
+      cancel_reason = #{record.cancelReason,jdbcType=VARCHAR},
+      cancelled_by = #{record.cancelledBy,jdbcType=INTEGER},
+      add_time = #{record.addTime,jdbcType=TIMESTAMP},
+      update_time = #{record.updateTime,jdbcType=TIMESTAMP},
+      deleted = #{record.deleted,jdbcType=BIT}
+    <if test="_parameter != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="updateByPrimaryKeySelective" parameterType="org.linlinjava.announce.db.domain.AnnounceBid">
+    update announce_bid
+    <set>
+      <if test="auctionId != null">
+        auction_id = #{auctionId,jdbcType=VARCHAR},
+      </if>
+      <if test="announceId != null">
+        announce_id = #{announceId,jdbcType=VARCHAR},
+      </if>
+      <if test="bidderId != null">
+        bidder_id = #{bidderId,jdbcType=INTEGER},
+      </if>
+      <if test="amount != null">
+        amount = #{amount,jdbcType=DECIMAL},
+      </if>
+      <if test="maxAmount != null">
+        max_amount = #{maxAmount,jdbcType=DECIMAL},
+      </if>
+      <if test="bidTime != null">
+        bid_time = #{bidTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="status != null">
+        `status` = #{status,jdbcType=VARCHAR},
+      </if>
+      <if test="cancelReason != null">
+        cancel_reason = #{cancelReason,jdbcType=VARCHAR},
+      </if>
+      <if test="cancelledBy != null">
+        cancelled_by = #{cancelledBy,jdbcType=INTEGER},
+      </if>
+      <if test="addTime != null">
+        add_time = #{addTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="updateTime != null">
+        update_time = #{updateTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="deleted != null">
+        deleted = #{deleted,jdbcType=BIT},
+      </if>
+    </set>
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="org.linlinjava.announce.db.domain.AnnounceBid">
+    update announce_bid
+    set auction_id = #{auctionId,jdbcType=VARCHAR},
+      announce_id = #{announceId,jdbcType=VARCHAR},
+      bidder_id = #{bidderId,jdbcType=INTEGER},
+      amount = #{amount,jdbcType=DECIMAL},
+      max_amount = #{maxAmount,jdbcType=DECIMAL},
+      bid_time = #{bidTime,jdbcType=TIMESTAMP},
+      `status` = #{status,jdbcType=VARCHAR},
+      cancel_reason = #{cancelReason,jdbcType=VARCHAR},
+      cancelled_by = #{cancelledBy,jdbcType=INTEGER},
+      add_time = #{addTime,jdbcType=TIMESTAMP},
+      update_time = #{updateTime,jdbcType=TIMESTAMP},
+      deleted = #{deleted,jdbcType=BIT}
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+  <select id="selectOneByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceBidExample" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from announce_bid
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+    limit 1
+  </select>
+  <select id="selectOneByExampleSelective" parameterType="map" resultMap="BaseResultMap">
+    select
+    <choose>
+      <when test="selective != null and selective.length > 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+      </otherwise>
+    </choose>
+    from announce_bid
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example != null and example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+    limit 1
+  </select>
+  <update id="logicalDeleteByExample" parameterType="map">
+    update announce_bid set deleted = 1
+    <if test="_parameter != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+  </update>
+  <update id="logicalDeleteByPrimaryKey" parameterType="java.lang.String">
+    update announce_bid set deleted = 1
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+
+  <select id="selectPageByExample" parameterType="map" resultMap="BaseResultMap">
+    select
+    <if test="example.distinct">
+      distinct
+    </if>
+    <include refid="Base_Column_List" />
+    from announce_bid
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+    limit #{limit} offset #{offset}
+  </select>
+  <select id="selectPageByExampleSelective" parameterType="map" resultMap="BaseResultMap">
+    select
+    <if test="example.distinct">
+      distinct
+    </if>
+    <choose>
+      <when test="selective != null and selective.length &gt; 0">
+        <foreach collection="selective" item="column" separator=",">
+          ${column.aliasedEscapedColumnName}
+        </foreach>
+      </when>
+      <otherwise>
+        <include refid="Base_Column_List" />
+      </otherwise>
+    </choose>
+    from announce_bid
+    <if test="example != null">
+      <include refid="Update_By_Example_Where_Clause" />
+    </if>
+    <if test="example.orderByClause != null">
+      order by ${example.orderByClause}
+    </if>
+    limit #{limit} offset #{offset}
+  </select>
+</mapper>

@@ -14,8 +14,15 @@ public interface AnnounceReadRepository {
     /** The announce as the read model knows it, with its kind-specific details; empty when unknown. */
     Mono<Announce> findById(String id);
 
-    /** The id of the last event the read-model projection applied to this announce; empty when the row does not exist. */
-    Mono<String> lastAppliedEventId(String id);
+    /**
+     * The announce together with the id of the last event the read-model projection applied to it, read from one
+     * row so both are from the same snapshot; empty when unknown. Other projections use it to check they are not
+     * ahead of the read model before they derive from it.
+     */
+    Mono<Applied> findApplied(String id);
+
+    record Applied(Announce announce, String lastEventId) {
+    }
 
     Flux<AnnounceSummary> browse(AnnounceQuery query);
 

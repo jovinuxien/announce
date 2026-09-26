@@ -63,6 +63,10 @@ public class ReactiveProjectionAdapter implements EventHandler.ForObjectAndMetaD
     /** The reactive pipeline for one event, without blocking; used by the test harness. */
     public Mono<Void> apply(Object event, EventEnvelope envelope) {
         ReactiveEventHandler<Object> handler = handlers.find(event.getClass());
+        if (log.isDebugEnabled()) {
+            log.debug("Projection {} received event {} ({}) on {}{}", projection.group(), envelope.eventId(), envelope.type(),
+                    envelope.subject(), handler == null ? ", no handler" : "");
+        }
         if (handler == null) {
             return Mono.empty();
         }

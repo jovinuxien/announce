@@ -112,8 +112,8 @@ de-duplicate on `messageId`. Bulletins reach the same topic through `StreamBridg
 | order -> messaging | `order.v1` (binding `orderEvents-in-0`, group `messaging`) | `OrderAgreedV1`, `OrderPaidV1`, `OrderShippedV1`, `OrderSettledV1` become SYSTEM messages in the listing conversation of buyer and seller, which is opened when it does not exist |
 | messaging -> messaging | `messaging.live` | internal live records (§5) |
 
-The `order.v1` records are local stand-ins (`infrastructure.messaging.order`) until `order-api` is on the
-base branch. The seller of an announce comes from the announce-management API (`AnnounceLookup`, pinned
+The `order.v1` records come from the `order-api` module (the local stand-ins were dropped when the order
+module was merged on 2026-09-26; `OrderAgreedV1` carries `priceCents`, `feeCents` and `payoutCents`). The seller of an announce comes from the announce-management API (`AnnounceLookup`, pinned
 by `cqrs.api.clients.announce-management.base-url`).
 
 ## 7. Running and testing

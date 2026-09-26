@@ -55,15 +55,6 @@ INSERT INTO `announce_brand` VALUES (1001000,'MUJI Manufacturer','Carefully sele
 UNLOCK TABLES;
 
 --
--- Dumping data for table `announce_cart`
---
-
-LOCK TABLES `announce_cart` WRITE;
-/*!40000 ALTER TABLE `announce_cart` DISABLE KEYS */;
-/*!40000 ALTER TABLE `announce_cart` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
 -- Dumping data for table `announce_category`
 --
 
@@ -230,24 +221,6 @@ UNLOCK TABLES;
 LOCK TABLES `announce_notice_admin` WRITE;
 /*!40000 ALTER TABLE `announce_notice_admin` DISABLE KEYS */;
 /*!40000 ALTER TABLE `announce_notice_admin` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Dumping data for table `announce_order`
---
-
-LOCK TABLES `announce_order` WRITE;
-/*!40000 ALTER TABLE `announce_order` DISABLE KEYS */;
-/*!40000 ALTER TABLE `announce_order` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Dumping data for table `announce_order_goods`
---
-
-LOCK TABLES `announce_order_goods` WRITE;
-/*!40000 ALTER TABLE `announce_order_goods` DISABLE KEYS */;
-/*!40000 ALTER TABLE `announce_order_goods` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --

@@ -10,6 +10,7 @@ import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ExpireAnno
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.MarkSold;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PostAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PublishAnnounce;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.RelistAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.WithdrawAnnounce;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceEdited;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceExpired;
@@ -95,7 +96,22 @@ public class AnnounceHandlers {
                     Duration validity = command.validity() == null ? Announce.DEFAULT_VALIDITY : command.validity();
                     LocalDateTime now = now(clock);
                     AnnounceRules.checkPublish(state, validity, now);
-                    AnnouncePublished event = new AnnouncePublished(now, now.plus(validity));
+                    AnnouncePublished event = new AnnouncePublished(now, now.plus(validity), state.sellerId(), state.content(), state.details());
+                    publisher.publish(event);
+                    return state.apply(event);
+                });
+    }
+
+    /** Idempotent: only a SOLD announce is relisted; the expiry is kept when still ahead, else the default validity applies. */
+    public static CommandHandlerDefinition<Announce, RelistAnnounce, Announce> relist(Clock clock) {
+        return new CommandHandlerDefinition<>(Announce.class, RelistAnnounce.class,
+                (CommandHandler.ForInstanceAndCommand<Announce, RelistAnnounce, Announce>) (state, command, publisher) -> {
+                    LocalDateTime now = now(clock);
+                    if (!AnnounceRules.canBeRelisted(state)) {
+                        return state;
+                    }
+                    LocalDateTime expiresAt = state.expiresAt() != null && state.expiresAt().isAfter(now) ? state.expiresAt() : now.plus(Announce.DEFAULT_VALIDITY);
+                    AnnouncePublished event = new AnnouncePublished(now, expiresAt, state.sellerId(), state.content(), state.details());
                     publisher.publish(event);
                     return state.apply(event);
                 });
@@ -140,7 +156,7 @@ public class AnnounceHandlers {
     /** All definitions, for {@code CommandFixture.handlers(...)}. */
     public static List<Object> definitions(Clock clock) {
         return List.of(ON_POSTED, ON_EDITED, ON_PUBLISHED, ON_WITHDRAWN, ON_SOLD, ON_EXPIRED,
-                post(clock), edit(clock), publish(clock), withdraw(clock), markSold(clock), expire(clock));
+                post(clock), edit(clock), publish(clock), withdraw(clock), markSold(clock), expire(clock), relist(clock));
     }
 
     private static LocalDateTime now(Clock clock) {
@@ -161,4 +177,5 @@ public class AnnounceHandlers {
     @Bean CommandHandlerDefinition<Announce, WithdrawAnnounce, Announce> announceWithdraw(Clock clock) { return withdraw(clock); }
     @Bean CommandHandlerDefinition<Announce, MarkSold, Announce> announceMarkSold(Clock clock) { return markSold(clock); }
     @Bean CommandHandlerDefinition<Announce, ExpireAnnounce, Announce> announceExpire(Clock clock) { return expire(clock); }
+    @Bean CommandHandlerDefinition<Announce, RelistAnnounce, Announce> announceRelist(Clock clock) { return relist(clock); }
 }

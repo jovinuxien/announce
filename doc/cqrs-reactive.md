@@ -325,7 +325,7 @@ docker compose -f docker/cqrs/docker-compose.yml --profile tools up -d   # adds 
 | service | port | used by |
 |---|---|---|
 | EventSourcingDB 1.2.0 (token `secret`, UI on) | 3000 | every service's command side |
-| Kafka 3.9.1 (KRaft, advertised as `localhost:9092`) | 9092 | relays and subscribers |
+| Kafka 3.9.1 (KRaft, advertised as `localhost:9092`, topics auto-created) | 9092 | relays and subscribers |
 | Elasticsearch 7.17 (with the `analysis-stempel` plugin) | 9200 | the OCS tier |
 | OCS indexer | 8535 | announce-management pushes announce and crawled-listing documents here (`SearchIndexer`) |
 | OCS searcher | 8534 | the gateway's search API |
@@ -340,3 +340,21 @@ Topics in use: `announce.v1` (announce-management), `auction.v1`, `order.v1`, `p
 announce index field configuration is `docker/cqrs/application.indexer-service.yml`, the searcher's
 relevance and facets `docker/cqrs/application.search-service.yml`, query-time synonyms
 `docker/cqrs/querqy-rules.txt`.
+
+### Topics
+
+One topic per service (or per bounded context of the order module), named `<context>.v1`; a breaking change of a
+record is a new version class and, when the whole topic changes shape, a new topic. Records are the `*V1` classes
+of the producer's `-api` module.
+
+| topic | producer (module) | records | consumers |
+|---|---|---|---|
+| `announce.v1` | announce-management (`announce-management-api`) | AnnouncePublishedV1, AnnounceEditedV1, AnnounceWithdrawnV1, AnnounceExpiredV1, AnnounceSoldV1 | order (snapshot, auctions), search, messaging |
+| `auction.v1` | order / auction (`order-api`) | AuctionOpenedV1, BidPlacedV1, AuctionClosedWonV1, AuctionClosedUnsoldV1, AuctionSnaggedV1 | order |
+| `order.v1` | order / order (`order-api`) | OrderAgreedV1, OrderPaidV1, OrderShippedV1, OrderDeliveredV1, OrderSettledV1, OrderCancelledV1, OrderRefundedV1, PayoutReleaseRequestedV1, RefundRequestedV1 | announce-management (MarkSold, RelistAnnounce), payment, shipping, messaging |
+| `payment.v1` | order / payment (`order-api`) | PaymentIntentCreatedV1, PaymentConfirmedV1, PaymentFailedV1, PayoutSentV1, RefundSentV1, SellerAccountUpdatedV1 | order, auction |
+| `shipping.v1` | order / shipping (`order-api`) | ShipmentRequestedV1, ShipmentDispatchedV1, ShipmentInTransitV1, ShipmentDeliveredV1, ShipmentFailedV1 | order |
+| `messaging.v1` | messaging (`messaging-api`) | ConversationOpenedV1, OfferAcceptedV1 (`messaging.offer-accepted`) | order |
+
+Testing a consumer without its producer: `PublicEventTestProducer` (test kit) sends a record with the relay's
+headers to a topic, e.g. `producer.send("order.v1", "/order/42", new OrderPaidV1(...))`.

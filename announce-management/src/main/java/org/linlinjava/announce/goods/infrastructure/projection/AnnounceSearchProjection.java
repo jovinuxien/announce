@@ -13,6 +13,8 @@ import org.linlinjava.announce.goods.domain.announce.events.AnnounceExpired;
 import org.linlinjava.announce.goods.domain.announce.events.AnnouncePublished;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceSold;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceWithdrawn;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
@@ -29,6 +31,8 @@ import reactor.core.publisher.Mono;
 public class AnnounceSearchProjection implements ReactiveProjection {
 
     public static final String GROUP = "announce-search";
+
+    private static final Logger log = LoggerFactory.getLogger(AnnounceSearchProjection.class);
 
     private final AnnounceReadRepository readModel;
     private final AnnounceIndexer indexer;
@@ -54,11 +58,18 @@ public class AnnounceSearchProjection implements ReactiveProjection {
 
     private Mono<Void> indexFromReadModel(EventEnvelope envelope) {
         String id = idOf(envelope);
-        return readModel.lastAppliedEventId(id)
-                .filter(applied -> !isBefore(applied, envelope.eventId()))
+        // one row read: the applied event id and the state come from the same snapshot
+        return readModel.findApplied(id)
                 .switchIfEmpty(Mono.error(() -> new ReadModelBehindException(id, envelope.eventId())))
-                .then(readModel.findById(id))
-                .flatMap(a -> a.isVisible() ? indexer.index(AnnounceDocument.of(a)) : indexer.remove(a.id()));
+                .flatMap(applied -> {
+                    if (applied.lastEventId() == null || isBefore(applied.lastEventId(), envelope.eventId())) {
+                        return Mono.error(new ReadModelBehindException(id, envelope.eventId()));
+                    }
+                    Announce a = applied.announce();
+                    log.debug("announce {} after event {} (read model at {}): status {}, {}", id, envelope.eventId(), applied.lastEventId(),
+                            a.status(), a.isVisible() ? "indexing" : "removing from the index");
+                    return a.isVisible() ? indexer.index(AnnounceDocument.of(a)) : indexer.remove(a.id());
+                });
     }
 
     /** EventSourcingDB ids are increasing integers; compare numerically, else lexically. */

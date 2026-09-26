@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: order
+  cloud:
+    config:
+      uri: http://configserver:8888
+    bootstrap:
+      enabled: true
+    compatibility-verifier:
+      enabled: false

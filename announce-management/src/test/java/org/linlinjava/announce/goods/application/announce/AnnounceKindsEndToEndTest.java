@@ -4,27 +4,43 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.linlinjava.announce.cqrs.messaging.PublicEventSubscribers;
+import org.linlinjava.announce.cqrs.test.PublicEventTestProducer;
 import org.linlinjava.announce.cqrs.test.containers.CqrsContainers;
 import org.linlinjava.announce.cqrs.test.containers.EventSourcingDbContainer;
 import org.linlinjava.announce.search.RecordingSearchIndexer;
+import org.linlinjava.announce.goods.api.AnnouncePublishedV1;
+import org.linlinjava.announce.goods.api.AnnounceSoldV1;
 import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceController;
+import org.linlinjava.announce.order.api.OrderPaidV1;
+import org.linlinjava.announce.order.api.OrderRefundedV1;
+import org.linlinjava.announce.order.api.OrderTopics;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
+import org.springframework.messaging.Message;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.MountableFile;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -33,7 +49,8 @@ import static org.awaitility.Awaitility.await;
  * The whole path with containers only (EventSourcingDB for the aggregate, MySQL loaded with the real schema and
  * seed for the read model): one announce of each kind is posted, published and read back from the projection
  * with its kind-specific fields; the kind invariants are checked over HTTP; the search projection feeds a recording
- * indexer instead of OCS.
+ * indexer instead of OCS. With Kafka: every publication is observed on {@code announce.v1}, and order.v1 events
+ * injected by the test (the order module is not running) mark an announce SOLD and relist it.
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -54,23 +71,47 @@ class AnnounceKindsEndToEndTest {
     static final EventSourcingDbContainer esdb = CqrsContainers.eventSourcingDb();
 
     @Container
+    static final KafkaContainer kafka = CqrsContainers.kafka();
+
+    @Container
     static final MySQLContainer<?> mysql = new MySQLContainer<>(CqrsContainers.MYSQL_IMAGE)
             .withDatabaseName("announce_reactive_db").withUsername("announce").withPassword("announce")
             .withCopyFileToContainer(MountableFile.forHostPath(SQL + "announce_table.sql"), "/docker-entrypoint-initdb.d/01_tables.sql")
             .withCopyFileToContainer(MountableFile.forHostPath(SQL + "announce_auction_chat.sql"), "/docker-entrypoint-initdb.d/02_auction_chat.sql")
-            .withCopyFileToContainer(MountableFile.forHostPath(SQL + "announce_data_en.sql"), "/docker-entrypoint-initdb.d/03_seed.sql")
+            .withCopyFileToContainer(MountableFile.forHostPath(SQL + "announce_order.sql"), "/docker-entrypoint-initdb.d/03_order.sql")
+            .withCopyFileToContainer(MountableFile.forHostPath(SQL + "announce_data_en.sql"), "/docker-entrypoint-initdb.d/04_seed.sql")
             .withStartupTimeout(Duration.ofMinutes(5));
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        CqrsContainers.register(registry, esdb, null, mysql);
+        CqrsContainers.register(registry, esdb, kafka, mysql);
         registry.add("spring.r2dbc.mybatis.r2dbc-url", () -> CqrsContainers.r2dbcUrl(mysql));
         registry.add("spring.r2dbc.mybatis.username", mysql::getUsername);
         registry.add("spring.r2dbc.mybatis.password", mysql::getPassword);
     }
 
+    /** Probe of the service's own public topic, and a producer standing in for the order module. */
+    @TestConfiguration
+    static class KafkaProbeConfig {
+        static final List<Object> announceEvents = new CopyOnWriteArrayList<>();
+
+        @Bean
+        Consumer<Message<byte[]>> announceProbe(PublicEventSubscribers subscribers) {
+            return subscribers.forTopic("announce-probe")
+                    .on(AnnouncePublishedV1.class, (event, headers) -> Mono.fromRunnable(() -> announceEvents.add(event)))
+                    .on(AnnounceSoldV1.class, (event, headers) -> Mono.fromRunnable(() -> announceEvents.add(event)))
+                    .build();
+        }
+
+        @Bean
+        PublicEventTestProducer orderModuleStandIn(StreamBridge streamBridge, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+            return new PublicEventTestProducer(streamBridge, objectMapper, "order-test");
+        }
+    }
+
     @Autowired WebTestClient client;
     @Autowired RecordingSearchIndexer indexer;   // announce.search.mode=noop in the test profile
+    @Autowired PublicEventTestProducer orderModule;
 
     static String goodsId;
     static String jobId;
@@ -201,5 +242,61 @@ class AnnounceKindsEndToEndTest {
                 .exchange().expectStatus().isOk().expectBody().jsonPath("$.title").isEqualTo("E2E Java developer (senior)");
         await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/announces/" + jobId).exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.title").isEqualTo("E2E Java developer (senior)").jsonPath("$.job.salaryMax").doesNotExist());
+    }
+
+    @Test
+    @Order(5)
+    void publicEventsGoOutOnAnnounceV1AndOrderV1EventsSellAndRelistTheAnnounce() {
+        // every publication of test 2 went out with the snapshot other contexts need
+        await().atMost(WAIT).untilAsserted(() -> assertThat(published(goodsId)).isNotEmpty());
+        AnnouncePublishedV1 bike = published(goodsId).get(0);
+        assertThat(bike.kind()).isEqualTo("GOODS");
+        assertThat(bike.sellerId()).isEqualTo(Integer.valueOf(SELLER));
+        assertThat(bike.title()).isEqualTo("E2E bike");
+        assertThat(bike.mainPicture()).isEqualTo("http://x/1.jpg");
+        assertThat(bike.priceCents()).isEqualTo(150000L);
+        assertThat(bike.currency()).isEqualTo("DKK");
+        assertThat(bike.saleType()).isEqualTo("FIXED_PRICE");
+        assertThat(bike.categoryId()).isEqualTo(GOODS_CATEGORY);
+        assertThat(bike.expiresAt()).isAfter(NOW.plusDays(59));
+        assertThat(published(jobId).get(0).saleType()).isNull();
+        assertThat(published(jobId).get(0).priceCents()).isZero();
+        // and the manual sale of test 4 was relayed
+        await().atMost(WAIT).untilAsserted(() -> assertThat(KafkaProbeConfig.announceEvents)
+                .filteredOn(e -> e instanceof AnnounceSoldV1 sold && sold.announceId().equals(goodsId)).hasSize(1));
+
+        // a second goods announce is sold by the order module ...
+        String sofaId = idOf(post("{" + shared("GOODS", "E2E sofa", GOODS_CATEGORY) + ",\"goods\":{\"price\":800,\"condition\":\"GOOD\"}}"));
+        action(sofaId, "publish", SELLER).expectStatus().isOk();
+        await().atMost(WAIT).untilAsserted(() -> assertThat(published(sofaId)).hasSize(1));
+        String paidEventId = orderModule.send(OrderTopics.ORDER_V1, "/order/o-1",
+                new OrderPaidV1("o-1", sofaId, 9, Integer.valueOf(SELLER), 80000L, "DKK", NOW));
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/announces/" + sofaId).header(AnnounceController.SELLER_HEADER, SELLER)
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("SOLD"));
+        await().atMost(WAIT).untilAsserted(() -> assertThat(KafkaProbeConfig.announceEvents)
+                .filteredOn(e -> e instanceof AnnounceSoldV1 sold && sold.announceId().equals(sofaId)).hasSize(1));
+        // ... a redelivered paid record is a no-op (command id replay), a paid record for an unknown announce is skipped ...
+        orderModule.send(OrderTopics.ORDER_V1, "/order/o-1", new OrderPaidV1("o-1", sofaId, 9, Integer.valueOf(SELLER), 80000L, "DKK", NOW), paidEventId);
+        orderModule.send(OrderTopics.ORDER_V1, "/order/o-2", new OrderPaidV1("o-2", "no-such-announce", 9, 1, 100L, "DKK", NOW));
+        // ... and the refund relists it: PUBLISHED again with the same expiry, published once more on announce.v1
+        await().atMost(WAIT).untilAsserted(() -> assertThat(indexer.removed()).contains(sofaId));   // the sale left the index
+        indexer.clear();
+        orderModule.send(OrderTopics.ORDER_V1, "/order/o-1",
+                new OrderRefundedV1("o-1", sofaId, 9, Integer.valueOf(SELLER), 80000L, "DKK", "ship window expired", NOW));
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/announces/" + sofaId).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.status").isEqualTo("PUBLISHED"));
+        await().atMost(WAIT).untilAsserted(() -> assertThat(published(sofaId)).hasSize(2));
+        assertThat(published(sofaId).get(1).expiresAt()).isEqualTo(published(sofaId).get(0).expiresAt());
+        assertThat(published(sofaId).get(1).publishedAt()).isAfter(published(sofaId).get(0).publishedAt());
+        assertThat(KafkaProbeConfig.announceEvents).filteredOn(e -> e instanceof AnnounceSoldV1 sold && sold.announceId().equals(sofaId)).hasSize(1);
+        // the search projection is at-least-once and derives from the read model, so it may skip an intermediate state
+        // (it can catch up on the publish when the row is already SOLD); what counts is that it ends with the announce indexed
+        await().atMost(WAIT).untilAsserted(() -> assertThat(indexer.indexCount(sofaId)).isGreaterThanOrEqualTo(1));   // back in the index
+    }
+
+    private static List<AnnouncePublishedV1> published(String announceId) {
+        return KafkaProbeConfig.announceEvents.stream()
+                .filter(e -> e instanceof AnnouncePublishedV1 p && p.announceId().equals(announceId))
+                .map(AnnouncePublishedV1.class::cast).toList();
     }
 }

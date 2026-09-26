@@ -240,3 +240,133 @@ or `target/`.
   `source=local`. The real `dba_cars.json` in the import dir loads without
   errors. `doc/crawled-listings.md` explains the table, the feed format,
   the index fields and the legal stance (snippet + link out, no full text).
+
+### Worktree: `order-reactive` — order module: auction, deal, payment, shipping (2026-09-26)
+
+- **Prerequisite:** `feat/announce-kinds` merged (done). Design agreed in
+  `doc/order-context.md`; read it fully first, then `doc/cqrs-reactive.md` and
+  the sample under `cqrs-reactive-test/src/test/java/.../sample`.
+- **Task:** replace the legacy litemall `order` module by a reactive module of
+  the same name built like `announce-management`, with four package roots
+  `org.linlinjava.announce.{auction,order,payment,shipping}`, each a bounded
+  context (own aggregate, events, projections, REST) that shares nothing but
+  public events. Delete the legacy sources (cart, coupon, groupon, integral,
+  Boot 2) once the new module compiles; port nothing.
+  0. Public events out of announce-management: new module
+     `announce-management-api` with `AnnouncePublishedV1` (id, kind, sellerId,
+     title, mainPicture, priceCents, currency, saleType, categoryId,
+     expiresAt), `AnnounceEditedV1`, `AnnounceWithdrawnV1`,
+     `AnnounceExpiredV1`, `AnnounceSoldV1`; a `PublicEventRelay` group
+     `announce-public` on binding `announce-out-0`, topic `announce.v1`.
+     Add a subscriber in announce-management on `order.v1` that sends
+     MarkSold on `OrderPaidV1` and republishes on `OrderCancelledV1` /
+     `OrderRefundedV1` when the announce was sold.
+  1. Module skeleton: `order/pom.xml` copied from announce-management
+     (db-reactive, cqrs-reactive, cqrs-reactive-test, Kafka, Eureka,
+     config); Boot app class; `order-api` module for the `*V1` records of
+     `auction.v1` and `order.v1`.
+  2. Schema `db-reactive/sql/announce_order.sql` (run after
+     `announce_table.sql`, wired into `build_announce_reactive_db.sh`):
+     reshaped `announce_order`, new `announce_order_snapshot`,
+     `announce_payment`, `announce_seller_account`, `announce_shipment`;
+     `announce_auction`, `announce_bid`, `announce_auction_event` moved here
+     from `announce_auction_chat.sql` with `goods_id` -> `announce_id`
+     varchar(36); drop `announce_order_goods` and `announce_cart`. Regenerate
+     mappers with `mybatis-generator/generatorConfig.xml` + `reactify_mapper.py`.
+  3. `auction`: `Auction` aggregate on `/auction/{announceId}` with the
+     commands/events of `doc/order-context.md` §4 and the rules of
+     `doc/auction-chat-schema.md` §3; subscriber on `announce.v1` opening and
+     cancelling auctions; `AuctionClosingJob`; projections to the three
+     auction tables; REST `/api/auctions/**`; relay to `auction.v1`.
+  4. `order`: `Order` aggregate on `/order/{orderId}` with the state machine
+     and release rule of §3/§4; `FeeSchedule` policy (percentage + fixed per
+     category, from config); subscribers on `announce.v1` (snapshot),
+     `auction.v1`, `messaging.v1` (`OfferAcceptedV1`, contract stubbed in
+     `order-api` until the messaging worktree ships it); `OrderPayWindowJob`,
+     `OrderShipWindowJob`, `OrderReleaseJob` with the windows of §3
+     (`order.window.*`, `order.release.on=DELIVERY` default, `DISPATCH`
+     allowed); projection to `announce_order`; REST `/api/orders/**` and
+     admin dispute resolution; relay to `order.v1`.
+  5. `payment`: `Payment` aggregate on `/payment/{orderId}`; `PaymentProvider`
+     port; `FakePaymentProvider` with `POST /api/payments/webhook/fake`
+     to simulate confirmed / failed / payout-sent / refund-sent; webhook
+     signature verification and de-duplication on provider event id;
+     seller account onboarding use case and `announce_seller_account`
+     projection; `StripeConnectPaymentProvider` as a stub class behind the
+     port (real calls are a follow-up).
+  6. `shipping`: `Shipment` aggregate on `/shipment/{orderId}`; `Carrier`
+     port; `FakeCarrier` with `POST /api/shipping/webhook/fake` to simulate
+     dispatched / in-transit / delivered / failed; `ShipmentTrackingJob`
+     polling open shipments; projection to `announce_shipment`; REST
+     `/api/orders/{id}/shipment`; `PostNordCarrier` stub behind the port.
+  7. Cross-context wiring is only through the topics; a test proves no
+     root imports another root (ArchUnit or a package-cycle check in the
+     build).
+  8. `docker/cqrs/docker-compose.yml`: nothing new; document the topics
+     `announce.v1`, `auction.v1`, `order.v1`, `messaging.v1` in
+     `doc/cqrs-reactive.md` §7.
+- **Out of scope:** chat (worktree `messaging`), real Stripe and PostNord
+  calls, invoices/VAT, partial refunds, multi-item orders, promoted announces.
+- **Acceptance:** `mvn -pl order -P '!webapp' test` and
+  `mvn -pl announce-management -P '!webapp' test` pass (Testcontainers for
+  EventSourcingDB and Kafka via cqrs-reactive-test, live MySQL for the read
+  models as today). End-to-end tests with the fakes: (a) auction: publish an
+  AUCTION announce event, two bids, close, order AGREED with the winner,
+  fake payment webhook -> PAID, shipment requested, fake carrier dispatched
+  then delivered, grace elapsed (clock injected) -> payout released ->
+  SETTLED, `OrderPaidV1` and `OrderSettledV1` observed on `order.v1`;
+  (b) fixed price: request, accept, pay, ship, deliver, confirm receipt
+  before the grace -> SETTLED; (c) offer: `OfferAcceptedV1` in -> order
+  AGREED at the offer amount; (d) guards: payout refused while a dispute is
+  open, refused before carrier delivery when `release.on=DELIVERY`, allowed
+  after dispatch when `release.on=DISPATCH`; ship window expiry refunds and
+  emits `OrderRefundedV1`; a bid from the seller and a bid below increment
+  are rejected; a duplicate provider webhook is ignored. announce-management
+  marks the announce SOLD on `OrderPaidV1`. `doc/order-context.md` status
+  line updated to "implemented" with any deviations recorded.
+
+### Worktree: `messaging` — chat between members and with staff (2026-09-26)
+
+- **Prerequisite:** `feat/cqrs-reactive` merged (done). Independent of
+  `order-reactive`; the shared contract is `OfferAcceptedV1` on
+  `messaging.v1` as written in `doc/order-context.md` §9 (keep the field
+  names: conversationId, announceId, buyerId, sellerId, amountCents,
+  currency, acceptedAt).
+- **Task:** new module `messaging` (+ `messaging-api`), package
+  `org.linlinjava.announce.messaging`, built like announce-management.
+  1. Aggregate `Conversation` on `/conversation/{id}`: OpenListingConversation
+     (announceId, buyerId; one per announce and buyer, idempotent),
+     OpenSupportConversation (WAITING until staff joins), Join, PostMessage
+     (TEXT, IMAGE, OFFER; idempotent on clientMsgId; sender must be a
+     participant; OFFER only in LISTING conversations, only by the buyer),
+     AcceptOffer / DeclineOffer (seller only, latest open offer), MarkRead,
+     Close, Block (staff). Events ConversationOpened, ParticipantJoined,
+     MessagePosted, OfferAccepted, OfferDeclined, ConversationClosed,
+     ConversationBlocked.
+  2. Schema: `announce_conversation`, `announce_conversation_participant`,
+     `announce_chat_message`, `announce_bulletin` move from
+     `announce_auction_chat.sql` to `db-reactive/sql/announce_messaging.sql`
+     with `goods_id` -> `announce_id` varchar(36), ids varchar(36),
+     `last_event_id` on the conversation row; projections write them.
+  3. Delivery: WebFlux `WebSocketHandler` at `/ws/conversations/{id}`
+     (auth via `X-User-Id` at handshake for now); messages are commands;
+     fan-out across nodes through Kafka topic `messaging.live` keyed by
+     conversation id so every node with an open socket pushes the event.
+     REST fallback `GET /api/conversations`, `GET /api/conversations/{id}/messages?after=`.
+  4. Public events: relay `OfferAcceptedV1` (and `ConversationOpenedV1`) to
+     `messaging.v1`. Subscribe to `order.v1` and post SYSTEM messages into
+     the listing conversation on OrderAgreedV1, OrderPaidV1, OrderShippedV1,
+     OrderSettledV1 (contract from `order-api`; stub the records locally if
+     that module is not merged yet).
+  5. Support queue: `GET /api/admin/conversations?status=WAITING`, staff
+     Join moves WAITING -> OPEN; bulletins `POST /api/admin/bulletins`
+     fan out to connected staff by client type.
+- **Out of scope:** push notifications, attachments storage (URLs only),
+  moderation/abuse tooling beyond Block, read receipts per message.
+- **Acceptance:** `mvn -pl messaging test` passes on Testcontainers plus live
+  MySQL for the read model; a test opens a listing conversation, exchanges
+  messages over two WebSocket clients on one node, posts an OFFER, the
+  seller accepts, `OfferAcceptedV1` is observed on `messaging.v1` with the
+  agreed field names; a second buyer cannot post in that conversation; a
+  duplicate clientMsgId posts once; a support conversation is WAITING until
+  staff joins; `doc/order-context.md` §9 updated with any deviation.

@@ -370,3 +370,104 @@ or `target/`.
   agreed field names; a second buyer cannot post in that conversation; a
   duplicate clientMsgId posts once; a support conversation is WAITING until
   staff joins; `doc/order-context.md` §9 updated with any deviation.
+
+### Worktree: `gateway-api` — customer edge and SPA (2026-09-26)
+
+- **Prerequisite:** `feat/crawled-listings` merged (done). Design in
+  `doc/frontend-edges.md`; read it fully, then litemall's
+  `~/shopping_apps/litemall_app/litemall/litemall-gateway-api` (the model:
+  `pom.xml` webapp profile, `gatewayapi/{auth,security,machine,web}`,
+  `src/main/webapp/app/{Layout.tsx,config,shared,modules/search}`).
+- **Task:** new module `gateway-api` (port 8080) = Spring Cloud Gateway edge
+  + React SPA `@announce/customer-web`, replacing the `gateway` module.
+  1. Module: `pom.xml` from the existing `gateway` module (parent
+     `org.joviste:announce`, `spring-cloud-starter-gateway-server-webflux`,
+     Eureka, config client, `db-reactive` for the user and refresh-token
+     mappers) plus the `webapp` profile with `frontend-maven-plugin`
+     (node v20.16.0 / npm 10.8.1, `workingDirectory` `src/main/webapp`,
+     output copied to `static/`). `-P '!webapp'` must build without node.
+  2. Identity: `auth/AuthController` (`/auth/login|register|refresh|logout|me`)
+     over `announce_user` (BCrypt, username or mobile), RS256 JWT
+     (`announce.jwt.*`, dev keypair in config, 2 h access, refresh token
+     hashed in new table `announce_refresh_token` in `db-reactive/sql`,
+     httpOnly cookie on `/auth`); `security/SecurityConfig` deny by default
+     with `PublicPaths`; `security/IdentityForwardingFilter` strips client
+     `X-User-*`, injects `X-User-Id`, `X-User-Type=MEMBER`, and
+     `X-Seller-Id` on announce-management routes; `machine/MachineTokenRelayFilter`
+     adds `X-Service-Token`.
+  3. Routes of `doc/frontend-edges.md` §3 in `config/application.yml`
+     (explicit, ordered, no StripPrefix), the OCS `SetPath` routes with
+     fixed URLs from config (`announce.search.searcher-url`,
+     `announce.search.suggest-url`), the `lb:ws://messaging` route, and
+     `web/SpaHistoryFallbackFilter`.
+  4. SPA phase 1 (`doc/frontend-edges.md` §5): shell, auth, home, search
+     (facets from the OCS response, `source` badge and `/out/{id}` link),
+     announce detail per kind, post wizard per kind with the aggregate's
+     validation rules, my announces. i18n `en`, `da`, `sv` with
+     `npm run i18n:check`. Typed API clients in `app/shared/api` generated
+     by hand from the controllers' DTOs (`AnnounceDtos`, category, brand).
+  5. SPA phase 2 behind `features.trade` and `features.chat` with MSW
+     mocks against `doc/order-context.md` §8/§9: auction panel, buy flow,
+     orders, chat. Mocks live in `app/mocks`; the flags default off.
+  6. Delete the `gateway` module (`gateway/`, its entry in the root
+     `pom.xml`, `docker/`, `deploy/` references) and add `gateway-api` to
+     `docker/docker-compose.yml`.
+- **Out of scope:** admin edge (worktree `gateway-admin`), image upload,
+  SEO head/sitemap, Google sign-in, password reset mail, TLS.
+- **Acceptance:** `mvn -pl gateway-api -P webapp -DskipTests package`
+  produces a jar serving the SPA at `/`; `mvn -pl gateway-api -P '!webapp'
+  test` passes: route tests with MockWebServer (public GET without token
+  OK, write without token 401, valid token -> `X-User-Id` and
+  `X-Seller-Id` downstream, spoofed `X-User-Id` dropped, SPA fallback,
+  search SetPath, refresh rotation, logout revokes); `npm test` and
+  `npm run i18n:check` pass; with announce-management, db-reactive's MySQL
+  and `docker/cqrs` running, the manual checklist in
+  `doc/frontend-edges.md` §7 is executed and recorded there (register, post
+  one announce of each kind, publish, find in search, click out of a
+  crawled listing).
+
+### Worktree: `gateway-admin` — admin edge and SPA (2026-09-26)
+
+- **Prerequisite:** `feat/crawled-listings` merged (done). Independent of
+  `gateway-api` (shares the design, duplicates the security package as
+  litemall does; extraction into a shared module is a later step). Design
+  in `doc/frontend-edges.md`; model: litemall's `litemall-gateway-admin`
+  (`ROUTING.md`, `gatewayadmin/web/admin/EdgeAdmin*`, admin SPA routes).
+- **Task:** new module `gateway-admin` (port 8081) = gateway edge + React
+  SPA `@announce/admin-web`.
+  1. Module and build as in the gateway-api block (same pom shape, same
+     webapp profile, package `org.linlinjava.announce.gatewayadmin`).
+  2. Identity: admin `AuthController` over `announce_admin` with
+     `role_ids` -> `announce_role` / `announce_permission` (tables exist in
+     `announce_table.sql`); JWT carries roles; `IdentityForwardingFilter`
+     injects `X-User-Id`, `X-User-Type=ADMIN`, `X-User-Roles`; refresh
+     tokens in `announce_refresh_token` with `user_type=ADMIN`.
+  3. Routes of `doc/frontend-edges.md` §4; `ROLE_ADMIN` on `/api/**`,
+     `ROLE_SUPER` on admins and roles.
+  4. Edge-hosted reactive controllers over `db-reactive` mappers:
+     `/api/admin/users`, `/api/admin/admins` (BCrypt on create),
+     `/api/admin/roles`, `/api/admin/permissions`, `/api/admin/regions`,
+     `/api/admin/dashboard` (counts from `announce`, `crawled_listing`,
+     `announce_user`).
+  5. In announce-management (small, coordinated change): `AnnounceAdminController`
+     at `/api/admin/announces` (list all with kind/status/seller/region/q
+     filters, `POST {id}/withdraw`, `POST {id}/expire`, no owner header,
+     reason recorded) dispatching the existing commands.
+  6. SPA phase 1 (`doc/frontend-edges.md` §6): login, dashboard,
+     categories per kind, brands, announces moderation, crawled listings
+     (import, reindex, stats), members, admins/roles/permissions, regions.
+     Phase 2 behind `features.trade` / `features.chat` with MSW mocks:
+     auctions, orders and disputes, payouts, support queue and bulletins.
+  7. Add `gateway-admin` to `docker/docker-compose.yml`.
+- **Out of scope:** customer edge, OCS configuration UI, audit log,
+  statistics beyond counts.
+- **Acceptance:** `mvn -pl gateway-admin -P webapp -DskipTests package`
+  serves the SPA; `mvn -pl gateway-admin -P '!webapp' test` passes: route
+  tests (no token 401, member token 403, admin token -> `X-User-Roles`
+  downstream, super-only paths), edge controllers tested against the live
+  MySQL like db-reactive; `mvn -pl announce-management -P '!webapp' test`
+  still passes with the new admin controller covered; `npm test` and
+  `npm run i18n:check` pass; manual checklist in `doc/frontend-edges.md`
+  §7 executed and recorded (log in, create a category of each kind,
+  withdraw an announce, trigger a listings import, create an admin with a
+  role).

@@ -19,12 +19,12 @@ WT_BASE="$(readlink -f "$REPO_ROOT/..")/announce-wt"
 BASE_BRANCH="${BASE_BRANCH:-announce-jo-branch}"
 BRANCH_PREFIX="feat"
 
-# Active worktrees (2026-09-26): crawled-listings, order-reactive, messaging.
-# cqrs-reactive and announce-kinds are merged into announce-jo-branch.
+# Active worktrees (2026-09-26): order-reactive, messaging, gateway-api, gateway-admin.
+# cqrs-reactive, announce-kinds and crawled-listings are merged into announce-jo-branch.
 # Each name must have a matching '### Worktree: `<short>`' block in CLAUDE.md
 # under '## Per-worktree tasks'; a short name with no block sends the session
 # hunting for an assignment that does not exist.
-read -r -a MODULES <<< "${MODULES:-crawled-listings order-reactive messaging}"
+read -r -a MODULES <<< "${MODULES:-order-reactive messaging gateway-api gateway-admin}"
 
 if ! git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$BASE_BRANCH"; then
   echo "base branch '$BASE_BRANCH' does not exist" >&2

@@ -1,0 +1,38 @@
+{
+  "contactSeller": "Skriv til sælger",
+  "inbox": {
+    "empty": "Ingen samtaler endnu.",
+    "listing": "Annonce {{id}}",
+    "openOffer": "Åbent bud",
+    "support": "Support",
+    "title": "Beskeder"
+  },
+  "loadFailed": "Kunne ikke hente samtalen.",
+  "offerFailed": "Kunne ikke besvare buddet.",
+  "openFailed": "Kunne ikke åbne samtalen.",
+  "postFailed": "Beskeden blev ikke sendt.",
+  "socket": {
+    "closed": "genopretter…",
+    "connecting": "forbinder…",
+    "open": "live",
+    "unavailable": "offline, opdaterer hvert 5. sekund"
+  },
+  "status": {
+    "BLOCKED": "blokeret",
+    "CLOSED": "lukket",
+    "OPEN": "åben",
+    "WAITING": "venter på personale"
+  },
+  "thread": {
+    "accept": "Acceptér",
+    "decline": "Afvis",
+    "listing": "Samtale om annonce {{id}}",
+    "message": "Besked",
+    "offer": "Bud: {{amount}}",
+    "offerLabel": "Bud",
+    "openOffer": "Åbent bud på {{amount}}",
+    "placeholder": "Skriv en besked…",
+    "send": "Send",
+    "sendOffer": "Send bud"
+  }
+}

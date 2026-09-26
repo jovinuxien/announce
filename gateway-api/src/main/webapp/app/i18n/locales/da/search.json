@@ -1,0 +1,80 @@
+{
+  "empty": "Intet matcher. Prøv færre filtre eller et andet ord.",
+  "facets": {
+    "apply": "Anvend",
+    "clear": "Ryd",
+    "field": {
+      "application_deadline_epoch": "Ansøgningsfrist",
+      "brand": "Mærke",
+      "brand_id": "Mærke",
+      "category_ids": "Kategori",
+      "category_names": "Kategori",
+      "city": "By",
+      "condition": "Stand",
+      "contract_type": "Ansættelse",
+      "currency": "Valuta",
+      "employer": "Arbejdsgiver",
+      "ends_epoch": "Slutter",
+      "expire_epoch": "Udløber",
+      "km": "Kilometer",
+      "model_year": "Årgang",
+      "organizer": "Arrangør",
+      "price": "Pris",
+      "region_id": "Region",
+      "salary_max": "Løn til",
+      "salary_min": "Løn fra",
+      "sale_type": "Salgstype",
+      "source": "Kilde",
+      "starts_epoch": "Starter",
+      "ticket_price": "Billetpris",
+      "ticketed": "Billetter",
+      "variant_price": "Variantpris"
+    },
+    "max": "Maks",
+    "min": "Min",
+    "title": "Filtre",
+    "value": {
+      "condition": {
+        "FAIR": "Rimelig",
+        "FOR_PARTS": "Til reservedele",
+        "GOOD": "God",
+        "LIKE_NEW": "Som ny",
+        "NEW": "Ny"
+      },
+      "contract_type": {
+        "FREELANCE": "Freelance",
+        "FULL_TIME": "Fuldtid",
+        "INTERNSHIP": "Praktik",
+        "PART_TIME": "Deltid",
+        "TEMPORARY": "Vikariat"
+      },
+      "sale_type": {
+        "AUCTION": "Auktion",
+        "FIXED_PRICE": "Fast pris",
+        "GIVEAWAY": "Gives væk"
+      },
+      "source": {
+        "dba": "dba.dk",
+        "local": "Announce-medlemmer",
+        "tradera": "tradera.com"
+      },
+      "ticketed": {
+        "no": "Gratis adgang",
+        "yes": "Med billet"
+      }
+    }
+  },
+  "results_one": "{{count}} resultat",
+  "results_other": "{{count}} resultater",
+  "resultsFor_one": "{{count}} resultat for “{{q}}”",
+  "resultsFor_other": "{{count}} resultater for “{{q}}”",
+  "sort": "Sortér",
+  "sortOption": {
+    "application_deadline_epoch": "Ansøg snart",
+    "created_epoch": "Nyeste",
+    "expire_epoch": "Udløber snart",
+    "price": "Pris",
+    "starts_epoch": "Starter snart"
+  },
+  "sortRelevance": "Relevans"
+}

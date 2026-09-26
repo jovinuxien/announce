@@ -1,0 +1,74 @@
+{
+  "auction": {
+    "bid": "Bid",
+    "bidAmount": "Bid amount",
+    "bidFailed": "The bid was refused.",
+    "bids_one": "{{count}} bid",
+    "bids_other": "{{count}} bids",
+    "closed": "closed",
+    "endsIn": "ends in {{time}}",
+    "loginToBid": "Log in to bid.",
+    "minimum": "Minimum {{amount}}",
+    "myBid": "Your highest bid: {{amount}}",
+    "snag": "Buy now for {{amount}}",
+    "title": "Auction",
+    "unavailable": "The auction is unavailable."
+  },
+  "buy": {
+    "buy": "Buy",
+    "failed": "Could not create the order.",
+    "request": "Request it"
+  },
+  "order": {
+    "accept": "Accept",
+    "actionFailed": "The action failed.",
+    "cancel": "Cancel",
+    "confirmReceipt": "Confirm receipt",
+    "decline": "Decline",
+    "dispute": "Open a dispute",
+    "disputeReason": "Problem with the order? Describe it",
+    "fee": "incl. fee {{amount}}",
+    "noShipment": "Not shipped yet.",
+    "notFound": "Order not found.",
+    "pay": "Pay (fake provider)",
+    "payBy": "Pay by {{date}}",
+    "payHint": "Development: confirms the payment through the fake provider webhook",
+    "ship": "Request shipment",
+    "shipBy": "Ship by {{date}}",
+    "shipment": "Shipment",
+    "timeline": "Timeline",
+    "viewAnnounce": "View the ad"
+  },
+  "orders": {
+    "asBuyer": "As buyer",
+    "asSeller": "As seller",
+    "col": {
+      "amount": "Amount",
+      "announce": "Ad",
+      "created": "Created",
+      "status": "Status"
+    },
+    "empty": "No orders yet.",
+    "loadFailed": "Could not load the orders.",
+    "title": "Orders"
+  },
+  "orderStatus": {
+    "AGREED": "Agreed",
+    "CANCELLED": "Cancelled",
+    "DELIVERED": "Delivered",
+    "DISPUTED": "Disputed",
+    "EXPIRED": "Expired",
+    "PAID": "Paid",
+    "REFUNDED": "Refunded",
+    "REQUESTED": "Requested",
+    "SETTLED": "Settled",
+    "SHIPPED": "Shipped"
+  },
+  "shipmentStatus": {
+    "DELIVERED": "Delivered",
+    "DISPATCHED": "Dispatched",
+    "FAILED": "Failed",
+    "IN_TRANSIT": "In transit",
+    "REQUESTED": "Requested"
+  }
+}

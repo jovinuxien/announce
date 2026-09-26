@@ -162,7 +162,7 @@
         <module>config</module>
         <module>eureka</module>
         <module>auth-server</module>
-        <module>gateway</module>
+        <module>gateway-api</module>
 
         <module>db-reactive</module>
         <module>cqrs-reactive</module>

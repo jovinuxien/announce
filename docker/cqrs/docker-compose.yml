@@ -13,7 +13,7 @@
 #   Elasticsearch    http://localhost:9200
 #   OCS indexer      http://localhost:8535   (the search context pushes announce documents here)
 #   OCS searcher     http://localhost:8534   (the search API the gateway exposes)
-#   OCS suggest      http://localhost:8081
+#   OCS suggest      http://localhost:8536   (host port; the container listens on 8081, which gateway-admin uses on the host)
 #   Kibana           http://localhost:5601   (profile "tools")
 #
 # The project name is pinned so this stack owns its containers, network and volumes even when another
@@ -163,7 +163,7 @@ services:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
       SUGGEST_INDEX_DEFAULT_SOURCEFIELDS: title,brand,category_names,city
     ports:
-      - "8081:8081"
+      - "8536:8081"
     mem_limit: 768m
     networks: [announce]
 

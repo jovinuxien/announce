@@ -1,0 +1,66 @@
+{
+  "card": {
+    "deadline": "Ansök senast {{date}}"
+  },
+  "condition": {
+    "FAIR": "Okej",
+    "FOR_PARTS": "Till reservdelar",
+    "GOOD": "Bra",
+    "LIKE_NEW": "Som ny",
+    "NEW": "Ny"
+  },
+  "contractType": {
+    "FREELANCE": "Frilans",
+    "FULL_TIME": "Heltid",
+    "INTERNSHIP": "Praktik",
+    "PART_TIME": "Deltid",
+    "TEMPORARY": "Vikariat"
+  },
+  "footer": {
+    "about": "Announce – köp, sälj, anställ och träffas.",
+    "version": "Version {{version}}"
+  },
+  "header": {
+    "account": "Konto",
+    "language": "Språk",
+    "login": "Logga in",
+    "logout": "Logga ut",
+    "messages": "Meddelanden",
+    "myAnnounces": "Mina annonser",
+    "orders": "Beställningar",
+    "post": "Lägg in annons",
+    "profile": "Profil",
+    "register": "Registrera",
+    "search": "Sök",
+    "searchPlaceholder": "Sök varor, jobb och evenemang…"
+  },
+  "home": {
+    "browseAll": "Visa alla",
+    "post": {
+      "EVENT": "Lägg in ett evenemang",
+      "GOODS": "Sälj något",
+      "JOB": "Lägg in ett jobb"
+    },
+    "searchUnavailable": "Sökningen är inte tillgänglig just nu.",
+    "tagline": "Begagnade varor, jobb och evenemang från medlemmar och från dba.dk och tradera.com.",
+    "title": "Hitta det du behöver nära dig"
+  },
+  "kind": {
+    "ALL": "Alla",
+    "EVENT": "Evenemang",
+    "GOODS": "Varor",
+    "JOB": "Jobb"
+  },
+  "saleType": {
+    "AUCTION": "Auktion",
+    "FIXED_PRICE": "Fast pris",
+    "GIVEAWAY": "Bortskänkes"
+  },
+  "status": {
+    "DRAFT": "Utkast",
+    "EXPIRED": "Utgången",
+    "PUBLISHED": "Publicerad",
+    "SOLD": "Såld",
+    "WITHDRAWN": "Tillbakadragen"
+  }
+}

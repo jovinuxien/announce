@@ -1,0 +1,97 @@
+{
+  "category": {
+    "choose": "Välj en kategori",
+    "label": "Kategori ({{kind}})",
+    "none": "Inga kategorier av den här typen än."
+  },
+  "editTitle": "Redigera annons",
+  "event": {
+    "capacity": "Kapacitet",
+    "ends": "Slutar",
+    "organizer": "Arrangör",
+    "starts": "Börjar",
+    "ticketed": "Med biljett",
+    "ticketPrice": "Biljettpris",
+    "venue": "Plats"
+  },
+  "fields": {
+    "brief": "Kort sammanfattning",
+    "city": "Stad",
+    "description": "Beskrivning",
+    "gallery": "Bild-URL:er",
+    "galleryHint": "En URL per rad; uppladdning kommer senare.",
+    "keywords": "Nyckelord (kommaseparerade)",
+    "postalCode": "Postnummer",
+    "title": "Titel"
+  },
+  "goods": {
+    "addAttribute": "Lägg till egenskap",
+    "attributes": "Egenskaper",
+    "attrName": "Namn (t.ex. km)",
+    "attrValue": "Värde",
+    "chooseCondition": "Välj…",
+    "condition": "Skick",
+    "price": "Pris",
+    "saleType": "Försäljningstyp",
+    "startPrice": "Utropspris"
+  },
+  "job": {
+    "contract": "Anställning",
+    "currency": "Valuta",
+    "deadline": "Sista ansökningsdag",
+    "employer": "Arbetsgivare",
+    "howToApply": "Så ansöker man",
+    "salaryMax": "Lön till",
+    "salaryMin": "Lön från"
+  },
+  "kindHint": {
+    "EVENT": "Bjud in folk till ett evenemang",
+    "GOODS": "Sälj, auktionera eller skänk bort en sak",
+    "JOB": "Hitta någon till ett jobb"
+  },
+  "loadFailed": "Kunde inte hämta annonsen.",
+  "nav": {
+    "back": "Tillbaka",
+    "cancel": "Avbryt",
+    "next": "Nästa",
+    "publish": "Publicera",
+    "saveDraft": "Spara utkast"
+  },
+  "preview": {
+    "category": "kategori {{id}}"
+  },
+  "saveFailed": "Kunde inte spara annonsen.",
+  "step": {
+    "category": "Kategori",
+    "details": "Detaljer",
+    "kind": "Typ",
+    "location": "Plats & bilder",
+    "preview": "Förhandsgranska"
+  },
+  "title": "Lägg in annons",
+  "validation": {
+    "capacityPositive": "Kapaciteten måste vara positiv.",
+    "categoryRequired": "Välj en kategori.",
+    "conditionRequired": "Välj skicket.",
+    "contractRequired": "Välj anställningsform.",
+    "deadlineFuture": "Sista ansökningsdag måste ligga i framtiden.",
+    "employerRequired": "Arbetsgivare krävs.",
+    "endAfterStart": "Slutet måste ligga efter starten.",
+    "endFuture": "Slutet måste ligga i framtiden.",
+    "endRequired": "Sluttid krävs.",
+    "eventRequired": "Evenemangsuppgifter saknas.",
+    "goodsRequired": "Varuuppgifter saknas.",
+    "howToApplyRequired": "Ange hur man ansöker.",
+    "jobRequired": "Jobbuppgifter saknas.",
+    "kindRequired": "Välj en typ.",
+    "noAuction": "Jobb och evenemang kan inte auktioneras.",
+    "priceNegative": "Priset kan inte vara negativt.",
+    "priceRequired": "Ett pris krävs om inte varan skänks bort eller auktioneras.",
+    "salaryRange": "Lön till måste vara minst lön från.",
+    "startPricePositive": "Utropspriset måste vara positivt.",
+    "startRequired": "Starttid krävs.",
+    "ticketPriceRequired": "Ett evenemang med biljett kräver ett biljettpris.",
+    "titleRequired": "En titel krävs.",
+    "titleTooLong": "Titeln är för lång."
+  }
+}

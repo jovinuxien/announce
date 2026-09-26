@@ -1,0 +1,38 @@
+{
+  "contactSeller": "Message the seller",
+  "inbox": {
+    "empty": "No conversations yet.",
+    "listing": "Ad {{id}}",
+    "openOffer": "Open offer",
+    "support": "Support",
+    "title": "Messages"
+  },
+  "loadFailed": "Could not load the conversation.",
+  "offerFailed": "Could not answer the offer.",
+  "openFailed": "Could not open the conversation.",
+  "postFailed": "The message was not sent.",
+  "socket": {
+    "closed": "reconnecting…",
+    "connecting": "connecting…",
+    "open": "live",
+    "unavailable": "offline, refreshing every 5 s"
+  },
+  "status": {
+    "BLOCKED": "blocked",
+    "CLOSED": "closed",
+    "OPEN": "open",
+    "WAITING": "waiting for staff"
+  },
+  "thread": {
+    "accept": "Accept",
+    "decline": "Decline",
+    "listing": "Conversation about ad {{id}}",
+    "message": "Message",
+    "offer": "Offer: {{amount}}",
+    "offerLabel": "Offer",
+    "openOffer": "Open offer of {{amount}}",
+    "placeholder": "Write a message…",
+    "send": "Send",
+    "sendOffer": "Send offer"
+  }
+}

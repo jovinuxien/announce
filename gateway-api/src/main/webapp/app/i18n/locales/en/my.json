@@ -1,0 +1,20 @@
+{
+  "action": {
+    "edit": "Edit",
+    "publish": "Publish",
+    "sold": "Mark sold",
+    "withdraw": "Withdraw"
+  },
+  "actionFailed": "The action failed.",
+  "col": {
+    "created": "Created",
+    "expires": "Expires",
+    "kind": "Type",
+    "price": "Price",
+    "title": "Title"
+  },
+  "empty": "Nothing here.",
+  "loadFailed": "Could not load your ads.",
+  "postNew": "Post an ad",
+  "title": "My ads"
+}

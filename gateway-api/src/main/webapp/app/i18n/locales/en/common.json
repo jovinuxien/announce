@@ -1,0 +1,66 @@
+{
+  "card": {
+    "deadline": "Apply by {{date}}"
+  },
+  "condition": {
+    "FAIR": "Fair",
+    "FOR_PARTS": "For parts",
+    "GOOD": "Good",
+    "LIKE_NEW": "Like new",
+    "NEW": "New"
+  },
+  "contractType": {
+    "FREELANCE": "Freelance",
+    "FULL_TIME": "Full time",
+    "INTERNSHIP": "Internship",
+    "PART_TIME": "Part time",
+    "TEMPORARY": "Temporary"
+  },
+  "footer": {
+    "about": "Announce – buy, sell, hire and meet.",
+    "version": "Version {{version}}"
+  },
+  "header": {
+    "account": "Account",
+    "language": "Language",
+    "login": "Log in",
+    "logout": "Log out",
+    "messages": "Messages",
+    "myAnnounces": "My ads",
+    "orders": "Orders",
+    "post": "Post an ad",
+    "profile": "Profile",
+    "register": "Register",
+    "search": "Search",
+    "searchPlaceholder": "Search goods, jobs and events…"
+  },
+  "home": {
+    "browseAll": "Browse all",
+    "post": {
+      "EVENT": "Post an event",
+      "GOODS": "Sell something",
+      "JOB": "Post a job"
+    },
+    "searchUnavailable": "Search is unavailable right now.",
+    "tagline": "Second-hand goods, jobs and events from members and from dba.dk and tradera.com.",
+    "title": "Find what you need nearby"
+  },
+  "kind": {
+    "ALL": "All",
+    "EVENT": "Events",
+    "GOODS": "Goods",
+    "JOB": "Jobs"
+  },
+  "saleType": {
+    "AUCTION": "Auction",
+    "FIXED_PRICE": "Fixed price",
+    "GIVEAWAY": "Free"
+  },
+  "status": {
+    "DRAFT": "Draft",
+    "EXPIRED": "Expired",
+    "PUBLISHED": "Published",
+    "SOLD": "Sold",
+    "WITHDRAWN": "Withdrawn"
+  }
+}

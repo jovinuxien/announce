@@ -1,0 +1,19 @@
+# Test profile of the customer edge: no discovery, no config server, every route target is set by the test.
+spring:
+  config:
+    import: ""
+  cloud:
+    config:
+      enabled: false
+    discovery:
+      enabled: false
+    service-registry:
+      auto-registration:
+        enabled: false
+eureka:
+  client:
+    enabled: false
+logging:
+  level:
+    root: WARN
+    org.linlinjava.announce.gatewayapi: DEBUG

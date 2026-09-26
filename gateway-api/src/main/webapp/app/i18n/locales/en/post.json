@@ -1,0 +1,97 @@
+{
+  "category": {
+    "choose": "Choose a category",
+    "label": "Category ({{kind}})",
+    "none": "No categories of this kind yet."
+  },
+  "editTitle": "Edit ad",
+  "event": {
+    "capacity": "Capacity",
+    "ends": "Ends",
+    "organizer": "Organizer",
+    "starts": "Starts",
+    "ticketed": "Ticketed",
+    "ticketPrice": "Ticket price",
+    "venue": "Venue"
+  },
+  "fields": {
+    "brief": "Short summary",
+    "city": "City",
+    "description": "Description",
+    "gallery": "Picture URLs",
+    "galleryHint": "One URL per line; upload comes later.",
+    "keywords": "Keywords (comma separated)",
+    "postalCode": "Postal code",
+    "title": "Title"
+  },
+  "goods": {
+    "addAttribute": "Add attribute",
+    "attributes": "Attributes",
+    "attrName": "Name (e.g. km)",
+    "attrValue": "Value",
+    "chooseCondition": "Choose…",
+    "condition": "Condition",
+    "price": "Price",
+    "saleType": "Sale type",
+    "startPrice": "Starting price"
+  },
+  "job": {
+    "contract": "Contract",
+    "currency": "Currency",
+    "deadline": "Application deadline",
+    "employer": "Employer",
+    "howToApply": "How to apply",
+    "salaryMax": "Salary to",
+    "salaryMin": "Salary from"
+  },
+  "kindHint": {
+    "EVENT": "Invite people to an event",
+    "GOODS": "Sell, auction or give away an item",
+    "JOB": "Find someone for a job"
+  },
+  "loadFailed": "Could not load the ad.",
+  "nav": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "next": "Next",
+    "publish": "Publish",
+    "saveDraft": "Save draft"
+  },
+  "preview": {
+    "category": "category {{id}}"
+  },
+  "saveFailed": "Could not save the ad.",
+  "step": {
+    "category": "Category",
+    "details": "Details",
+    "kind": "Type",
+    "location": "Location & pictures",
+    "preview": "Preview"
+  },
+  "title": "Post an ad",
+  "validation": {
+    "capacityPositive": "The capacity must be positive.",
+    "categoryRequired": "Choose a category.",
+    "conditionRequired": "Choose the condition.",
+    "contractRequired": "Choose the contract type.",
+    "deadlineFuture": "The application deadline must be in the future.",
+    "employerRequired": "The employer is required.",
+    "endAfterStart": "The end must be after the start.",
+    "endFuture": "The end must be in the future.",
+    "endRequired": "The end is required.",
+    "eventRequired": "Event details are missing.",
+    "goodsRequired": "Goods details are missing.",
+    "howToApplyRequired": "Say how to apply.",
+    "jobRequired": "Job details are missing.",
+    "kindRequired": "Choose a type.",
+    "noAuction": "Jobs and events cannot be auctioned.",
+    "priceNegative": "The price cannot be negative.",
+    "priceRequired": "A price is required unless the item is free or auctioned.",
+    "salaryRange": "Salary to must be at least salary from.",
+    "startPricePositive": "The starting price must be positive.",
+    "startRequired": "The start is required.",
+    "ticketPriceRequired": "A ticketed event needs a ticket price.",
+    "titleRequired": "A title is required.",
+    "titleTooLong": "The title is too long."
+  }
+}

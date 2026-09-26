@@ -1,0 +1,41 @@
+{
+  "description": "Beskrivning",
+  "event": {
+    "capacity": "Kapacitet",
+    "ends": "Slutar",
+    "free": "Fri entré",
+    "organizer": "Arrangör",
+    "starts": "Börjar",
+    "ticketed": "Med biljett",
+    "tickets": "Biljetter",
+    "venue": "Plats"
+  },
+  "goods": {
+    "condition": "Skick",
+    "price": "Pris",
+    "saleType": "Försäljningstyp",
+    "startingAt": "Auktion, från {{price}}",
+    "stock": "Antal",
+    "unit": "Enhet",
+    "variant": "Variant"
+  },
+  "job": {
+    "contract": "Anställning",
+    "deadline": "Ansök senast",
+    "employer": "Arbetsgivare",
+    "howToApply": "Så ansöker du",
+    "salary": "Lön"
+  },
+  "locationUnknown": "Plats ej angiven",
+  "mapPlaceholder": "Karta kommer senare",
+  "noDescription": "Ingen beskrivning.",
+  "notFound": "Annonsen finns inte eller är inte längre synlig.",
+  "seller": {
+    "edit": "Redigera min annons",
+    "expires": "Går ut {{date}}",
+    "member": "Medlem #{{id}}",
+    "since": "Inlagd {{date}}",
+    "title": "Säljare"
+  },
+  "share": "Dela"
+}

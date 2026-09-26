@@ -1,0 +1,41 @@
+{
+  "description": "Beskrivelse",
+  "event": {
+    "capacity": "Kapacitet",
+    "ends": "Slutter",
+    "free": "Gratis adgang",
+    "organizer": "Arrangør",
+    "starts": "Starter",
+    "ticketed": "Med billet",
+    "tickets": "Billetter",
+    "venue": "Sted"
+  },
+  "goods": {
+    "condition": "Stand",
+    "price": "Pris",
+    "saleType": "Salgstype",
+    "startingAt": "Auktion, fra {{price}}",
+    "stock": "Antal",
+    "unit": "Enhed",
+    "variant": "Variant"
+  },
+  "job": {
+    "contract": "Ansættelse",
+    "deadline": "Ansøg senest",
+    "employer": "Arbejdsgiver",
+    "howToApply": "Sådan ansøger du",
+    "salary": "Løn"
+  },
+  "locationUnknown": "Sted ikke angivet",
+  "mapPlaceholder": "Kort kommer senere",
+  "noDescription": "Ingen beskrivelse.",
+  "notFound": "Annoncen findes ikke eller er ikke længere synlig.",
+  "seller": {
+    "edit": "Rediger min annonce",
+    "expires": "Udløber {{date}}",
+    "member": "Medlem #{{id}}",
+    "since": "Oprettet {{date}}",
+    "title": "Sælger"
+  },
+  "share": "Del"
+}

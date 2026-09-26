@@ -1,0 +1,74 @@
+{
+  "auction": {
+    "bid": "Byd",
+    "bidAmount": "Budbeløb",
+    "bidFailed": "Buddet blev afvist.",
+    "bids_one": "{{count}} bud",
+    "bids_other": "{{count}} bud",
+    "closed": "afsluttet",
+    "endsIn": "slutter om {{time}}",
+    "loginToBid": "Log ind for at byde.",
+    "minimum": "Mindst {{amount}}",
+    "myBid": "Dit højeste bud: {{amount}}",
+    "snag": "Køb nu for {{amount}}",
+    "title": "Auktion",
+    "unavailable": "Auktionen er ikke tilgængelig."
+  },
+  "buy": {
+    "buy": "Køb",
+    "failed": "Kunne ikke oprette ordren.",
+    "request": "Anmod om den"
+  },
+  "order": {
+    "accept": "Acceptér",
+    "actionFailed": "Handlingen mislykkedes.",
+    "cancel": "Annullér",
+    "confirmReceipt": "Bekræft modtagelse",
+    "decline": "Afvis",
+    "dispute": "Åbn en tvist",
+    "disputeReason": "Problem med ordren? Beskriv det",
+    "fee": "inkl. gebyr {{amount}}",
+    "noShipment": "Ikke sendt endnu.",
+    "notFound": "Ordren blev ikke fundet.",
+    "pay": "Betal (testudbyder)",
+    "payBy": "Betal senest {{date}}",
+    "payHint": "Udvikling: bekræfter betalingen via testudbyderens webhook",
+    "ship": "Bestil forsendelse",
+    "shipBy": "Send senest {{date}}",
+    "shipment": "Forsendelse",
+    "timeline": "Forløb",
+    "viewAnnounce": "Se annoncen"
+  },
+  "orders": {
+    "asBuyer": "Som køber",
+    "asSeller": "Som sælger",
+    "col": {
+      "amount": "Beløb",
+      "announce": "Annonce",
+      "created": "Oprettet",
+      "status": "Status"
+    },
+    "empty": "Ingen ordrer endnu.",
+    "loadFailed": "Kunne ikke hente ordrerne.",
+    "title": "Ordrer"
+  },
+  "orderStatus": {
+    "AGREED": "Aftalt",
+    "CANCELLED": "Annulleret",
+    "DELIVERED": "Leveret",
+    "DISPUTED": "Tvist",
+    "EXPIRED": "Udløbet",
+    "PAID": "Betalt",
+    "REFUNDED": "Refunderet",
+    "REQUESTED": "Anmodet",
+    "SETTLED": "Afregnet",
+    "SHIPPED": "Sendt"
+  },
+  "shipmentStatus": {
+    "DELIVERED": "Leveret",
+    "DISPATCHED": "Afsendt",
+    "FAILED": "Mislykkedes",
+    "IN_TRANSIT": "Undervejs",
+    "REQUESTED": "Bestilt"
+  }
+}

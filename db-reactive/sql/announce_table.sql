@@ -824,6 +824,28 @@ CREATE TABLE `listing_category_map` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Category mapping of crawled listings: data, not code';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Table structure for table `announce_refresh_token` (edge-issued refresh tokens of members and staff; only the hash is stored)
+--
+
+DROP TABLE IF EXISTS `announce_refresh_token`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `announce_refresh_token` (
+  `id` varchar(36) NOT NULL COMMENT 'token id (uuid), chosen by the edge',
+  `user_type` varchar(16) NOT NULL COMMENT 'MEMBER (announce_user) or ADMIN (announce_admin)',
+  `user_id` int(11) NOT NULL COMMENT 'announce_user.id or announce_admin.id',
+  `token_hash` char(64) NOT NULL COMMENT 'SHA-256 hex of the opaque token handed to the client',
+  `expires_at` datetime NOT NULL COMMENT 'absolute expiry',
+  `revoked` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 once rotated or logged out',
+  `add_time` datetime DEFAULT NULL COMMENT 'issued at',
+  `update_time` datetime DEFAULT NULL COMMENT 'last rotation / revocation',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_refresh_token_hash` (`token_hash`),
+  KEY `idx_refresh_token_user` (`user_type`, `user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Refresh tokens issued by the gateway edges (gateway-api, gateway-admin)';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

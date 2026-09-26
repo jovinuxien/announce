@@ -1,0 +1,20 @@
+{
+  "action": {
+    "edit": "Rediger",
+    "publish": "Publicér",
+    "sold": "Markér solgt",
+    "withdraw": "Træk tilbage"
+  },
+  "actionFailed": "Handlingen mislykkedes.",
+  "col": {
+    "created": "Oprettet",
+    "expires": "Udløber",
+    "kind": "Type",
+    "price": "Pris",
+    "title": "Titel"
+  },
+  "empty": "Intet her.",
+  "loadFailed": "Kunne ikke hente dine annoncer.",
+  "postNew": "Opret annonce",
+  "title": "Mine annoncer"
+}

@@ -12,7 +12,7 @@ Build facts:
   so child modules resolve the parent, then build modules with `mvn -pl <module>`.
 - Compile with `mvn -P '!webapp' -DskipTests compile`; the announce-management
   `webapp` profile runs `npm run build` and fails locally.
-- Modules that compile: config, eureka, gateway, db-reactive, cqrs-reactive,
+- Modules that compile: config, eureka, gateway-api, db-reactive, cqrs-reactive,
   announce-management. core, auth-server and order still carry legacy Boot 2 code.
 - Tests in db-reactive and announce-management need the live MySQL database
   `announce_reactive_db` (user `announce`) on localhost:3306. Never touch the

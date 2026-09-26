@@ -1,0 +1,41 @@
+{
+  "description": "Description",
+  "event": {
+    "capacity": "Capacity",
+    "ends": "Ends",
+    "free": "Free entry",
+    "organizer": "Organizer",
+    "starts": "Starts",
+    "ticketed": "Ticketed",
+    "tickets": "Tickets",
+    "venue": "Venue"
+  },
+  "goods": {
+    "condition": "Condition",
+    "price": "Price",
+    "saleType": "Sale type",
+    "startingAt": "Auction, starting at {{price}}",
+    "stock": "Stock",
+    "unit": "Unit",
+    "variant": "Variant"
+  },
+  "job": {
+    "contract": "Contract",
+    "deadline": "Apply by",
+    "employer": "Employer",
+    "howToApply": "How to apply",
+    "salary": "Salary"
+  },
+  "locationUnknown": "Location not given",
+  "mapPlaceholder": "Map coming later",
+  "noDescription": "No description.",
+  "notFound": "This ad does not exist or is no longer visible.",
+  "seller": {
+    "edit": "Edit my ad",
+    "expires": "Expires {{date}}",
+    "member": "Member #{{id}}",
+    "since": "Posted {{date}}",
+    "title": "Seller"
+  },
+  "share": "Share"
+}

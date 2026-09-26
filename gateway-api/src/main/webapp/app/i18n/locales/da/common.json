@@ -1,0 +1,66 @@
+{
+  "card": {
+    "deadline": "Ansøg senest {{date}}"
+  },
+  "condition": {
+    "FAIR": "Rimelig",
+    "FOR_PARTS": "Til reservedele",
+    "GOOD": "God",
+    "LIKE_NEW": "Som ny",
+    "NEW": "Ny"
+  },
+  "contractType": {
+    "FREELANCE": "Freelance",
+    "FULL_TIME": "Fuldtid",
+    "INTERNSHIP": "Praktik",
+    "PART_TIME": "Deltid",
+    "TEMPORARY": "Vikariat"
+  },
+  "footer": {
+    "about": "Announce – køb, sælg, ansæt og mødes.",
+    "version": "Version {{version}}"
+  },
+  "header": {
+    "account": "Konto",
+    "language": "Sprog",
+    "login": "Log ind",
+    "logout": "Log ud",
+    "messages": "Beskeder",
+    "myAnnounces": "Mine annoncer",
+    "orders": "Ordrer",
+    "post": "Opret annonce",
+    "profile": "Profil",
+    "register": "Opret bruger",
+    "search": "Søg",
+    "searchPlaceholder": "Søg efter varer, job og events…"
+  },
+  "home": {
+    "browseAll": "Se alle",
+    "post": {
+      "EVENT": "Opret et event",
+      "GOODS": "Sælg noget",
+      "JOB": "Opret et job"
+    },
+    "searchUnavailable": "Søgning er ikke tilgængelig lige nu.",
+    "tagline": "Brugte varer, job og events fra medlemmer og fra dba.dk og tradera.com.",
+    "title": "Find det, du søger, tæt på dig"
+  },
+  "kind": {
+    "ALL": "Alle",
+    "EVENT": "Events",
+    "GOODS": "Varer",
+    "JOB": "Job"
+  },
+  "saleType": {
+    "AUCTION": "Auktion",
+    "FIXED_PRICE": "Fast pris",
+    "GIVEAWAY": "Gives væk"
+  },
+  "status": {
+    "DRAFT": "Kladde",
+    "EXPIRED": "Udløbet",
+    "PUBLISHED": "Publiceret",
+    "SOLD": "Solgt",
+    "WITHDRAWN": "Trukket tilbage"
+  }
+}

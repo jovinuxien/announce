@@ -148,6 +148,8 @@
             <columnOverride column="goods" javaType="java.lang.Integer[]"
                             typeHandler="org.linlinjava.announce.db.mybatis.JsonIntegerArrayTypeHandler"/>
         </table>
+        <!-- Refresh tokens issued by the gateway edges (id chosen by the edge, no generated key) -->
+        <table tableName="announce_refresh_token" domainObjectName="AnnounceRefreshToken"/>
         <table tableName="announce_user">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>

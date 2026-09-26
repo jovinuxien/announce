@@ -1,7 +1,8 @@
 # The two frontend edges: `gateway-api` (customers) and `gateway-admin` (staff)
 
-Status: design written 2026-09-26, not yet implemented. Worktrees `gateway-api` and
-`gateway-admin` in `CLAUDE.md`. Model: litemall's `litemall-gateway-api` and
+Status: design written 2026-09-26; `gateway-api` implemented 2026-09-26 (section 9 records what was
+built and the checklist run), `gateway-admin` not yet. Worktrees `gateway-api` and `gateway-admin` in
+`CLAUDE.md`. Model: litemall's `litemall-gateway-api` and
 `litemall-gateway-admin` (`~/shopping_apps/litemall_app/litemall`), adapted to the announce
 backend (`doc/announce-management-context.md`, `doc/crawled-listings.md`,
 `doc/order-context.md`).
@@ -157,3 +158,89 @@ Image upload to object storage (URLs only), SEO head rendering and sitemap (lite
 them; port later), Google sign-in, password reset by mail, push notifications, a shared
 `edge-common` module (the two edges duplicate the security package as litemall does; extract
 when a third edge appears), Caddy or TLS, the OCS admin frontend.
+
+## 9. `gateway-api`: what was built (2026-09-26) and the checklist run
+
+Module `gateway-api` (root pom entry replaces `gateway`, which is deleted). Guide with the same content
+as a PDF: `doc/gateway-api-guide.pdf`; module README: `gateway-api/README.md`.
+
+**Edge.** `org.linlinjava.announce.gatewayapi`: `auth` (`AuthController` on `/auth/login|register|refresh|logout|me`
+over `announce_user` through the ports `UserAccounts` / `RefreshTokenStore` and their R2DBC adapters; RS256
+through Spring Security's Nimbus `JwtEncoder`/`JwtDecoder`, dev keypair in `application.yml`, blank keys mean
+an ephemeral pair; refresh token = `<uuid>.<random>` with only the SHA-256 in `announce_refresh_token`, single
+use, 30 days, httpOnly cookie `announce_refresh` on path `/auth`, `SameSite=Strict`), `security`
+(`SecurityConfig` deny by default with problem-detail 401/403, `PublicPaths`, `IdentityForwardingFilter`
+strips every client `X-User-*` and `X-Seller-Id` then injects `X-User-Id` + `X-User-Type=MEMBER`,
+`WebSocketTokenFilter` turns `?access_token=` on `/ws/**` into the Bearer header), `machine`
+(`X-Service-Token = v1.<service>.<epoch>.<hmacSha256(service:epoch)>` on routes whose metadata says
+`serviceToken: true`), `gateway` (route filter `SellerHeader` copies `X-User-Id` into `X-Seller-Id` on the
+announce-management routes only) and `web` (`SpaHistoryFallbackFilter`, `ProblemDetails`). Routes are the
+table of §3 in `config/application.yml`, every target a property (`announce.routes.*`,
+`announce.search.searcher-url|suggest-url`) so tests point them at MockWebServer and a local run needs no
+Eureka. The `webapp` Maven profile (active by default) installs node v20.16.0 under `target/`, runs `npm ci`
+and `npm run build`; webpack writes into `target/classes/static`.
+
+**SPA** `@announce/customer-web` (React 18, TypeScript 5, react-router 6, Redux Toolkit, axios,
+react-bootstrap, i18next en/da/sv, webpack 5, jest): shell with kind links, suggest box (`/api/suggest`)
+and language switch; auth (login, register, profile; access token in memory only, silent single-flight
+refresh on 401 through the cookie); home (category roots per kind from `/api/categories?kind=`, latest per
+kind from search sorted by `created_epoch`); search (URL is the source of truth; facets rendered from the OCS
+response: term facets as checkboxes, interval facets as min/max; `source` badge with the domain and
+`/out/{id}` in a new tab for crawled listings; sort from `sortOptions`; pagination from `matchCount`);
+announce detail per kind; post wizard (kind, category tree of that kind, kind form, location and picture
+URLs, preview, save draft, publish) with `validation.ts` mirroring the aggregate rules; my announces with
+edit, publish, withdraw and mark sold. Phase 2 behind `localStorage.announceFeatures`
+(`{"trade":true,"chat":true,"mocks":true}`): auction panel, buy box and orders against the §8 contract,
+contact-seller, inbox and thread (WebSocket with REST polling fallback) against §9, MSW handlers in
+`app/mocks` (the WebSocket is not mocked; the thread polls).
+
+**Tests.** `mvn -pl gateway-api -P '!webapp' test`: 16 tests — `EdgeRoutesTest` (13, WebTestClient
+against one MockWebServer standing in for every backend, in-memory auth stores: public GET without token,
+write without token 401, valid token -> `X-User-Id`/`X-User-Type`/`X-Seller-Id` downstream, spoofed headers
+dropped, order/messaging routes need a member and get no seller header, webhooks public POST only, click-out
+public, search and suggest SetPath, SPA fallback and 404 for a missing asset, WebSocket handshake with the
+query token, login/refresh rotation/logout revocation, problem details), `MachineTokensTest`,
+`AuthPersistenceTest` (2, live MySQL). `db-reactive`: `AnnounceRefreshTokenMapperTest` plus the 39-mapper
+smoke test. SPA: 29 jest tests (post validation per kind, search state/URL/OCS query, auth slice, refresh
+interceptor incl. single flight, i18n parity), `npm run i18n:check` green.
+
+**Checklist of §7, executed 2026-09-26** with announce-management on 8085 (`mvn -pl announce-management
+-P '!webapp' spring-boot:run`), the live MySQL, `docker/cqrs` (ESDB, Elasticsearch, OCS indexer/searcher/
+suggest; Kafka came from the litemall compose already holding 9092) and the edge jar started as
+`java -jar gateway-api/target/gateway-api-0.0.1-SNAPSHOT.jar --server.port=8090 --eureka.client.enabled=false
+--spring.cloud.config.enabled=false --announce.routes.announce-management=http://localhost:8085` (port 8090
+because a Jenkins holds 8080 on the development machine; 8080 stays the configured default):
+
+| Step | Result |
+|---|---|
+| `GET /` and `GET /announce/abc` serve the SPA `index.html` from the jar | OK |
+| Register through `/auth/register`, log in, `/auth/me` | 201 / 200 / 200 (member 5) |
+| Post one announce of each kind through `/api/announces` | 201 DRAFT ×3 |
+| Publish each | 200 PUBLISHED ×3 |
+| Event with end before start | 409 `An event must start before it ends` |
+| Job with sale type AUCTION | 409 `A job announce cannot be auctioned` |
+| Write without token | 401 problem detail, backend not called |
+| Find each in `/api/search?q=…&kind=` with the kind facet | GOODS, JOB, EVENT found, `source=local`, facet `kind` = the kind |
+| Crawled listings | announce-management's import job loaded `dba_cars.json` at start (54 rows); `/api/search?source=dba` lists them with `external_url` |
+| `GET /out/dba-1117479380` through the edge | 302 to `https://www.dba.dk/toyota-aygo-10-benzin/id-1117479380/`, `click_count` 1; unknown id 404 |
+| My announces (`seller=<me>&status=PUBLISHED`), withdraw the event | total 3, WITHDRAWN |
+| Refresh with the cookie, logout, refresh again | 200 / 204 / 401 |
+
+**Deviations and environment fixes.**
+- `docker/cqrs`: the suggest container is published on host port **8536** (was 8081, the gateway-admin port);
+  `application.search-service.yml` moved `weightedFields` out of `settings` (the current
+  `ocs-search-service:latest` binds `settings` to an enum map and refused to start); the ESDB volume needed
+  `chown 100:101` (image user `esdb`) on this machine. A fresh Elasticsearch has no `announce_index`: the
+  indexer's `update` API refuses to create it (`langcode required for new index`), so bootstrap it once with
+  `GET :8535/indexer-api/v1/full/start/announce_index?locale=en` then `POST …/full/done` with the returned
+  session, or let a full listings reindex do it.
+- Machine token: HMAC header on routes flagged by metadata (not "every `lb://` route"), so the same rule
+  applies when a test or a local run points a route at a plain URL. The OCS routes carry no token.
+- The edge answers its own 401/403 as `application/problem+json`; auth validation errors carry an `errors`
+  array. Bad credentials are 401, a taken username 409, a disabled account 403.
+- `/auth/me` reads `X-User-Id` injected by the identity filter, like every downstream service.
+- The dev RSA keypair is committed in `application.yml` (like litemall); production must set
+  `ANNOUNCE_JWT_PRIVATE_KEY_PEM` / `ANNOUNCE_JWT_PUBLIC_KEY_PEM` and `ANNOUNCE_MACHINE_SECRET`.
+- Not done (follow-ups): announce-management reading `X-User-Id` (then drop `SellerHeader`), backends
+  verifying `X-Service-Token`, profile editing, image upload, a real WebSocket mock for the chat screens,
+  `gateway-admin`.

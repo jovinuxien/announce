@@ -1,0 +1,38 @@
+{
+  "contactSeller": "Skriv till säljaren",
+  "inbox": {
+    "empty": "Inga konversationer än.",
+    "listing": "Annons {{id}}",
+    "openOffer": "Öppet bud",
+    "support": "Support",
+    "title": "Meddelanden"
+  },
+  "loadFailed": "Kunde inte hämta konversationen.",
+  "offerFailed": "Kunde inte besvara budet.",
+  "openFailed": "Kunde inte öppna konversationen.",
+  "postFailed": "Meddelandet skickades inte.",
+  "socket": {
+    "closed": "återansluter…",
+    "connecting": "ansluter…",
+    "open": "live",
+    "unavailable": "offline, uppdaterar var 5:e sekund"
+  },
+  "status": {
+    "BLOCKED": "blockerad",
+    "CLOSED": "stängd",
+    "OPEN": "öppen",
+    "WAITING": "väntar på personal"
+  },
+  "thread": {
+    "accept": "Acceptera",
+    "decline": "Avböj",
+    "listing": "Konversation om annons {{id}}",
+    "message": "Meddelande",
+    "offer": "Bud: {{amount}}",
+    "offerLabel": "Bud",
+    "openOffer": "Öppet bud på {{amount}}",
+    "placeholder": "Skriv ett meddelande…",
+    "send": "Skicka",
+    "sendOffer": "Skicka bud"
+  }
+}

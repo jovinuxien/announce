@@ -1,0 +1,20 @@
+{
+  "action": {
+    "edit": "Redigera",
+    "publish": "Publicera",
+    "sold": "Markera såld",
+    "withdraw": "Dra tillbaka"
+  },
+  "actionFailed": "Åtgärden misslyckades.",
+  "col": {
+    "created": "Skapad",
+    "expires": "Går ut",
+    "kind": "Typ",
+    "price": "Pris",
+    "title": "Titel"
+  },
+  "empty": "Inget här.",
+  "loadFailed": "Kunde inte hämta dina annonser.",
+  "postNew": "Lägg in annons",
+  "title": "Mina annonser"
+}

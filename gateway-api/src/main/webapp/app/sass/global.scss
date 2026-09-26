@@ -1,0 +1,91 @@
+// Bootstrap first, then the few site rules the SPA needs.
+@import 'bootstrap/scss/bootstrap';
+
+body {
+  background: #f6f7f9;
+}
+
+.an-header {
+  background: #fff;
+  border-bottom: 1px solid #e3e6ea;
+}
+
+.an-kind-tabs .nav-link {
+  font-weight: 600;
+}
+
+.an-card-img {
+  height: 180px;
+  object-fit: cover;
+  background: #e9ecef;
+}
+
+.an-card-placeholder {
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #adb5bd;
+  background: #e9ecef;
+  font-size: 2rem;
+}
+
+.an-source-badge {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+}
+
+.an-price {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.an-facets .form-check {
+  font-size: 0.9rem;
+}
+
+.an-suggest {
+  position: absolute;
+  z-index: 1030;
+  width: 100%;
+  max-height: 20rem;
+  overflow: auto;
+}
+
+.an-gallery-main {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  background: #e9ecef;
+}
+
+.an-gallery-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  cursor: pointer;
+  border: 2px solid transparent;
+  &.active { border-color: #0d6efd; }
+}
+
+.an-chat-thread {
+  height: 24rem;
+  overflow: auto;
+  background: #fff;
+}
+
+.an-bubble {
+  max-width: 75%;
+  border-radius: 1rem;
+  padding: 0.5rem 0.75rem;
+  &.mine { background: #d0e2ff; margin-left: auto; }
+  &.theirs { background: #e9ecef; }
+  &.system { background: #fff3cd; margin: 0 auto; font-size: 0.85rem; }
+}
+
+.an-footer {
+  border-top: 1px solid #e3e6ea;
+  color: #6c757d;
+  font-size: 0.9rem;
+}

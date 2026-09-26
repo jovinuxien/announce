@@ -1,0 +1,74 @@
+{
+  "auction": {
+    "bid": "Bjud",
+    "bidAmount": "Budbelopp",
+    "bidFailed": "Budet avvisades.",
+    "bids_one": "{{count}} bud",
+    "bids_other": "{{count}} bud",
+    "closed": "avslutad",
+    "endsIn": "slutar om {{time}}",
+    "loginToBid": "Logga in för att bjuda.",
+    "minimum": "Minst {{amount}}",
+    "myBid": "Ditt högsta bud: {{amount}}",
+    "snag": "Köp nu för {{amount}}",
+    "title": "Auktion",
+    "unavailable": "Auktionen är inte tillgänglig."
+  },
+  "buy": {
+    "buy": "Köp",
+    "failed": "Kunde inte skapa beställningen.",
+    "request": "Be om den"
+  },
+  "order": {
+    "accept": "Acceptera",
+    "actionFailed": "Åtgärden misslyckades.",
+    "cancel": "Avbryt",
+    "confirmReceipt": "Bekräfta mottagande",
+    "decline": "Avböj",
+    "dispute": "Öppna en tvist",
+    "disputeReason": "Problem med beställningen? Beskriv det",
+    "fee": "inkl. avgift {{amount}}",
+    "noShipment": "Inte skickad än.",
+    "notFound": "Beställningen hittades inte.",
+    "pay": "Betala (testleverantör)",
+    "payBy": "Betala senast {{date}}",
+    "payHint": "Utveckling: bekräftar betalningen via testleverantörens webhook",
+    "ship": "Beställ frakt",
+    "shipBy": "Skicka senast {{date}}",
+    "shipment": "Frakt",
+    "timeline": "Tidslinje",
+    "viewAnnounce": "Visa annonsen"
+  },
+  "orders": {
+    "asBuyer": "Som köpare",
+    "asSeller": "Som säljare",
+    "col": {
+      "amount": "Belopp",
+      "announce": "Annons",
+      "created": "Skapad",
+      "status": "Status"
+    },
+    "empty": "Inga beställningar än.",
+    "loadFailed": "Kunde inte hämta beställningarna.",
+    "title": "Beställningar"
+  },
+  "orderStatus": {
+    "AGREED": "Överenskommen",
+    "CANCELLED": "Avbruten",
+    "DELIVERED": "Levererad",
+    "DISPUTED": "Tvist",
+    "EXPIRED": "Utgången",
+    "PAID": "Betald",
+    "REFUNDED": "Återbetald",
+    "REQUESTED": "Begärd",
+    "SETTLED": "Avslutad",
+    "SHIPPED": "Skickad"
+  },
+  "shipmentStatus": {
+    "DELIVERED": "Levererad",
+    "DISPATCHED": "Avsänd",
+    "FAILED": "Misslyckades",
+    "IN_TRANSIT": "På väg",
+    "REQUESTED": "Beställd"
+  }
+}

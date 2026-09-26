@@ -207,13 +207,13 @@ ocs:
           multimatch_type: "CROSS_FIELDS"
           analyzer: "standard"
           quoteAnalyzer: "minimal"
-          weightedFields:
-            "title": 3.0
-            "title.standard": 2.0
-            "category_names": 1.5
-            "brand": 1.5
-            "city": 1.2
-            "description": 0.8
+        weightedFields:
+          "title": 3.0
+          "title.standard": 2.0
+          "category_names": 1.5
+          "brand": 1.5
+          "city": 1.2
+          "description": 0.8
       relaxed-query:
         strategy: "ConfigurableQuery"
         condition:
@@ -224,11 +224,11 @@ ocs:
           tieBreaker: 0.5
           multimatch_type: "BEST_FIELDS"
           analyzer: "standard"
-          weightedFields:
-            "title": 2.0
-            "category_names": 1.0
-            "brand": 1.0
-            "description": 0.5
+        weightedFields:
+          "title": 2.0
+          "category_names": 1.0
+          "brand": 1.0
+          "description": 0.5
     facet-configuration:
       facets:
         - source-field: kind

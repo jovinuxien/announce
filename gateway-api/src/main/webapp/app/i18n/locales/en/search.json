@@ -1,0 +1,80 @@
+{
+  "empty": "Nothing matches. Try fewer filters or another word.",
+  "facets": {
+    "apply": "Apply",
+    "clear": "Clear",
+    "field": {
+      "application_deadline_epoch": "Application deadline",
+      "brand": "Brand",
+      "brand_id": "Brand",
+      "category_ids": "Category",
+      "category_names": "Category",
+      "city": "City",
+      "condition": "Condition",
+      "contract_type": "Contract",
+      "currency": "Currency",
+      "employer": "Employer",
+      "ends_epoch": "Ends",
+      "expire_epoch": "Expires",
+      "km": "Kilometres",
+      "model_year": "Model year",
+      "organizer": "Organizer",
+      "price": "Price",
+      "region_id": "Region",
+      "salary_max": "Salary to",
+      "salary_min": "Salary from",
+      "sale_type": "Sale type",
+      "source": "Source",
+      "starts_epoch": "Starts",
+      "ticket_price": "Ticket price",
+      "ticketed": "Tickets",
+      "variant_price": "Variant price"
+    },
+    "max": "Max",
+    "min": "Min",
+    "title": "Filters",
+    "value": {
+      "condition": {
+        "FAIR": "Fair",
+        "FOR_PARTS": "For parts",
+        "GOOD": "Good",
+        "LIKE_NEW": "Like new",
+        "NEW": "New"
+      },
+      "contract_type": {
+        "FREELANCE": "Freelance",
+        "FULL_TIME": "Full time",
+        "INTERNSHIP": "Internship",
+        "PART_TIME": "Part time",
+        "TEMPORARY": "Temporary"
+      },
+      "sale_type": {
+        "AUCTION": "Auction",
+        "FIXED_PRICE": "Fixed price",
+        "GIVEAWAY": "Free"
+      },
+      "source": {
+        "dba": "dba.dk",
+        "local": "Announce members",
+        "tradera": "tradera.com"
+      },
+      "ticketed": {
+        "no": "Free entry",
+        "yes": "Ticketed"
+      }
+    }
+  },
+  "results_one": "{{count}} result",
+  "results_other": "{{count}} results",
+  "resultsFor_one": "{{count}} result for “{{q}}”",
+  "resultsFor_other": "{{count}} results for “{{q}}”",
+  "sort": "Sort",
+  "sortOption": {
+    "application_deadline_epoch": "Apply soon",
+    "created_epoch": "Newest",
+    "expire_epoch": "Ending soon",
+    "price": "Price",
+    "starts_epoch": "Starts soon"
+  },
+  "sortRelevance": "Relevance"
+}

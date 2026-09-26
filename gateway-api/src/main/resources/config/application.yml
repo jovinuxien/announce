@@ -1,0 +1,184 @@
+spring:
+  application:
+    name: gateway-api
+  # Optional config server (same as the other modules); the edge starts without it.
+  config:
+    import: "optional:configserver:${ANNOUNCE_CONFIG_URL:http://localhost:8888}"
+  cloud:
+    config:
+      fail-fast: false
+    compatibility-verifier:
+      enabled: false
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: false
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowed-origins: "http://localhost:9000"
+                allowed-methods: "*"
+                allowed-headers: "*"
+                allow-credentials: true
+          # Explicit routes only, matched in this order, no StripPrefix (backends keep their /api paths).
+          # Every target is a property so tests can point a route at a MockWebServer.
+          routes:
+            # announce-management: catalog reads are public, writes need a member (see security.PublicPaths);
+            # SellerHeader copies the trusted X-User-Id into X-Seller-Id, the owner header that module reads today.
+            - id: announce-management
+              uri: ${announce.routes.announce-management:lb://announce-management}
+              predicates:
+                - Path=/api/announces/**,/api/categories/**,/api/brands/**
+              filters:
+                - SellerHeader
+              metadata:
+                serviceToken: true
+            # click-out of a crawled listing: 302 to the source page
+            - id: click-out
+              uri: ${announce.routes.announce-management:lb://announce-management}
+              predicates:
+                - Path=/out/**
+              metadata:
+                serviceToken: true
+            # OCS search tier (docker/cqrs): fixed URLs, path rewritten to the tenant API
+            - id: search
+              uri: ${announce.search.searcher-url}
+              predicates:
+                - Path=/api/search
+              filters:
+                - SetPath=/search-api/v1/search/${announce.search.index}
+            - id: suggest
+              uri: ${announce.search.suggest-url}
+              predicates:
+                - Path=/api/suggest
+              filters:
+                - SetPath=/suggest-api/v1/${announce.search.index}/suggest
+            # order module: auctions, orders, seller accounts (member) and provider webhooks (public, provider-signed)
+            - id: order
+              uri: ${announce.routes.order:lb://order}
+              predicates:
+                - Path=/api/auctions/**,/api/orders/**,/api/sellers/**,/api/payments/webhook/**,/api/shipping/webhook/**
+              metadata:
+                serviceToken: true
+            # messaging: REST fallback and the WebSocket (token as access_token query parameter at handshake)
+            - id: messaging
+              uri: ${announce.routes.messaging:lb://messaging}
+              predicates:
+                - Path=/api/conversations/**
+              metadata:
+                serviceToken: true
+            - id: messaging-ws
+              uri: ${announce.routes.messaging-ws:lb:ws://messaging}
+              predicates:
+                - Path=/ws/conversations/**
+              metadata:
+                serviceToken: true
+  # announce_reactive_db through reactive-mybatis-support (announce_user, announce_refresh_token)
+  r2dbc:
+    mybatis:
+      r2dbc-url: ${ANNOUNCE_R2DBC_URL:r2dbc:mysql://localhost:3306/announce_reactive_db}
+      username: ${ANNOUNCE_DB_USER:announce}
+      password: ${ANNOUNCE_DB_PASSWORD:Calliste_1006}
+      pool:
+        initial-size: 1
+        max-size: 10
+
+r2dbc:
+  mybatis:
+    mapper-locations: classpath:org/linlinjava/announce/db/dao/reactive/*.xml
+    configuration:
+      map-underscore-to-camel-case: true
+
+server:
+  port: 8080
+  compression:
+    enabled: true
+
+eureka:
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${ANNOUNCE_EUREKA_URL:http://localhost:8761/eureka/}
+
+announce:
+  search:
+    index: announce_index
+    searcher-url: ${ANNOUNCE_SEARCHER_URL:http://localhost:8534}
+    suggest-url: ${ANNOUNCE_SUGGEST_URL:http://localhost:8536}
+  routes:
+    announce-management: lb://announce-management
+    order: lb://order
+    messaging: lb://messaging
+    messaging-ws: lb:ws://messaging
+  auth:
+    # the refresh cookie is httpOnly and scoped to /auth; Secure is off for plain-http local development
+    cookie-name: announce_refresh
+    cookie-secure: ${ANNOUNCE_AUTH_COOKIE_SECURE:false}
+    refresh-ttl: 30d
+  machine:
+    # X-Service-Token = v1.<service>.<epochSeconds>.<hmacSha256(service:epochSeconds)> on routes with metadata serviceToken
+    service: gateway-api
+    secret: ${ANNOUNCE_MACHINE_SECRET:announce-dev-machine-secret}
+  jwt:
+    issuer: announce-customer
+    audience: announce-customer-api
+    access-ttl: 2h
+    # DEVELOPMENT keypair only (generated 2026-09-26). Production sets ANNOUNCE_JWT_PRIVATE_KEY_PEM /
+    # ANNOUNCE_JWT_PUBLIC_KEY_PEM (relaxed binding overrides these properties) or the config server; blank values
+    # make the edge mint an ephemeral pair at start (tokens then die with the process).
+    private-key-pem: |
+      -----BEGIN PRIVATE KEY-----
+      MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCd24JKs+DH7Guq
+      FHJG5u12vKuQODa2CTDzb+737olujhcVBMuDQSA8JHL6S8B6k036YNSUPiIpwCiG
+      AmDc0iOsqva3lfhLgyMyeIy8cq79qu2UAr8CWmnTkdbph9ZLyGKuQaZ+wSnKrBX6
+      H+/HfN0peC/fDRp8aYSw0DUnNbb6wJMnHzQr9T3Sjty2KoSGtknXXUSjOvcabEPv
+      AVVndqveR8CVOae6DY7hZ3guV+E5qeCPHffU1Mx/kmqFEQB1Jr+a81bcTXV/6IkX
+      SywamJsXnxNVTav/XFDrCHEuhWzORV4fVRdg23k/1SXjcR3B5YYEsnvno1h60p9f
+      ZqqPwr03AgMBAAECggEBAJhRR65XVQzz9os9gWsixn1s3cqiQ0BxK/epyRcY5ylz
+      F5ijcNAsljMSJJOZZpef7X0r09NbBNHuZeuw/c/1QJEKwlcw8U3DssGvinUH4AxK
+      00WfRLm7jiOktI/QD5o+N+HW3RWvw2iZlfcsu8xskmbCXsbGOQlVM8D8ll1IOlBG
+      33Qcl/ZcSgjKy+UUOofU3Xs1d2xG7dloxQNT7cTiA6YogEE1GkGiaUvnAzLUrhPz
+      4kofcsAUcyUhj+pLMNhZz4GPb8QNBE7zBzuwgx+s6UzrMFjBE0yoecxNyPMoUJ96
+      75cTAQhNc/O1b03F+Iy8vZGvEs5LdAsJ0htRayKWP3ECgYEAzKb2qDepcWTfRD00
+      IqTlZ/2ZSSKlb9Lgw9/D+oHFHO6V0l2Rin/0T/NTCS9SgrwII4zshMcrKa959tns
+      CsGn4SV9PHtk4fvWRdyjGjddkg8Nj6mmFIQLk5wwpqkGLOfZCl0lHSbrdnvbNtyN
+      uxhfguL6PIEflEtwwOmIerg6K18CgYEAxXbeD/n2b25ymxFlLUIrzQe2q0+wEHUh
+      QYNzB9TqFxY3u2egjd71Fkasv8J4upDgnGRFgECrgWA8L4dcgWNpAknblFvcd2en
+      vGL9iqaNEcMgZ6DhabBXJ3VX9k29QPID3pwgleSXEL1Op9uL4YHyTVGG8BXcMPGY
+      HoHmuhT9FSkCgYB/oxpvK9gIGuuMucdMXB+fzfDORkd8CL+aKnMmR81SEBNtEmJ1
+      SPxs6Ms/DT6evvssgPX6keV/qCufI6ctxj4YE7OaBzOSJekrxUIMVb+MGstQcHRe
+      k0RNGbrWFtD9LNSWvCUrm1x7lx/PhZr3t2nKThnXpoi1ip+WEZDHSSMubQKBgQCt
+      KhCS8iGqlrDqS9buWZkPtDP9B2TfCdigGyZFN/IRTOqS7c1enKdRYakcgO5era5L
+      d6N7VTsRudMN2ybEUOlFmH93Gxe7nqr6CdVOQcB0UymXtv32MS487Cq3VHUi/xll
+      noT07gGMLHdNvLpuiAZ0x4oOAR2XzkYYetJbXQyUAQKBgCPMf4tfbIVJmsflmR6k
+      Kc1dDNj5OXglbRpxIzkXjamgeUFxz2YgOuMVxN7UOcpGgnw23BnoDYm3Fr4G9jit
+      QLgT7CYeF91CfopM4cKVvyxww6ufTOjdH3DbNA4pUch4gDm/5h9hzz7A/rJp3K5r
+      4+HAZ/0zk/m3XkzW2Ywxs//z
+      -----END PRIVATE KEY-----
+    public-key-pem: |
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnduCSrPgx+xrqhRyRubt
+      dryrkDg2tgkw82/u9+6Jbo4XFQTLg0EgPCRy+kvAepNN+mDUlD4iKcAohgJg3NIj
+      rKr2t5X4S4MjMniMvHKu/artlAK/Alpp05HW6YfWS8hirkGmfsEpyqwV+h/vx3zd
+      KXgv3w0afGmEsNA1JzW2+sCTJx80K/U90o7ctiqEhrZJ111Eozr3GmxD7wFVZ3ar
+      3kfAlTmnug2O4Wd4LlfhOangjx331NTMf5JqhREAdSa/mvNW3E11f+iJF0ssGpib
+      F58TVU2r/1xQ6whxLoVszkVeH1UXYNt5P9Ul43EdweWGBLJ756NYetKfX2aqj8K9
+      NwIDAQAB
+      -----END PUBLIC KEY-----
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+
+logging:
+  level:
+    root: INFO
+    org.linlinjava.announce.gatewayapi: INFO

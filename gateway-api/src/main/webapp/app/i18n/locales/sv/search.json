@@ -1,0 +1,80 @@
+{
+  "empty": "Inget matchar. Prova färre filter eller ett annat ord.",
+  "facets": {
+    "apply": "Använd",
+    "clear": "Rensa",
+    "field": {
+      "application_deadline_epoch": "Sista ansökningsdag",
+      "brand": "Märke",
+      "brand_id": "Märke",
+      "category_ids": "Kategori",
+      "category_names": "Kategori",
+      "city": "Stad",
+      "condition": "Skick",
+      "contract_type": "Anställning",
+      "currency": "Valuta",
+      "employer": "Arbetsgivare",
+      "ends_epoch": "Slutar",
+      "expire_epoch": "Går ut",
+      "km": "Kilometer",
+      "model_year": "Årsmodell",
+      "organizer": "Arrangör",
+      "price": "Pris",
+      "region_id": "Region",
+      "salary_max": "Lön till",
+      "salary_min": "Lön från",
+      "sale_type": "Försäljningstyp",
+      "source": "Källa",
+      "starts_epoch": "Börjar",
+      "ticket_price": "Biljettpris",
+      "ticketed": "Biljetter",
+      "variant_price": "Variantpris"
+    },
+    "max": "Max",
+    "min": "Min",
+    "title": "Filter",
+    "value": {
+      "condition": {
+        "FAIR": "Okej",
+        "FOR_PARTS": "Till reservdelar",
+        "GOOD": "Bra",
+        "LIKE_NEW": "Som ny",
+        "NEW": "Ny"
+      },
+      "contract_type": {
+        "FREELANCE": "Frilans",
+        "FULL_TIME": "Heltid",
+        "INTERNSHIP": "Praktik",
+        "PART_TIME": "Deltid",
+        "TEMPORARY": "Vikariat"
+      },
+      "sale_type": {
+        "AUCTION": "Auktion",
+        "FIXED_PRICE": "Fast pris",
+        "GIVEAWAY": "Bortskänkes"
+      },
+      "source": {
+        "dba": "dba.dk",
+        "local": "Announce-medlemmar",
+        "tradera": "tradera.com"
+      },
+      "ticketed": {
+        "no": "Fri entré",
+        "yes": "Med biljett"
+      }
+    }
+  },
+  "results_one": "{{count}} resultat",
+  "results_other": "{{count}} resultat",
+  "resultsFor_one": "{{count}} resultat för ”{{q}}”",
+  "resultsFor_other": "{{count}} resultat för ”{{q}}”",
+  "sort": "Sortera",
+  "sortOption": {
+    "application_deadline_epoch": "Ansök snart",
+    "created_epoch": "Nyast",
+    "expire_epoch": "Slutar snart",
+    "price": "Pris",
+    "starts_epoch": "Börjar snart"
+  },
+  "sortRelevance": "Relevans"
+}

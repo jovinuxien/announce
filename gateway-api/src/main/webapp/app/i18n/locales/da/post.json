@@ -1,0 +1,97 @@
+{
+  "category": {
+    "choose": "Vælg en kategori",
+    "label": "Kategori ({{kind}})",
+    "none": "Ingen kategorier af denne type endnu."
+  },
+  "editTitle": "Rediger annonce",
+  "event": {
+    "capacity": "Kapacitet",
+    "ends": "Slutter",
+    "organizer": "Arrangør",
+    "starts": "Starter",
+    "ticketed": "Med billet",
+    "ticketPrice": "Billetpris",
+    "venue": "Sted"
+  },
+  "fields": {
+    "brief": "Kort resumé",
+    "city": "By",
+    "description": "Beskrivelse",
+    "gallery": "Billed-URL’er",
+    "galleryHint": "Én URL pr. linje; upload kommer senere.",
+    "keywords": "Nøgleord (kommasepareret)",
+    "postalCode": "Postnummer",
+    "title": "Titel"
+  },
+  "goods": {
+    "addAttribute": "Tilføj egenskab",
+    "attributes": "Egenskaber",
+    "attrName": "Navn (fx km)",
+    "attrValue": "Værdi",
+    "chooseCondition": "Vælg…",
+    "condition": "Stand",
+    "price": "Pris",
+    "saleType": "Salgstype",
+    "startPrice": "Startpris"
+  },
+  "job": {
+    "contract": "Ansættelse",
+    "currency": "Valuta",
+    "deadline": "Ansøgningsfrist",
+    "employer": "Arbejdsgiver",
+    "howToApply": "Sådan ansøger man",
+    "salaryMax": "Løn til",
+    "salaryMin": "Løn fra"
+  },
+  "kindHint": {
+    "EVENT": "Invitér folk til et event",
+    "GOODS": "Sælg, bortauktionér eller giv en ting væk",
+    "JOB": "Find en person til et job"
+  },
+  "loadFailed": "Kunne ikke hente annoncen.",
+  "nav": {
+    "back": "Tilbage",
+    "cancel": "Annullér",
+    "next": "Næste",
+    "publish": "Publicér",
+    "saveDraft": "Gem kladde"
+  },
+  "preview": {
+    "category": "kategori {{id}}"
+  },
+  "saveFailed": "Kunne ikke gemme annoncen.",
+  "step": {
+    "category": "Kategori",
+    "details": "Detaljer",
+    "kind": "Type",
+    "location": "Sted & billeder",
+    "preview": "Forhåndsvisning"
+  },
+  "title": "Opret annonce",
+  "validation": {
+    "capacityPositive": "Kapaciteten skal være positiv.",
+    "categoryRequired": "Vælg en kategori.",
+    "conditionRequired": "Vælg standen.",
+    "contractRequired": "Vælg ansættelsestype.",
+    "deadlineFuture": "Ansøgningsfristen skal ligge i fremtiden.",
+    "employerRequired": "Arbejdsgiver er påkrævet.",
+    "endAfterStart": "Slut skal ligge efter start.",
+    "endFuture": "Slut skal ligge i fremtiden.",
+    "endRequired": "Sluttidspunkt er påkrævet.",
+    "eventRequired": "Eventoplysninger mangler.",
+    "goodsRequired": "Vareoplysninger mangler.",
+    "howToApplyRequired": "Angiv, hvordan man ansøger.",
+    "jobRequired": "Joboplysninger mangler.",
+    "kindRequired": "Vælg en type.",
+    "noAuction": "Job og events kan ikke bortauktioneres.",
+    "priceNegative": "Prisen kan ikke være negativ.",
+    "priceRequired": "En pris er påkrævet, medmindre varen gives væk eller bortauktioneres.",
+    "salaryRange": "Løn til skal mindst være løn fra.",
+    "startPricePositive": "Startprisen skal være positiv.",
+    "startRequired": "Starttidspunkt er påkrævet.",
+    "ticketPriceRequired": "Et event med billet kræver en billetpris.",
+    "titleRequired": "En titel er påkrævet.",
+    "titleTooLong": "Titlen er for lang."
+  }
+}

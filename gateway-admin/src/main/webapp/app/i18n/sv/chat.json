@@ -1,0 +1,41 @@
+{
+  "support": {
+    "title": "Supportkö",
+    "subtitle": "Supportsamtal väntar tills en medarbetare ansluter.",
+    "emptyHint": "Ingen väntar.",
+    "conversation": "Samtal",
+    "openedBy": "Öppnat av",
+    "openedAt": "Öppnat",
+    "lastMessage": "Senaste meddelande",
+    "staff": "Medarbetare",
+    "join": "Anslut"
+  },
+  "conversationStatus": {
+    "WAITING": "Väntar",
+    "OPEN": "Öppet",
+    "CLOSED": "Stängt",
+    "BLOCKED": "Blockerat"
+  },
+  "conversationType": {
+    "LISTING": "Annons",
+    "SUPPORT": "Support"
+  },
+  "bulletins": {
+    "title": "Meddelanden",
+    "subtitle": "Meddelanden skickas live till anslutna personalklienter av den valda typen.",
+    "post": "Skicka ett meddelande",
+    "posted": "Meddelandet har skickats.",
+    "send": "Skicka",
+    "recent": "Senaste meddelanden",
+    "fields": {
+      "title": "Rubrik",
+      "content": "Innehåll",
+      "clientType": "Klienttyp"
+    }
+  },
+  "clientType": {
+    "ALL": "Alla klienter",
+    "WEB": "Webb",
+    "MOBILE": "Mobil"
+  }
+}

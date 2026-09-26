@@ -1,0 +1,26 @@
+{
+  "title": "Regioner",
+  "create": "Ny region",
+  "edit": "Rediger region",
+  "delete": "Slet region",
+  "deleteConfirm": "Slet regionen “{{name}}”?",
+  "root": "Alle lande",
+  "searchResults": "Søgning: “{{q}}”",
+  "searchPlaceholder": "Regionens navn",
+  "emptyHint": "Ingen regioner her endnu.",
+  "fields": {
+    "name": "Navn",
+    "type": "Niveau",
+    "code": "Kode",
+    "pid": "Overordnet id"
+  },
+  "types": {
+    "1": "Land / delstat",
+    "2": "By / kommune",
+    "3": "Område"
+  },
+  "errors": {
+    "hasChildren": "Regionen har stadig underregioner; slet eller flyt dem først.",
+    "nameRequired": "Et navn er påkrævet."
+  }
+}

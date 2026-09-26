@@ -96,10 +96,10 @@ public class AnnounceReadModelProjection implements ReactiveProjection {
             AnnounceRows.fillContent(row, event.content());
             return tx.transactional(announces.updateContent(row).then(writeDetails(id, event.details(), event.at()))).then();
         });
-        handlers.on(AnnouncePublished.class, (event, envelope) -> status(envelope, AnnounceStatus.PUBLISHED, event.at(), event.at(), event.expiresAt()));
-        handlers.on(AnnounceWithdrawn.class, (event, envelope) -> status(envelope, AnnounceStatus.WITHDRAWN, event.at(), null, null));
-        handlers.on(AnnounceSold.class, (event, envelope) -> status(envelope, AnnounceStatus.SOLD, event.at(), null, null));
-        handlers.on(AnnounceExpired.class, (event, envelope) -> status(envelope, AnnounceStatus.EXPIRED, event.at(), null, null));
+        handlers.on(AnnouncePublished.class, (event, envelope) -> status(envelope, AnnounceStatus.PUBLISHED, event.at(), event.at(), event.expiresAt(), null, null));
+        handlers.on(AnnounceWithdrawn.class, (event, envelope) -> status(envelope, AnnounceStatus.WITHDRAWN, event.at(), null, null, event.moderatedBy(), event.reason()));
+        handlers.on(AnnounceSold.class, (event, envelope) -> status(envelope, AnnounceStatus.SOLD, event.at(), null, null, null, null));
+        handlers.on(AnnounceExpired.class, (event, envelope) -> status(envelope, AnnounceStatus.EXPIRED, event.at(), null, null, event.moderatedBy(), event.reason()));
     }
 
     @Override
@@ -110,12 +110,16 @@ public class AnnounceReadModelProjection implements ReactiveProjection {
                 .then();
     }
 
-    private Mono<Void> status(EventEnvelope envelope, AnnounceStatus status, LocalDateTime at, LocalDateTime publishedAt, LocalDateTime expiresAt) {
+    /** The moderation columns always reflect the latest transition: set by a staff action, cleared by every other one. */
+    private Mono<Void> status(EventEnvelope envelope, AnnounceStatus status, LocalDateTime at, LocalDateTime publishedAt, LocalDateTime expiresAt,
+                              Integer moderatedBy, String moderationReason) {
         AnnounceBase row = new AnnounceBase();
         row.setId(idOf(envelope));
         row.setStatus(status.name());
         row.setPublishedAt(publishedAt);
         row.setExpiresAt(expiresAt);
+        row.setModeratedBy(moderatedBy);
+        row.setModerationReason(moderationReason);
         row.setUpdateTime(at);
         row.setLastEventId(envelope.eventId());
         return announces.updateStatus(row).then();

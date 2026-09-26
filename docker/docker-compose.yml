@@ -33,3 +33,27 @@ services:
     depends_on:
       - mysql57
     restart: always
+  # Staff edge (doc/frontend-edges.md): gateway + admin SPA on 8081. Build the jar with the SPA first:
+  #   mvn -pl gateway-admin -P webapp -DskipTests package
+  # The prod profile refuses to start without real signing keys; the machine secret must match the backends.
+  gateway-admin:
+    build:
+      context: ../gateway-admin
+      dockerfile: Dockerfile
+    container_name: announce-gateway-admin
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - ANNOUNCE_R2DBC_URL=r2dbc:mysql://mysql57:3306/announce_reactive_db
+      - ANNOUNCE_DB_USER=announce
+      - ANNOUNCE_DB_PASSWORD=${ANNOUNCE_DB_PASSWORD:?set ANNOUNCE_DB_PASSWORD}
+      - ANNOUNCE_ADMIN_JWT_PRIVATE_KEY_PEM=${ANNOUNCE_ADMIN_JWT_PRIVATE_KEY_PEM:?set the PKCS#8 private key PEM}
+      - ANNOUNCE_ADMIN_JWT_PUBLIC_KEY_PEM=${ANNOUNCE_ADMIN_JWT_PUBLIC_KEY_PEM:?set the X.509 public key PEM}
+      - ANNOUNCE_SERVICE_SECRET=${ANNOUNCE_SERVICE_SECRET:?set the shared machine secret}
+      - ANNOUNCE_ROUTES_ANNOUNCE_MANAGEMENT=http://announce-management:8085
+      - ANNOUNCE_ROUTES_MESSAGING=http://messaging:8086
+      - ANNOUNCE_ROUTES_ORDER=http://order:8087
+    depends_on:
+      - mysql57
+    restart: always

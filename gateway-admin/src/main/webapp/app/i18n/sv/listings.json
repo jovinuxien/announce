@@ -1,0 +1,39 @@
+{
+  "title": "Insamlade annonser",
+  "subtitle": "Annonser insamlade från dba.dk och tradera.com: endast utdrag och länk till källan, indexerade tillsammans med de lokala annonserna.",
+  "reindex": {
+    "button": "Indexera om aktiva",
+    "done": "{{indexed}} aktiva annonser indexerades om."
+  },
+  "counts": {
+    "title": "Per källa och status",
+    "clicks": "klick vidare totalt",
+    "empty": "Inga insamlade annonser ännu."
+  },
+  "import": {
+    "title": "Importera en feed-fil",
+    "hint": "Absolut sökväg till en scrapy JSON Lines-fil på announce-management-servern. Källan härleds från filnamnet (dba_*, tradera_*) om den inte väljs här.",
+    "path": "Filsökväg",
+    "source": "Källa",
+    "sourceAuto": "Härled från filnamnet",
+    "button": "Importera",
+    "done": "Importen är klar",
+    "report": {
+      "seen": "{{n}} poster lästa",
+      "inserted": "{{n}} nya annonser",
+      "updated": "{{n}} ändrade annonser omindexerade",
+      "unchanged": "{{n}} oförändrade (senast sedd uppdaterad)",
+      "rejected": "{{n}} avvisade"
+    }
+  },
+  "topClicked": "Mest klickade",
+  "recentGone": "Nyligen försvunna",
+  "columns": {
+    "title": "Annons",
+    "source": "Källa",
+    "price": "Pris",
+    "status": "Status",
+    "clicks": "Klick",
+    "lastSeen": "Senast sedd"
+  }
+}

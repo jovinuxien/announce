@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerates announce_reactive_db.sql from announce_table.sql + announce_auction_chat.sql + announce_messaging.sql.
+# Regenerates announce_reactive_db.sql from announce_table.sql + announce_auction_chat.sql + announce_messaging.sql + announce_auth.sql.
 # Edit those source files, never the generated one.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -11,6 +11,7 @@ head = head[:head.rindex('-- -------')]
 base = open('announce_table.sql').read().replace('-- Host: 127.0.0.1    Database: litemall\n', '')
 ext  = open('announce_auction_chat.sql').read()
 msg  = open('announce_messaging.sql').read()
+auth = open('announce_auth.sql').read()
 out = (head
   + "-- ---------------------------------------------------------------------\n"
   + "-- 1. Base tables (generated from announce_table.sql; regenerate this file\n"
@@ -24,7 +25,11 @@ out = (head
   + "\n-- ---------------------------------------------------------------------\n"
   + "-- 3. Messaging context (announce_messaging.sql)\n"
   + "-- ---------------------------------------------------------------------\n"
-  + msg)
+  + msg
+  + "\n-- ---------------------------------------------------------------------\n"
+  + "-- 4. Edge authentication (announce_auth.sql)\n"
+  + "-- ---------------------------------------------------------------------\n"
+  + auth)
 open('announce_reactive_db.sql', 'w').write(out)
 print("announce_reactive_db.sql regenerated")
 PY

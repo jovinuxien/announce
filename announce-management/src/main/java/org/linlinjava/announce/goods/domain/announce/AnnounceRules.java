@@ -92,6 +92,22 @@ public final class AnnounceRules {
         return state.status() == AnnounceStatus.PUBLISHED && state.expiresAt() != null && !state.expiresAt().isAfter(now);
     }
 
+    /** Staff actions: the moderator and a reason are mandatory (400), and only a published announce can be acted on (409). */
+    public static void checkModeration(Announce state, Integer moderatorId, String reason) {
+        if (moderatorId == null) {
+            throw new IllegalArgumentException("The moderator is required");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("A reason is required");
+        }
+        if (reason.length() > 255) {
+            throw new IllegalArgumentException("The reason must not exceed 255 characters");
+        }
+        if (state.status() != AnnounceStatus.PUBLISHED) {
+            throw reject("not-published", "Only a published announce can be moderated (status " + state.status() + ")");
+        }
+    }
+
     public static void checkOwner(Announce state, SellerId seller) {
         if (!state.isOwnedBy(seller)) {
             throw new CommandRejectedException(HttpStatus.FORBIDDEN, "not-owner", "Announce " + state.id() + " does not belong to member " + seller.value());

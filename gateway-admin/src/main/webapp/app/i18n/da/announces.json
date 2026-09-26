@@ -1,0 +1,94 @@
+{
+  "title": "Annoncer",
+  "count": "{{total}} annoncer matcher",
+  "emptyHint": "Ingen annonce matcher filtrene.",
+  "activeFilters": "{{count}} aktive filtre",
+  "moderatedBy": "Modereret af #{{by}}",
+  "filters": {
+    "kind": "Type",
+    "status": "Status",
+    "seller": "Sælger-id",
+    "region": "Region-id",
+    "text": "Tekst",
+    "textPlaceholder": "Titel, beskrivelse, nøgleord…",
+    "sort": "Sortering"
+  },
+  "sort": {
+    "newest": "Nyeste først",
+    "oldest": "Ældste først",
+    "price_asc": "Pris stigende",
+    "price_desc": "Pris faldende"
+  },
+  "columns": {
+    "announce": "Annonce",
+    "kind": "Type",
+    "status": "Status",
+    "seller": "Sælger",
+    "facts": "Detaljer",
+    "dates": "Datoer"
+  },
+  "fields": {
+    "category": "Kategori",
+    "created": "Oprettet",
+    "updated": "Opdateret",
+    "published": "Offentliggjort",
+    "expires": "Udløber",
+    "deadline": "Ansøg senest",
+    "until": "til",
+    "free": "Gratis adgang",
+    "price": "Pris",
+    "saleType": "Salgstype",
+    "condition": "Stand",
+    "brand": "Mærke",
+    "unit": "Enhed",
+    "attributes": "Egenskaber",
+    "variants": "Varianter",
+    "employer": "Arbejdsgiver",
+    "contractType": "Ansættelse",
+    "salary": "Løn",
+    "howToApply": "Sådan ansøger du",
+    "startsAt": "Starter",
+    "endsAt": "Slutter",
+    "venue": "Sted",
+    "organizer": "Arrangør",
+    "ticketed": "Billet",
+    "capacity": "Kapacitet",
+    "brief": "Kort tekst",
+    "description": "Beskrivelse",
+    "keywords": "Nøgleord",
+    "location": "Placering",
+    "gallery": "Galleri"
+  },
+  "actions": {
+    "withdraw": "Træk tilbage",
+    "expire": "Lad udløbe"
+  },
+  "detail": {
+    "title": "Annonce",
+    "general": "Generelt",
+    "kindBlock": {
+      "GOODS": "Vareoplysninger",
+      "JOB": "Joboplysninger",
+      "EVENT": "Begivenhedsoplysninger"
+    }
+  },
+  "moderation": {
+    "reason": "Begrundelse",
+    "reasonPlaceholder": "Hvorfor modereres annoncen? Sælgeren kan læse dette.",
+    "reasonRecorded": "Begrundelsen gemmes på annoncen og vises i listen.",
+    "reasonRequired": "En begrundelse er påkrævet.",
+    "reasonTooShort": "Begrundelsen er for kort.",
+    "reasonTooLong": "Begrundelsen må højst være 500 tegn.",
+    "done": "Moderering udført. Ny status:",
+    "withdraw": {
+      "title": "Træk annonce tilbage",
+      "hint": "“{{title}}” trækkes tilbage og forsvinder fra søgning og oversigter.",
+      "confirm": "Træk tilbage"
+    },
+    "expire": {
+      "title": "Lad annonce udløbe",
+      "hint": "“{{title}}” markeres som udløbet, som om gyldigheden var slut.",
+      "confirm": "Lad udløbe"
+    }
+  }
+}

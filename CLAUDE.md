@@ -13,7 +13,9 @@ Build facts:
 - Compile with `mvn -P '!webapp' -DskipTests compile`; the announce-management
   `webapp` profile runs `npm run build` and fails locally.
 - Modules that compile: config, eureka, gateway, db-reactive, cqrs-reactive,
-  announce-management. core, auth-server and order still carry legacy Boot 2 code.
+  announce-management, gateway-admin. core, auth-server and order still carry legacy Boot 2 code.
+- Build a module together with db-reactive (`mvn -pl db-reactive,<module> ...`) when other
+  worktrees may have installed a different db-reactive SNAPSHOT into the shared `~/.m2`.
 - Tests in db-reactive and announce-management need the live MySQL database
   `announce_reactive_db` (user `announce`) on localhost:3306. Never touch the
   `litemall` database on the same server.

@@ -109,6 +109,8 @@
             <columnOverride column="attributes" javaType="java.lang.String" jdbcType="VARCHAR"/>
         </table>
         <table tableName="listing_category_map" domainObjectName="ListingCategoryMap"/>
+        <!-- Edge refresh tokens (sql/announce_auth.sql) -->
+        <table tableName="announce_refresh_token" domainObjectName="AnnounceRefreshToken"/>
         <table tableName="announce_goods_attribute" domainObjectName="LitemallGoodsAttribute">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>

@@ -1,0 +1,26 @@
+{
+  "title": "Regioner",
+  "create": "Ny region",
+  "edit": "Redigera region",
+  "delete": "Ta bort region",
+  "deleteConfirm": "Ta bort regionen ”{{name}}”?",
+  "root": "Alla länder",
+  "searchResults": "Sökning: ”{{q}}”",
+  "searchPlaceholder": "Regionens namn",
+  "emptyHint": "Inga regioner här ännu.",
+  "fields": {
+    "name": "Namn",
+    "type": "Nivå",
+    "code": "Kod",
+    "pid": "Överordnat id"
+  },
+  "types": {
+    "1": "Land / delstat",
+    "2": "Stad / kommun",
+    "3": "Område"
+  },
+  "errors": {
+    "hasChildren": "Regionen har fortfarande underregioner; ta bort eller flytta dem först.",
+    "nameRequired": "Ett namn krävs."
+  }
+}

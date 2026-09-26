@@ -1,0 +1,18 @@
+# Test profile: no Eureka, no config server; the route targets are set per test (MockWebServer); the auth store and
+# the edge CRUD use the live announce_reactive_db like the db-reactive tests.
+spring:
+  cloud:
+    discovery:
+      enabled: false
+eureka:
+  client:
+    enabled: false
+announce:
+  routes:
+    announce-management: http://localhost:1
+    order: http://localhost:1
+    messaging: http://localhost:1
+logging:
+  level:
+    root: WARN
+    org.linlinjava.announce.gatewayadmin: INFO

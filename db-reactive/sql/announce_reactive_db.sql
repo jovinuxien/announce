@@ -311,6 +311,8 @@ CREATE TABLE `announce` (
   `status` varchar(20) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT, PUBLISHED, SOLD, WITHDRAWN, EXPIRED',
   `published_at` datetime DEFAULT NULL,
   `expires_at` datetime DEFAULT NULL COMMENT 'hidden after this time (scheduler expires it)',
+  `moderated_by` int(11) DEFAULT NULL COMMENT 'announce_admin.id when staff withdrew or expired the announce',
+  `moderation_reason` varchar(255) DEFAULT NULL COMMENT 'reason given by staff (null for seller / scheduler actions)',
   `last_event_id` varchar(64) DEFAULT NULL COMMENT 'EventSourcingDB id of the last event applied (projection idempotency)',
   `add_time` datetime DEFAULT NULL,
   `update_time` datetime DEFAULT NULL,
@@ -1189,3 +1191,24 @@ CREATE TABLE IF NOT EXISTS `announce_bulletin` (
   PRIMARY KEY (`id`),
   KEY `idx_bulletin_audience` (`audience`, `expire_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Broadcast bulletins';
+
+-- ---------------------------------------------------------------------
+-- 4. Edge authentication (announce_auth.sql)
+-- ---------------------------------------------------------------------
+-- Edge authentication tables (gateway-api / gateway-admin). Re-runnable on an existing database.
+-- Design: doc/frontend-edges.md section 2. Refresh tokens are stored hashed (SHA-256, hex); the raw token only
+-- ever travels in the httpOnly cookie scoped to /auth. The row id is a UUID chosen by the edge.
+
+CREATE TABLE IF NOT EXISTS `announce_refresh_token` (
+  `id` varchar(36) NOT NULL COMMENT 'token id (uuid), chosen by the edge',
+  `user_type` varchar(16) NOT NULL COMMENT 'MEMBER (announce_user) or ADMIN (announce_admin)',
+  `user_id` int NOT NULL COMMENT 'announce_user.id or announce_admin.id',
+  `token_hash` char(64) NOT NULL COMMENT 'SHA-256 hex of the opaque token handed to the client',
+  `expires_at` datetime NOT NULL COMMENT 'absolute expiry',
+  `revoked` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 once rotated or logged out',
+  `add_time` datetime DEFAULT NULL COMMENT 'issued at',
+  `update_time` datetime DEFAULT NULL COMMENT 'last rotation / revocation',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_refresh_token_hash` (`token_hash`),
+  KEY `idx_refresh_token_user` (`user_type`,`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Refresh tokens issued by the gateway edges (gateway-api, gateway-admin)';

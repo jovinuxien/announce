@@ -1,9 +1,9 @@
 # OCS indexer field configuration for the announce classifieds index.
 #
 # Mounted as application-custom.yml into commerceexperts/ocs-indexer-service (profile "custom").
-# The search bounded context builds one document per PUBLISHED announce from the public events
-# announce.published / announce.updated / announce.price-changed and removes it on
-# announce.withdrawn / announce.sold / announce.expired.
+# announce-management builds one document per PUBLISHED announce (AnnounceSearchProjection, source "local")
+# and one per ACTIVE crawled listing (the listing sub-context: dba.dk, tradera.com; source "dba" / "tradera").
+# Announces leave the index on withdraw / sold / expire, crawled listings when the sweep marks them GONE.
 #
 # Usage semantics (OCS): Search = full-text matched, Result = returned in hits, Facet = aggregated,
 # Filter = filterable but not aggregated, Sort = sortable, Score = available to the searcher's
@@ -22,6 +22,30 @@ ocs:
           id:
             name: announce_id
             type: id
+            usage:
+              - Result
+
+          # origin of the document: local (an announce posted here), dba, tradera (crawled listing, link-out
+          # through /out/{id}). A facet the user picks; never applied as a default scope.
+          source:
+            name: source
+            type: string
+            usage:
+              - Result
+              - Facet
+              - Filter
+
+          # crawled listings only: the source page; the frontend shows its domain and links through /out/{id}
+          external_url:
+            name: external_url
+            type: string
+            usage:
+              - Result
+
+          # crawled listings only: the site's own category path, e.g. "Cars/Private Car"
+          source_category:
+            name: source_category
+            type: string
             usage:
               - Result
 
@@ -85,11 +109,13 @@ ocs:
               - Sort
               - Filter
 
+          # salary currency of a job, price currency of a crawled listing (DKK, SEK)
           currency:
             name: currency
             type: string
             usage:
               - Result
+              - Facet
 
           starts_epoch:
             name: starts_epoch
@@ -99,11 +125,13 @@ ocs:
               - Sort
               - Filter
 
+          # end of an event, or of a tradera auction (crawled listing with sale_type AUCTION)
           ends_epoch:
             name: ends_epoch
             type: number
             usage:
               - Result
+              - Sort
               - Filter
 
           venue:
@@ -241,7 +269,8 @@ ocs:
             usage:
               - Result
 
-          # epoch seconds; Sort drives "newest first" and "ending soon", Score lets the searcher boost recency
+          # epoch seconds (an announce: publication; a crawled listing: publication on the source, else first seen);
+          # Sort drives "newest first" and "ending soon", Score lets the searcher boost recency
           created_epoch:
             name: created_epoch
             type: number
@@ -278,20 +307,21 @@ ocs:
             field-level: variant
 
         # kind (GOODS, JOB, EVENT) is the first facet; job and event fields are only present on those kinds.
-        # Curated announce_goods_attribute name->value pairs ride as extra flat data keys and become facets
-        # without per-attribute configuration. The negative lookahead keeps the fixed schema keys out.
+        # Curated announce_goods_attribute name->value pairs, and the attributes of a crawled listing (km,
+        # model_year, dealer), ride as extra flat data keys and become facets without per-attribute
+        # configuration. The negative lookahead keeps the fixed schema keys out.
         dynamic-fields:
           - name: attribute_string
             type: string
             source-names:
-              - '^(?!(announce_id|kind|title|description|price|sale_type|condition|brand_id|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch|employer|contract_type|application_deadline_epoch|salary_min|salary_max|currency|starts_epoch|ends_epoch|venue|organizer|ticketed|ticket_price)$).*$'
+              - '^(?!(announce_id|source|external_url|source_category|kind|title|description|price|sale_type|condition|brand_id|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch|employer|contract_type|application_deadline_epoch|salary_min|salary_max|currency|starts_epoch|ends_epoch|venue|organizer|ticketed|ticket_price)$).*$'
             usage:
               - Facet
               - Result
           - name: attribute_number
             type: number
             source-names:
-              - '^(?!(announce_id|kind|title|description|price|sale_type|condition|brand_id|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch|employer|contract_type|application_deadline_epoch|salary_min|salary_max|currency|starts_epoch|ends_epoch|venue|organizer|ticketed|ticket_price)$).*$'
+              - '^(?!(announce_id|source|external_url|source_category|kind|title|description|price|sale_type|condition|brand_id|current_bid|status|category_names|category_ids|brand|region_id|city|postal_code|seller_id|image_url|created_epoch|expire_epoch|employer|contract_type|application_deadline_epoch|salary_min|salary_max|currency|starts_epoch|ends_epoch|venue|organizer|ticketed|ticket_price)$).*$'
             usage:
               - Facet
               - Result

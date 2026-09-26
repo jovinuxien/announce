@@ -20,7 +20,7 @@ import java.util.Optional;
 
 
 //@SpringBootApplication(scanBasePackages = {"org.linlinjava.announce.db", "org.linlinjava.announce.db.dao", "org.linlinjava.litemall.core", "org.linlinjava.litemall.goods"})
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"org.linlinjava.announce.goods", "org.linlinjava.announce.listing", "org.linlinjava.announce.search"})
 //@EnableEurekaClient
 //@EnableCircuitBreaker
 //@EnableBinding //This way of binding is deprecated

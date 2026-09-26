@@ -6,13 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.linlinjava.announce.cqrs.test.containers.CqrsContainers;
 import org.linlinjava.announce.cqrs.test.containers.EventSourcingDbContainer;
-import org.linlinjava.announce.goods.application.search.AnnounceDocument;
-import org.linlinjava.announce.goods.application.search.AnnounceIndexer;
+import org.linlinjava.announce.search.RecordingSearchIndexer;
 import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -23,14 +20,11 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.MountableFile;
-import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -75,22 +69,8 @@ class AnnounceKindsEndToEndTest {
         registry.add("spring.r2dbc.mybatis.password", mysql::getPassword);
     }
 
-    /** Stands in for the OCS indexer: remembers every document put and every id removed. */
-    @TestConfiguration
-    static class RecordingIndexerConfig {
-        static final List<AnnounceDocument> indexed = new CopyOnWriteArrayList<>();
-        static final List<String> removed = new CopyOnWriteArrayList<>();
-
-        @Bean
-        AnnounceIndexer recordingIndexer() {
-            return new AnnounceIndexer() {
-                @Override public Mono<Void> index(AnnounceDocument document) { return Mono.fromRunnable(() -> indexed.add(document)); }
-                @Override public Mono<Void> remove(String announceId) { return Mono.fromRunnable(() -> removed.add(announceId)); }
-            };
-        }
-    }
-
     @Autowired WebTestClient client;
+    @Autowired RecordingSearchIndexer indexer;   // announce.search.mode=noop in the test profile
 
     static String goodsId;
     static String jobId;
@@ -168,11 +148,11 @@ class AnnounceKindsEndToEndTest {
         client.get().uri("/api/announces?q=E2E&sort=price_desc").exchange().expectStatus().isOk().expectBody().jsonPath("$.total").isEqualTo(3);
 
         // the search projection indexed all three with kind as a facet
-        await().atMost(WAIT).untilAsserted(() -> assertThat(RecordingIndexerConfig.indexed).extracting(AnnounceDocument::id)
+        await().atMost(WAIT).untilAsserted(() -> assertThat(indexer.indexed()).extracting(RecordingSearchIndexer.Indexed::id)
                 .contains(goodsId, jobId, eventId));
-        Map<String, Object> jobDoc = RecordingIndexerConfig.indexed.stream().filter(d -> d.id().equals(jobId)).findFirst().orElseThrow().data();
+        Map<String, Object> jobDoc = indexer.indexed().stream().filter(d -> d.id().equals(jobId)).findFirst().orElseThrow().data();
         assertThat(jobDoc).containsEntry("kind", "JOB").containsEntry("employer", "Acme").containsKey("application_deadline_epoch").doesNotContainKey("price");
-        Map<String, Object> goodsDoc = RecordingIndexerConfig.indexed.stream().filter(d -> d.id().equals(goodsId)).findFirst().orElseThrow().data();
+        Map<String, Object> goodsDoc = indexer.indexed().stream().filter(d -> d.id().equals(goodsId)).findFirst().orElseThrow().data();
         assertThat(goodsDoc).containsEntry("kind", "GOODS").containsEntry("Colour", "Red").containsEntry("city", "Stockholm");
     }
 
@@ -207,7 +187,7 @@ class AnnounceKindsEndToEndTest {
         await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/announces/" + goodsId).exchange().expectStatus().isNotFound());
         client.get().uri("/api/announces/" + goodsId).header(AnnounceController.SELLER_HEADER, SELLER).exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.status").isEqualTo("SOLD");
-        await().atMost(WAIT).untilAsserted(() -> assertThat(RecordingIndexerConfig.removed).contains(goodsId, eventId));
+        await().atMost(WAIT).untilAsserted(() -> assertThat(indexer.removed()).contains(goodsId, eventId));
         client.get().uri("/api/announces?q=E2E").exchange().expectStatus().isOk().expectBody().jsonPath("$.total").isEqualTo(1);
 
         // idempotent retry of a command id replays the stored result

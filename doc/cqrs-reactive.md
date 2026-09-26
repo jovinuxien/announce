@@ -327,7 +327,7 @@ docker compose -f docker/cqrs/docker-compose.yml --profile tools up -d   # adds 
 | EventSourcingDB 1.2.0 (token `secret`, UI on) | 3000 | every service's command side |
 | Kafka 3.9.1 (KRaft, advertised as `localhost:9092`) | 9092 | relays and subscribers |
 | Elasticsearch 7.17 (with the `analysis-stempel` plugin) | 9200 | the OCS tier |
-| OCS indexer | 8535 | the search context pushes announce documents here |
+| OCS indexer | 8535 | announce-management pushes announce and crawled-listing documents here (`SearchIndexer`) |
 | OCS searcher | 8534 | the gateway's search API |
 | OCS suggest | 8081 | type-ahead |
 | Kibana (`tools` profile) | 5601 | inspection |

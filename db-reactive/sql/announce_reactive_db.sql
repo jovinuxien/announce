@@ -2,7 +2,7 @@
 --  announce_reactive_db : bootstrap script for the Announce application
 --
 --  Creates the database and its user, then the full schema:
---    1. the base tables inherited from litemall, renamed announce_* (29 tables, from announce_table.sql)
+--    1. the base tables inherited from litemall, renamed announce_* (31 tables, from announce_table.sql)
 --    2. the auction and chat extension (10 tables + added columns,
 --       from announce_auction_chat.sql)
 --
@@ -796,6 +796,63 @@ CREATE TABLE `announce_user` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_name` (`username`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `crawled_listing` (listings crawled from dba.dk / tradera.com; not announces)
+--
+
+DROP TABLE IF EXISTS `crawled_listing`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `crawled_listing` (
+  `id` varchar(64) NOT NULL COMMENT '{source}-{external_id}: deterministic, same row and same index document for a listing',
+  `source` varchar(16) NOT NULL COMMENT 'DBA, TRADERA',
+  `external_id` varchar(64) NOT NULL COMMENT 'the id of the listing on the source site',
+  `url` varchar(1023) NOT NULL COMMENT 'canonical url of the source page (the click-out target)',
+  `content_hash` char(64) NOT NULL COMMENT 'sha-256 over title, brief, price, sale_type, ends_at, attributes, image, address',
+  `kind` varchar(10) NOT NULL DEFAULT 'GOODS' COMMENT 'GOODS now; JOB, EVENT later',
+  `title` varchar(255) NOT NULL DEFAULT '',
+  `brief` varchar(255) NOT NULL DEFAULT '' COMMENT 'snippet only, never the full text',
+  `image_url` varchar(1023) DEFAULT NULL,
+  `price` decimal(10,2) DEFAULT NULL,
+  `currency` char(3) DEFAULT NULL,
+  `sale_type` varchar(20) NOT NULL DEFAULT 'FIXED_PRICE' COMMENT 'FIXED_PRICE, AUCTION',
+  `ends_at` datetime DEFAULT NULL COMMENT 'auction end (tradera)',
+  `source_category` varchar(255) DEFAULT NULL COMMENT 'the site''s own category path, e.g. Cars/Private Car',
+  `category_id` int(11) DEFAULT NULL COMMENT 'mapped announce_category.id of kind GOODS (listing_category_map)',
+  `attributes` json DEFAULT NULL COMMENT 'name -> value, e.g. km, model_year, dealer',
+  `address_raw` varchar(255) DEFAULT NULL,
+  `region_id` int(11) DEFAULT NULL COMMENT 'announce_region.id by city name, null when unknown',
+  `city` varchar(63) DEFAULT NULL,
+  `postal_code` varchar(16) DEFAULT NULL,
+  `published_at` datetime DEFAULT NULL COMMENT 'publication time on the source',
+  `first_seen_at` datetime NOT NULL,
+  `last_seen_at` datetime NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE, GONE',
+  `click_count` int(11) NOT NULL DEFAULT '0',
+  `add_time` datetime DEFAULT NULL,
+  `update_time` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_crawled_listing_source_external` (`source`, `external_id`),
+  KEY `idx_crawled_listing_status_seen` (`status`, `last_seen_at`),
+  KEY `idx_crawled_listing_source_hash` (`source`, `content_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Crawled listings: snippet + link out, indexed next to the announces';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `listing_category_map` (source category path -> announce_category of kind GOODS)
+--
+
+DROP TABLE IF EXISTS `listing_category_map`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `listing_category_map` (
+  `source` varchar(16) NOT NULL COMMENT 'DBA, TRADERA',
+  `source_category` varchar(255) NOT NULL COMMENT 'the site''s category path as the parser emits it',
+  `category_id` int(11) NOT NULL COMMENT 'announce_category.id',
+  PRIMARY KEY (`source`, `source_category`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Category mapping of crawled listings: data, not code';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

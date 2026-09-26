@@ -1,0 +1,41 @@
+{
+  "support": {
+    "title": "Support queue",
+    "subtitle": "Support conversations wait until a staff member joins.",
+    "emptyHint": "Nobody is waiting.",
+    "conversation": "Conversation",
+    "openedBy": "Opened by",
+    "openedAt": "Opened",
+    "lastMessage": "Last message",
+    "staff": "Staff",
+    "join": "Join"
+  },
+  "conversationStatus": {
+    "WAITING": "Waiting",
+    "OPEN": "Open",
+    "CLOSED": "Closed",
+    "BLOCKED": "Blocked"
+  },
+  "conversationType": {
+    "LISTING": "Listing",
+    "SUPPORT": "Support"
+  },
+  "bulletins": {
+    "title": "Bulletins",
+    "subtitle": "Bulletins are pushed live to connected staff clients of the chosen type.",
+    "post": "Post a bulletin",
+    "posted": "Bulletin posted.",
+    "send": "Post",
+    "recent": "Recent bulletins",
+    "fields": {
+      "title": "Title",
+      "content": "Content",
+      "clientType": "Client type"
+    }
+  },
+  "clientType": {
+    "ALL": "All clients",
+    "WEB": "Web",
+    "MOBILE": "Mobile"
+  }
+}

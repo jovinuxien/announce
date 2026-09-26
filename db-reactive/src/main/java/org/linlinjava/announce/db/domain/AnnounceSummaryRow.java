@@ -25,6 +25,8 @@ public class AnnounceSummaryRow {
     private LocalDateTime publishedAt;
     private LocalDateTime expiresAt;
     private LocalDateTime addTime;
+    private Integer moderatedBy;
+    private String moderationReason;
     // goods
     private BigDecimal price;
     private String saleType;
@@ -72,6 +74,10 @@ public class AnnounceSummaryRow {
     public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
     public LocalDateTime getAddTime() { return addTime; }
     public void setAddTime(LocalDateTime addTime) { this.addTime = addTime; }
+    public Integer getModeratedBy() { return moderatedBy; }
+    public void setModeratedBy(Integer moderatedBy) { this.moderatedBy = moderatedBy; }
+    public String getModerationReason() { return moderationReason; }
+    public void setModerationReason(String moderationReason) { this.moderationReason = moderationReason; }
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal price) { this.price = price; }
     public String getSaleType() { return saleType; }

@@ -1,0 +1,116 @@
+{
+  "reason": "Motivering",
+  "auctions": {
+    "title": "Auktioner",
+    "announce": "Annons",
+    "seller": "Säljare",
+    "currentPrice": "Aktuellt pris",
+    "from": "från {{price}}",
+    "bids": "Bud",
+    "ends": "Slutar",
+    "bidsOf": "Bud på ”{{title}}”",
+    "bidder": "Budgivare",
+    "amount": "Belopp",
+    "placedAt": "Lagt",
+    "cancelBid": "Annullera bud"
+  },
+  "auctionStatus": {
+    "OPEN": "Öppen",
+    "CLOSED_WON": "Avslutad, vunnen",
+    "CLOSED_UNSOLD": "Avslutad, osåld",
+    "SNAGGED": "Köpt till köp-nu-pris",
+    "CANCELLED": "Annullerad"
+  },
+  "bidStatus": {
+    "ACTIVE": "Ledande",
+    "OUTBID": "Överbjuden",
+    "WON": "Vunnet",
+    "RETRACTED": "Återkallat",
+    "CANCELLED": "Annullerat"
+  },
+  "orders": {
+    "title": "Beställningar",
+    "detail": "Beställning",
+    "order": "Beställning",
+    "door": "Ingång",
+    "parties": "Parter",
+    "buyer": "Köpare",
+    "seller": "Säljare",
+    "announce": "Annons",
+    "price": "Pris",
+    "fee": "Avgift",
+    "payout": "Utbetalning",
+    "label": "Fraktsedel",
+    "agreedAt": "Överenskommen",
+    "disputeReason": "Tvist",
+    "summary": "Sammanfattning",
+    "payment": "Betalning",
+    "shipment": "Leverans",
+    "confirmedAt": "Bekräftad",
+    "releasedAt": "Frisläppt",
+    "refundedAt": "Återbetald",
+    "lastEvent": "Senaste händelse från transportören",
+    "deliveredAt": "Levererad",
+    "labelLink": "Öppna fraktsedel",
+    "timeline": "Tidslinje",
+    "release": "Släpp utbetalning",
+    "refund": "Återbetala köparen",
+    "resolveHint": "Avgörandet av tvisten är slutgiltigt: SLÄPP betalar säljaren, ÅTERBETALA skickar pengarna tillbaka till köparen. Motiveringen sparas."
+  },
+  "door": {
+    "AUCTION": "Auktion",
+    "FIXED_PRICE": "Fast pris",
+    "OFFER": "Bud i chatt"
+  },
+  "orderStatus": {
+    "PROPOSED": "Föreslagen",
+    "AGREED": "Överenskommen",
+    "PAYMENT_PENDING": "Väntar på betalning",
+    "PAID": "Betald",
+    "SHIPPED": "Skickad",
+    "DELIVERED": "Levererad",
+    "RELEASING": "Släpper utbetalning",
+    "SETTLED": "Avslutad",
+    "CANCELLED": "Avbruten",
+    "DISPUTED": "I tvist",
+    "REFUNDING": "Återbetalas",
+    "REFUNDED": "Återbetald"
+  },
+  "paymentStatus": {
+    "INTENT_CREATED": "Betalning skapad",
+    "CONFIRMED": "Bekräftad",
+    "RELEASED": "Frisläppt",
+    "REFUNDED": "Återbetald",
+    "FAILED": "Misslyckades"
+  },
+  "shipmentStatus": {
+    "REQUESTED": "Beställd",
+    "DISPATCHED": "Skickad",
+    "IN_TRANSIT": "På väg",
+    "DELIVERED": "Levererad",
+    "FAILED": "Misslyckades",
+    "CANCELLED": "Avbruten"
+  },
+  "payouts": {
+    "title": "Utbetalningar",
+    "pending": "Väntar på frisläppning",
+    "sent": "Skickade",
+    "blocked": "Blockerade av tvister",
+    "fees": "Inkasserade avgifter",
+    "account": "Säljarkonto",
+    "due": "Förfaller / frisläppt",
+    "ref": "Referens hos leverantören"
+  },
+  "payoutStatus": {
+    "PENDING_RELEASE": "Väntar på frisläppning",
+    "RELEASING": "Släpps",
+    "SENT": "Skickad",
+    "FAILED": "Misslyckades",
+    "BLOCKED_DISPUTE": "Blockerad av tvist"
+  },
+  "accountStatus": {
+    "PENDING": "Väntar",
+    "VERIFIED": "Verifierat",
+    "RESTRICTED": "Begränsat"
+  }
+}

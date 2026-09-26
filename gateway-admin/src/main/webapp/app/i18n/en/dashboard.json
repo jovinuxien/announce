@@ -1,0 +1,21 @@
+{
+  "title": "Dashboard",
+  "generatedAt": "Generated {{at}}",
+  "window": "Time window",
+  "lastDays": "Last {{days}} days",
+  "tiles": {
+    "members": "Members",
+    "admins": "Administrators",
+    "categories": "Categories",
+    "brands": "Brands",
+    "listingClicks": "Listing click-outs"
+  },
+  "announcesByKind": "Announces per kind and status",
+  "listingsBySource": "Crawled listings per source and status",
+  "newMembers": "New members, last {{days}} days",
+  "newAnnounces": "New announces, last {{days}} days",
+  "kind": "Kind",
+  "total": "Total",
+  "source": "Source",
+  "noListings": "No crawled listings yet."
+}

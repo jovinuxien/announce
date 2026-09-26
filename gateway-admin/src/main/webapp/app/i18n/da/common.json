@@ -1,0 +1,104 @@
+{
+  "loading": "Indlæser…",
+  "all": "Alle",
+  "yes": "Ja",
+  "no": "Nej",
+  "saved": "Gemt.",
+  "statusLabel": "Status",
+  "language": "Sprog",
+  "menu": "Menu",
+  "mocked": "Denne side vises med lokale testdata (MSW), indtil backend-modulet er koblet på gatewayen.",
+  "forbidden": {
+    "title": "Ingen adgang",
+    "detail": "Denne side er forbeholdt superadministratorer."
+  },
+  "error": {
+    "unknown": "Noget gik galt. Prøv igen.",
+    "code": "Kode"
+  },
+  "pagination": {
+    "summary": "Side {{page}} af {{pages}} · {{total}} rækker",
+    "size": "Rækker pr. side",
+    "perPage": "{{size}} / side"
+  },
+  "actions": {
+    "cancel": "Annuller",
+    "confirm": "Bekræft",
+    "save": "Gem",
+    "edit": "Rediger",
+    "delete": "Slet",
+    "apply": "Anvend",
+    "reset": "Nulstil",
+    "search": "Søg",
+    "back": "Tilbage",
+    "refresh": "Opdater",
+    "close": "Luk"
+  },
+  "empty": {
+    "title": "Intet at vise"
+  },
+  "notFound": {
+    "title": "Siden findes ikke",
+    "home": "Tilbage til oversigten"
+  },
+  "roles": {
+    "ROLE_ADMIN": "Administrator",
+    "ROLE_SUPER": "Superadministrator"
+  },
+  "nav": {
+    "sections": {
+      "overview": "Oversigt",
+      "catalog": "Katalog",
+      "trade": "Handel",
+      "support": "Support",
+      "people": "Personer"
+    },
+    "dashboard": "Oversigt",
+    "announces": "Annoncer",
+    "categories": "Kategorier",
+    "brands": "Mærker",
+    "listings": "Indsamlede annoncer",
+    "regions": "Regioner",
+    "auctions": "Auktioner",
+    "orders": "Ordrer",
+    "payouts": "Udbetalinger",
+    "support": "Supportkø",
+    "bulletins": "Meddelelser",
+    "users": "Medlemmer",
+    "admins": "Administratorer",
+    "roles": "Roller og rettigheder"
+  },
+  "kind": {
+    "GOODS": "Varer",
+    "JOB": "Job",
+    "EVENT": "Begivenhed"
+  },
+  "status": {
+    "DRAFT": "Kladde",
+    "PUBLISHED": "Offentliggjort",
+    "SOLD": "Solgt",
+    "WITHDRAWN": "Trukket tilbage",
+    "EXPIRED": "Udløbet",
+    "ACTIVE": "Aktiv",
+    "GONE": "Forsvundet"
+  },
+  "saleType": {
+    "FIXED_PRICE": "Fast pris",
+    "AUCTION": "Auktion",
+    "GIVEAWAY": "Gives væk"
+  },
+  "condition": {
+    "NEW": "Ny",
+    "LIKE_NEW": "Som ny",
+    "GOOD": "God",
+    "FAIR": "Rimelig",
+    "FOR_PARTS": "Til reservedele"
+  },
+  "contractType": {
+    "FULL_TIME": "Fuldtid",
+    "PART_TIME": "Deltid",
+    "TEMPORARY": "Tidsbegrænset",
+    "INTERNSHIP": "Praktik",
+    "FREELANCE": "Freelance"
+  }
+}

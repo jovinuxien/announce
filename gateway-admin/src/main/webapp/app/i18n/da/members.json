@@ -1,0 +1,31 @@
+{
+  "title": "Medlemmer",
+  "count": "{{total}} medlemmer",
+  "detail": "Medlem",
+  "search": "Søg",
+  "searchPlaceholder": "Brugernavn, kaldenavn eller mobil",
+  "status": "Status",
+  "statuses": {
+    "0": "Aktiv",
+    "1": "Deaktiveret",
+    "2": "Afmeldt"
+  },
+  "genders": {
+    "0": "Ukendt",
+    "1": "Mand",
+    "2": "Kvinde"
+  },
+  "fields": {
+    "username": "Brugernavn",
+    "nickname": "Kaldenavn",
+    "mobile": "Mobil",
+    "gender": "Køn",
+    "birthday": "Fødselsdag",
+    "level": "Niveau",
+    "lastLogin": "Seneste login",
+    "registered": "Registreret"
+  },
+  "announcesOf": "Medlemmets annoncer",
+  "setStatus": "Sæt status",
+  "setStatusConfirm": "Sæt status for {{user}} til “{{status}}”?"
+}

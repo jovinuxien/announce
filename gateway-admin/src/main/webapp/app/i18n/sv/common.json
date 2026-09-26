@@ -1,0 +1,104 @@
+{
+  "loading": "Laddar…",
+  "all": "Alla",
+  "yes": "Ja",
+  "no": "Nej",
+  "saved": "Sparat.",
+  "statusLabel": "Status",
+  "language": "Språk",
+  "menu": "Meny",
+  "mocked": "Den här sidan visas med lokala testdata (MSW) tills backend-modulen är kopplad via gatewayen.",
+  "forbidden": {
+    "title": "Åtkomst nekad",
+    "detail": "Den här sidan är reserverad för superadministratörer."
+  },
+  "error": {
+    "unknown": "Något gick fel. Försök igen.",
+    "code": "Kod"
+  },
+  "pagination": {
+    "summary": "Sida {{page}} av {{pages}} · {{total}} rader",
+    "size": "Rader per sida",
+    "perPage": "{{size}} / sida"
+  },
+  "actions": {
+    "cancel": "Avbryt",
+    "confirm": "Bekräfta",
+    "save": "Spara",
+    "edit": "Redigera",
+    "delete": "Ta bort",
+    "apply": "Tillämpa",
+    "reset": "Återställ",
+    "search": "Sök",
+    "back": "Tillbaka",
+    "refresh": "Uppdatera",
+    "close": "Stäng"
+  },
+  "empty": {
+    "title": "Inget att visa"
+  },
+  "notFound": {
+    "title": "Sidan finns inte",
+    "home": "Tillbaka till översikten"
+  },
+  "roles": {
+    "ROLE_ADMIN": "Administratör",
+    "ROLE_SUPER": "Superadministratör"
+  },
+  "nav": {
+    "sections": {
+      "overview": "Översikt",
+      "catalog": "Katalog",
+      "trade": "Handel",
+      "support": "Support",
+      "people": "Personer"
+    },
+    "dashboard": "Översikt",
+    "announces": "Annonser",
+    "categories": "Kategorier",
+    "brands": "Varumärken",
+    "listings": "Insamlade annonser",
+    "regions": "Regioner",
+    "auctions": "Auktioner",
+    "orders": "Beställningar",
+    "payouts": "Utbetalningar",
+    "support": "Supportkö",
+    "bulletins": "Meddelanden",
+    "users": "Medlemmar",
+    "admins": "Administratörer",
+    "roles": "Roller och behörigheter"
+  },
+  "kind": {
+    "GOODS": "Varor",
+    "JOB": "Jobb",
+    "EVENT": "Evenemang"
+  },
+  "status": {
+    "DRAFT": "Utkast",
+    "PUBLISHED": "Publicerad",
+    "SOLD": "Såld",
+    "WITHDRAWN": "Tillbakadragen",
+    "EXPIRED": "Utgången",
+    "ACTIVE": "Aktiv",
+    "GONE": "Försvunnen"
+  },
+  "saleType": {
+    "FIXED_PRICE": "Fast pris",
+    "AUCTION": "Auktion",
+    "GIVEAWAY": "Bortskänkes"
+  },
+  "condition": {
+    "NEW": "Ny",
+    "LIKE_NEW": "Som ny",
+    "GOOD": "Bra",
+    "FAIR": "Okej",
+    "FOR_PARTS": "Reservdelar"
+  },
+  "contractType": {
+    "FULL_TIME": "Heltid",
+    "PART_TIME": "Deltid",
+    "TEMPORARY": "Tidsbegränsad",
+    "INTERNSHIP": "Praktik",
+    "FREELANCE": "Frilans"
+  }
+}

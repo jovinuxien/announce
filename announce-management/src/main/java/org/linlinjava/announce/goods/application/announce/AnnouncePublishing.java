@@ -8,6 +8,8 @@ import org.linlinjava.announce.goods.domain.announce.Announce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.EditAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ExpireAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.MarkSold;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateExpire;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateWithdraw;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PostAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PublishAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.WithdrawAnnounce;
@@ -71,6 +73,16 @@ public class AnnouncePublishing {
 
     public Mono<Announce> markSold(String id, SellerId seller, String commandId) {
         return send(new MarkSold(id, seller), commandId);
+    }
+
+    /** Staff takes an announce down (admin edge); the moderator and the reason are recorded on the event. */
+    public Mono<Announce> moderateWithdraw(String id, Integer moderatorId, String reason, String commandId) {
+        return send(new ModerateWithdraw(id, moderatorId, reason), commandId);
+    }
+
+    /** Staff ends an announce now, whatever its expiry date. */
+    public Mono<Announce> moderateExpire(String id, Integer moderatorId, String reason, String commandId) {
+        return send(new ModerateExpire(id, moderatorId, reason), commandId);
     }
 
     /** Expires every published announce past its date (read model lookup, one command per announce). Returns how many. */

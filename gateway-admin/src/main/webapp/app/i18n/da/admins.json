@@ -1,0 +1,46 @@
+{
+  "title": "Administratorer",
+  "create": "Ny administrator",
+  "edit": "Rediger administrator",
+  "delete": "Slet administrator",
+  "deleteConfirm": "Slet administratoren “{{name}}”? Dette kan ikke fortrydes.",
+  "searchPlaceholder": "Brugernavn",
+  "you": "dig",
+  "passwordKeep": "Lad feltet stå tomt for at beholde den nuværende adgangskode.",
+  "noRoles": "Der findes ingen roller endnu; opret en først.",
+  "fields": {
+    "username": "Brugernavn",
+    "password": "Adgangskode",
+    "newPassword": "Ny adgangskode",
+    "avatar": "Avatar-URL",
+    "roles": "Roller",
+    "lastLogin": "Seneste login",
+    "created": "Oprettet"
+  },
+  "errors": {
+    "usernameTaken": "Brugernavnet er allerede i brug.",
+    "selfDelete": "Du kan ikke slette din egen konto.",
+    "usernameRequired": "Et brugernavn er påkrævet.",
+    "passwordTooShort": "Adgangskoden skal være mindst 6 tegn.",
+    "roleRequired": "Vælg mindst én rolle."
+  },
+  "roles": {
+    "title": "Roller og rettigheder",
+    "create": "Ny rolle",
+    "edit": "Rediger rolle",
+    "delete": "Slet rolle",
+    "deleteConfirm": "Slet rollen “{{name}}”?",
+    "permissions": "Rettigheder",
+    "permissionsOf": "Rettigheder for “{{name}}”",
+    "fields": {
+      "name": "Navn",
+      "description": "Beskrivelse",
+      "enabled": "Aktiv"
+    },
+    "errors": {
+      "inUse": "Rollen er stadig tildelt en administrator og kan ikke slettes.",
+      "nameTaken": "Der findes allerede en rolle med det navn.",
+      "nameRequired": "Et navn er påkrævet."
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "title": "Announces",
+  "count": "{{total}} announces match",
+  "emptyHint": "No announce matches the filters.",
+  "activeFilters": "{{count}} active filters",
+  "moderatedBy": "Moderated by #{{by}}",
+  "filters": {
+    "kind": "Kind",
+    "status": "Status",
+    "seller": "Seller id",
+    "region": "Region id",
+    "text": "Text",
+    "textPlaceholder": "Title, description, keywords…",
+    "sort": "Sort"
+  },
+  "sort": {
+    "newest": "Newest first",
+    "oldest": "Oldest first",
+    "price_asc": "Price ascending",
+    "price_desc": "Price descending"
+  },
+  "columns": {
+    "announce": "Announce",
+    "kind": "Kind",
+    "status": "Status",
+    "seller": "Seller",
+    "facts": "Details",
+    "dates": "Dates"
+  },
+  "fields": {
+    "category": "Category",
+    "created": "Created",
+    "updated": "Updated",
+    "published": "Published",
+    "expires": "Expires",
+    "deadline": "Apply by",
+    "until": "until",
+    "free": "Free entry",
+    "price": "Price",
+    "saleType": "Sale type",
+    "condition": "Condition",
+    "brand": "Brand",
+    "unit": "Unit",
+    "attributes": "Attributes",
+    "variants": "Variants",
+    "employer": "Employer",
+    "contractType": "Contract",
+    "salary": "Salary",
+    "howToApply": "How to apply",
+    "startsAt": "Starts",
+    "endsAt": "Ends",
+    "venue": "Venue",
+    "organizer": "Organizer",
+    "ticketed": "Ticket",
+    "capacity": "Capacity",
+    "brief": "Brief",
+    "description": "Description",
+    "keywords": "Keywords",
+    "location": "Location",
+    "gallery": "Gallery"
+  },
+  "actions": {
+    "withdraw": "Withdraw",
+    "expire": "Expire"
+  },
+  "detail": {
+    "title": "Announce",
+    "general": "General",
+    "kindBlock": {
+      "GOODS": "Goods details",
+      "JOB": "Job details",
+      "EVENT": "Event details"
+    }
+  },
+  "moderation": {
+    "reason": "Reason",
+    "reasonPlaceholder": "Why is this announce being moderated? The seller can read this.",
+    "reasonRecorded": "The reason is recorded on the announce and shown in the listing.",
+    "reasonRequired": "A reason is required.",
+    "reasonTooShort": "The reason is too short.",
+    "reasonTooLong": "The reason must be at most 500 characters.",
+    "done": "Moderation applied. New status:",
+    "withdraw": {
+      "title": "Withdraw announce",
+      "hint": "“{{title}}” will be withdrawn and disappear from search and browsing.",
+      "confirm": "Withdraw"
+    },
+    "expire": {
+      "title": "Expire announce",
+      "hint": "“{{title}}” will be marked expired as if its validity had run out.",
+      "confirm": "Expire"
+    }
+  }
+}

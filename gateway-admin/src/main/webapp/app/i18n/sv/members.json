@@ -1,0 +1,31 @@
+{
+  "title": "Medlemmar",
+  "count": "{{total}} medlemmar",
+  "detail": "Medlem",
+  "search": "Sök",
+  "searchPlaceholder": "Användarnamn, smeknamn eller mobil",
+  "status": "Status",
+  "statuses": {
+    "0": "Aktiv",
+    "1": "Avstängd",
+    "2": "Avregistrerad"
+  },
+  "genders": {
+    "0": "Okänt",
+    "1": "Man",
+    "2": "Kvinna"
+  },
+  "fields": {
+    "username": "Användarnamn",
+    "nickname": "Smeknamn",
+    "mobile": "Mobil",
+    "gender": "Kön",
+    "birthday": "Födelsedag",
+    "level": "Nivå",
+    "lastLogin": "Senaste inloggning",
+    "registered": "Registrerad"
+  },
+  "announcesOf": "Medlemmens annonser",
+  "setStatus": "Ändra status",
+  "setStatusConfirm": "Ändra status för {{user}} till ”{{status}}”?"
+}

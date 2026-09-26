@@ -1,0 +1,39 @@
+{
+  "title": "Indsamlede annoncer",
+  "subtitle": "Annoncer indsamlet fra dba.dk og tradera.com: kun uddrag og link til kilden, indekseret sammen med de lokale annoncer.",
+  "reindex": {
+    "button": "Genindekser aktive",
+    "done": "{{indexed}} aktive annoncer blev genindekseret."
+  },
+  "counts": {
+    "title": "Pr. kilde og status",
+    "clicks": "klik videre i alt",
+    "empty": "Ingen indsamlede annoncer endnu."
+  },
+  "import": {
+    "title": "Importér en feed-fil",
+    "hint": "Absolut sti til en scrapy JSON Lines-fil på announce-management-serveren. Kilden udledes af filnavnet (dba_*, tradera_*), medmindre den vælges her.",
+    "path": "Filsti",
+    "source": "Kilde",
+    "sourceAuto": "Udled fra filnavnet",
+    "button": "Importér",
+    "done": "Import afsluttet",
+    "report": {
+      "seen": "{{n}} emner læst",
+      "inserted": "{{n}} nye annoncer",
+      "updated": "{{n}} ændrede annoncer genindekseret",
+      "unchanged": "{{n}} uændrede (sidst set opdateret)",
+      "rejected": "{{n}} afvist"
+    }
+  },
+  "topClicked": "Mest klikkede",
+  "recentGone": "Senest forsvundne",
+  "columns": {
+    "title": "Annonce",
+    "source": "Kilde",
+    "price": "Pris",
+    "status": "Status",
+    "clicks": "Klik",
+    "lastSeen": "Sidst set"
+  }
+}

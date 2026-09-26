@@ -210,7 +210,8 @@ public final class AnnounceRows {
                 r.getStatus() == null ? AnnounceStatus.DRAFT : AnnounceStatus.valueOf(r.getStatus()),
                 new CategoryId(r.getCategoryId()),
                 toLocation(r.getRegionId(), r.getCity(), r.getPostalCode(), r.getLatitude(), r.getLongitude()),
-                r.getAddTime(), r.getPublishedAt(), r.getExpiresAt(), facts);
+                r.getAddTime(), r.getPublishedAt(), r.getExpiresAt(), facts,
+                r.getModeratedBy() == null ? null : new AnnounceSummary.Moderation(r.getModeratedBy(), r.getModerationReason()));
     }
 
     static Location toLocation(Integer regionId, String city, String postalCode, BigDecimal latitude, BigDecimal longitude) {

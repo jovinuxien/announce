@@ -332,7 +332,11 @@ docker compose -f docker/cqrs/docker-compose.yml --profile tools up -d   # adds 
 | OCS suggest | 8081 | type-ahead |
 | Kibana (`tools` profile) | 5601 | inspection |
 
-MySQL is the native server on `localhost:3306` (`announce_reactive_db`) and stays outside the file. The
+MySQL is the native server on `localhost:3306` (`announce_reactive_db`) and stays outside the file.
+
+Topics in use: `announce.v1` (announce-management), `auction.v1`, `order.v1`, `payment.v1`,
+`shipping.v1` (order module), `messaging.v1` (messaging; `OfferAcceptedV1`), `messaging.live`
+(messaging, internal WebSocket fan-out keyed by conversation). The
 announce index field configuration is `docker/cqrs/application.indexer-service.yml`, the searcher's
 relevance and facets `docker/cqrs/application.search-service.yml`, query-time synonyms
 `docker/cqrs/querqy-rules.txt`.

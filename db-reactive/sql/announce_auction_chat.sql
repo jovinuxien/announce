@@ -1,9 +1,10 @@
 -- =====================================================================
---  Announce: auction and chat extension (announce_* tables) of the litemall base schema
+--  Announce: auction extension (announce_* tables) of the litemall base schema
 --
 --  Derived from the ActionBazaar domain model in "EJB 3 in Action, 2nd ed."
 --  (Manning 2014): Seller/Bidder/User, Item, Bid, Category, Order, snag-it
---  ordering, featured item, shipping request, CSR chat and bulletin.
+--  ordering, featured item, shipping request. The CSR chat and bulletin
+--  tables live in announce_messaging.sql.
 --  Mapped onto our existing tables (announce = an announce/listing of any kind,
 --  announce_user = member, announce_admin = staff/CSR, announce_order).
 --
@@ -142,89 +143,10 @@ CREATE TABLE IF NOT EXISTS `announce_billing_info` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Member payment methods (tokenised)';
 
 -- ---------------------------------------------------------------------
--- 2. Messaging bounded context (chat between members, and member <-> staff)
---    Book: ChatServer keeps client sessions, CSR sessions and
---    SupportConversation objects; CSRs broadcast on a bulletin board.
---    WebSocket sessions stay in memory; only conversations, participants,
---    messages and bulletins are persisted.
+-- 2. Messaging bounded context: moved to announce_messaging.sql (module
+--    `messaging`; announce_conversation, announce_conversation_participant,
+--    announce_chat_message, announce_bulletin).
 -- ---------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS `announce_conversation` (
-  `id`                int(11)      NOT NULL AUTO_INCREMENT,
-  `type`              varchar(20)  NOT NULL COMMENT 'LISTING (buyer <-> seller about an announce), SUPPORT (member <-> staff)',
-  `goods_id`          int(11)      DEFAULT NULL COMMENT 'announce the chat is about (LISTING)',
-  `auction_id`        int(11)      DEFAULT NULL COMMENT 'set when the announce is an auction',
-  `subject`           varchar(127) DEFAULT NULL,
-  `status`            varchar(20)  NOT NULL DEFAULT 'OPEN' COMMENT 'WAITING (no staff assigned yet), OPEN, CLOSED, BLOCKED',
-  `created_by`        int(11)      NOT NULL COMMENT 'announce_user.id of the initiator',
-  `last_message_id`   int(11)      DEFAULT NULL,
-  `last_message_time` datetime     DEFAULT NULL,
-  `message_count`     int(11)      NOT NULL DEFAULT '0',
-  `closed_time`       datetime     DEFAULT NULL,
-  `add_time`          datetime     DEFAULT NULL,
-  `update_time`       datetime     DEFAULT NULL,
-  `deleted`           tinyint(1)   DEFAULT '0',
-  PRIMARY KEY (`id`),
-  KEY `idx_conv_goods` (`goods_id`),
-  KEY `idx_conv_status_last` (`status`, `last_message_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Chat conversations';
-
--- Who takes part. A LISTING chat has two USER participants; a SUPPORT chat
--- has one USER and, once picked from the waiting queue, one ADMIN (CSR).
-CREATE TABLE IF NOT EXISTS `announce_conversation_participant` (
-  `id`                   int(11)     NOT NULL AUTO_INCREMENT,
-  `conversation_id`      int(11)     NOT NULL,
-  `participant_type`     varchar(10) NOT NULL COMMENT 'USER (announce_user) or ADMIN (announce_admin)',
-  `participant_id`       int(11)     NOT NULL,
-  `role`                 varchar(10) NOT NULL COMMENT 'BUYER, SELLER, MEMBER, CSR',
-  `joined_time`          datetime    NOT NULL,
-  `left_time`            datetime    DEFAULT NULL,
-  `last_read_message_id` int(11)     DEFAULT NULL COMMENT 'unread = messages with id > this',
-  `muted`                tinyint(1)  NOT NULL DEFAULT '0',
-  `add_time`             datetime    DEFAULT NULL,
-  `update_time`          datetime    DEFAULT NULL,
-  `deleted`              tinyint(1)  DEFAULT '0',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_participant` (`conversation_id`, `participant_type`, `participant_id`),
-  KEY `idx_participant_lookup` (`participant_type`, `participant_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Conversation participants';
-
--- The messages themselves (book: ChatMessage {type, user, message}).
-CREATE TABLE IF NOT EXISTS `announce_chat_message` (
-  `id`              int(11)       NOT NULL AUTO_INCREMENT,
-  `conversation_id` int(11)       NOT NULL,
-  `sender_type`     varchar(10)   NOT NULL COMMENT 'USER, ADMIN, SYSTEM',
-  `sender_id`       int(11)       DEFAULT NULL COMMENT 'NULL for SYSTEM',
-  `content_type`    varchar(20)   NOT NULL DEFAULT 'TEXT' COMMENT 'TEXT, IMAGE, OFFER (price proposal), SYSTEM',
-  `content`         text          NOT NULL,
-  `attachment_url`  varchar(255)  DEFAULT NULL,
-  `offer_amount`    decimal(10,2) DEFAULT NULL COMMENT 'for OFFER messages',
-  `client_msg_id`   varchar(63)   DEFAULT NULL COMMENT 'idempotency key from the WebSocket client',
-  `sent_time`       datetime      NOT NULL,
-  `edited_time`     datetime      DEFAULT NULL,
-  `add_time`        datetime      DEFAULT NULL,
-  `update_time`     datetime      DEFAULT NULL,
-  `deleted`         tinyint(1)    DEFAULT '0',
-  PRIMARY KEY (`id`),
-  KEY `idx_msg_conversation` (`conversation_id`, `id`),
-  UNIQUE KEY `uk_msg_client` (`conversation_id`, `client_msg_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Chat messages';
-
--- Staff broadcast board (book: BulletinService, CSR dashboard messages
--- fanned out to all connected CSRs, optionally per client type).
-CREATE TABLE IF NOT EXISTS `announce_bulletin` (
-  `id`          int(11)      NOT NULL AUTO_INCREMENT,
-  `admin_id`    int(11)      NOT NULL COMMENT 'author (announce_admin.id)',
-  `audience`    varchar(20)  NOT NULL DEFAULT 'STAFF' COMMENT 'STAFF (CSR dashboard) or MEMBERS (site-wide banner)',
-  `client_type` varchar(20)  DEFAULT NULL COMMENT 'book: desktop, mobile-web, mobile-native; NULL = all',
-  `content`     varchar(1023) NOT NULL,
-  `expire_time` datetime     DEFAULT NULL,
-  `add_time`    datetime     DEFAULT NULL,
-  `update_time` datetime     DEFAULT NULL,
-  `deleted`     tinyint(1)   DEFAULT '0',
-  PRIMARY KEY (`id`),
-  KEY `idx_bulletin_audience` (`audience`, `expire_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Broadcast bulletins';
 
 -- ---------------------------------------------------------------------
 -- 3. Columns added to existing tables (guarded so the script can be re-run)

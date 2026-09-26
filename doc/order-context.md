@@ -253,16 +253,47 @@ module). Step 0 of `order-reactive` adds them. Public contracts (`*V1` records,
 
 ## 9. Messaging module (worktree `messaging`)
 
-Own module `messaging`, aggregate `Conversation` on `/conversation/{id}`: OpenListingConversation
-(announce, buyer), OpenSupportConversation, Join (staff), PostMessage (TEXT, IMAGE,
-OFFER; idempotent on `client_msg_id`), AcceptOffer / DeclineOffer (seller),
-MarkRead, Close, Block. Events ConversationOpened, MessagePosted, OfferAccepted,
-OfferDeclined, ConversationClosed. Read models are the `announce_conversation*` and
-`announce_bulletin` tables of `announce_auction_chat.sql` with `goods_id` ->
-`announce_id`. Delivery: WebFlux `WebSocketHandler` at `/ws/conversations/{id}`, fan-out
-across nodes through a Kafka topic keyed by conversation id. Public `OfferAcceptedV1`
-on `messaging.v1`; consumes `order.v1` to post SYSTEM messages (agreed, paid, shipped,
-settled) into the listing conversation.
+Status: implemented 2026-09-26 in modules `messaging` and `messaging-api` (details in
+`doc/messaging-context.md`). What was built, and where it deviates from the sketch above:
+
+- Aggregate `Conversation` on `/conversation/{id}`, package
+  `org.linlinjava.announce.messaging`. Commands OpenListingConversation,
+  OpenSupportConversation, JoinConversation (staff), PostMessage (TEXT, IMAGE, OFFER, and
+  SYSTEM for the platform; idempotent on `clientMsgId`), AcceptOffer / DeclineOffer
+  (seller, latest open offer), CloseConversation, BlockConversation (staff). Events
+  ConversationOpened, ParticipantJoined, MessagePosted, OfferAccepted, OfferDeclined,
+  ConversationClosed, ConversationBlocked.
+- **Deviation: MarkRead is not a command.** A read marker is not a domain fact; it is a
+  read-model write of `last_read_seq` on the participant row (`POST
+  /api/conversations/{id}/read`, WebSocket frame `read`). Messages carry a per-conversation
+  `seq`; unread = `last_message_seq - last_read_seq`.
+- **Deviation: deterministic listing id.** `id = nameUUID("listing:" + announceId + ":" +
+  buyerId)`; opening the same pair twice returns the existing conversation. The `order.v1`
+  subscriber therefore opens-or-finds the thread for any deal (auction, fixed price) and
+  posts the SYSTEM message there, without a lookup.
+- The seller of an announce is resolved through an `AnnounceLookup` port over the
+  announce-management API (`GET /api/announces/{id}`); switch to a snapshot from
+  `announce.v1` once `announce-management-api` is merged.
+- Read models: `db-reactive/sql/announce_messaging.sql` (the four chat tables moved out of
+  `announce_auction_chat.sql`; conversation and message ids varchar(36), `announce_id`
+  varchar(36), `seq`, offer columns, `last_event_id`). Member and staff ids stay `Integer`
+  (`announce_user.id`, `announce_admin.id`), so `OfferAcceptedV1.buyerId` / `sellerId` are
+  integers.
+- Public events (`messaging-api`, topic `messaging.v1`): `OfferAcceptedV1(conversationId,
+  announceId, buyerId, sellerId, amountCents, currency, acceptedAt)` with type
+  `messaging.offer-accepted`, and `ConversationOpenedV1` (`messaging.conversation-opened`).
+- Consumes `order.v1` (`OrderAgreedV1`, `OrderPaidV1`, `OrderShippedV1`, `OrderSettledV1`,
+  types `order.agreed|paid|shipped|settled`) as local stubs under
+  `infrastructure.messaging.order`; replace them by the `order-api` dependency when that
+  module lands. Field names match `order-api`'s `OrderPaidV1`. Each SYSTEM message uses
+  the Kafka event id as `clientMsgId`, so redelivery posts once.
+- Delivery: `/ws/conversations/{id}` (frames `post`, `offer`, `accept-offer`,
+  `decline-offer`, `read`, `close`, `ping`; answers `ack` / `error`; pushes `message` /
+  `status`) and `/ws/staff?clientType=` (pushes `bulletin`). Fan-out across nodes is a
+  second relay group `messaging-live` on topic `messaging.live` keyed by the conversation
+  subject; every node consumes it with its own consumer group. Handshake auth by
+  `X-User-Id` / `X-Staff-Id` (4401 without, 4403 when not a participant).
+- Bulletins are plain `announce_bulletin` rows plus a live record; not event-sourced.
 
 ## 10. Out of scope for the first iteration
 

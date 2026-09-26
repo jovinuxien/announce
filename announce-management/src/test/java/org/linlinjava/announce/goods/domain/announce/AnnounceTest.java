@@ -6,6 +6,8 @@ import org.linlinjava.announce.cqrs.test.CommandFixture;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.EditAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ExpireAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.MarkSold;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateExpire;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateWithdraw;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PostAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PublishAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.RelistAnnounce;
@@ -200,6 +202,21 @@ class AnnounceTest {
         fixture().given(posted(bike()), published()).when(new RelistAnnounce(ID)).thenExpectNoEvents();
         fixture().given(posted(bike()), published(), new AnnounceWithdrawn(NOW)).when(new RelistAnnounce(ID)).thenExpectNoEvents();
         fixture().given(posted(bike())).when(new RelistAnnounce(ID)).thenExpectNoEvents();
+    }
+
+    @Test
+        void staffModeratesWithoutOwningAndTheReasonTravelsOnTheEvent() {
+        fixture().given(posted(bike()), published()).when(new ModerateWithdraw(ID, 42, " spam "))
+                .thenExpectEvents(new AnnounceWithdrawn(NOW, 42, "spam"));
+        fixture().given(posted(bike()), published()).when(new ModerateExpire(ID, 42, "duplicate"))
+                .thenExpectEvents(new AnnounceExpired(NOW, 42, "duplicate"));
+        // a moderated announce is withdrawn / expired like any other and can be republished by its owner
+        fixture().given(posted(bike()), published(), new AnnounceWithdrawn(NOW, 42, "spam")).when(new PublishAnnounce(ID, OWNER, null)).thenExpectNoError();
+        // only published announces; reason and moderator mandatory
+        assertEquals("not-published", rejected(fixture().given(posted(bike())).when(new ModerateWithdraw(ID, 42, "spam"))).getCode());
+        assertEquals("not-published", rejected(fixture().given(posted(bike()), published(), new AnnounceWithdrawn(NOW)).when(new ModerateExpire(ID, 42, "x"))).getCode());
+        fixture().given(posted(bike()), published()).when(new ModerateWithdraw(ID, 42, "  ")).thenExpectException(IllegalArgumentException.class);
+        fixture().given(posted(bike()), published()).when(new ModerateExpire(ID, null, "x")).thenExpectException(IllegalArgumentException.class);
     }
 
     private static CommandRejectedException rejected(CommandFixture<Announce>.Then then) {

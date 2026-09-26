@@ -1,0 +1,31 @@
+{
+  "title": "Members",
+  "count": "{{total}} members",
+  "detail": "Member",
+  "search": "Search",
+  "searchPlaceholder": "Username, nickname or mobile",
+  "status": "Status",
+  "statuses": {
+    "0": "Active",
+    "1": "Disabled",
+    "2": "Deregistered"
+  },
+  "genders": {
+    "0": "Unknown",
+    "1": "Male",
+    "2": "Female"
+  },
+  "fields": {
+    "username": "Username",
+    "nickname": "Nickname",
+    "mobile": "Mobile",
+    "gender": "Gender",
+    "birthday": "Birthday",
+    "level": "Level",
+    "lastLogin": "Last sign-in",
+    "registered": "Registered"
+  },
+  "announcesOf": "Their announces",
+  "setStatus": "Set status",
+  "setStatusConfirm": "Set the status of {{user}} to “{{status}}”?"
+}

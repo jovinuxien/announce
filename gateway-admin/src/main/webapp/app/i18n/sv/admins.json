@@ -1,0 +1,46 @@
+{
+  "title": "Administratörer",
+  "create": "Ny administratör",
+  "edit": "Redigera administratör",
+  "delete": "Ta bort administratör",
+  "deleteConfirm": "Ta bort administratören ”{{name}}”? Det kan inte ångras.",
+  "searchPlaceholder": "Användarnamn",
+  "you": "du",
+  "passwordKeep": "Lämna tomt för att behålla det nuvarande lösenordet.",
+  "noRoles": "Det finns inga roller ännu; skapa en först.",
+  "fields": {
+    "username": "Användarnamn",
+    "password": "Lösenord",
+    "newPassword": "Nytt lösenord",
+    "avatar": "Avatar-URL",
+    "roles": "Roller",
+    "lastLogin": "Senaste inloggning",
+    "created": "Skapad"
+  },
+  "errors": {
+    "usernameTaken": "Användarnamnet är redan upptaget.",
+    "selfDelete": "Du kan inte ta bort ditt eget konto.",
+    "usernameRequired": "Ett användarnamn krävs.",
+    "passwordTooShort": "Lösenordet måste vara minst 6 tecken.",
+    "roleRequired": "Välj minst en roll."
+  },
+  "roles": {
+    "title": "Roller och behörigheter",
+    "create": "Ny roll",
+    "edit": "Redigera roll",
+    "delete": "Ta bort roll",
+    "deleteConfirm": "Ta bort rollen ”{{name}}”?",
+    "permissions": "Behörigheter",
+    "permissionsOf": "Behörigheter för ”{{name}}”",
+    "fields": {
+      "name": "Namn",
+      "description": "Beskrivning",
+      "enabled": "Aktiv"
+    },
+    "errors": {
+      "inUse": "Rollen är fortfarande tilldelad en administratör och kan inte tas bort.",
+      "nameTaken": "Det finns redan en roll med det namnet.",
+      "nameRequired": "Ett namn krävs."
+    }
+  }
+}

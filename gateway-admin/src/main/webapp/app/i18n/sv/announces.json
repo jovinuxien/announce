@@ -1,0 +1,94 @@
+{
+  "title": "Annonser",
+  "count": "{{total}} annonser matchar",
+  "emptyHint": "Ingen annons matchar filtren.",
+  "activeFilters": "{{count}} aktiva filter",
+  "moderatedBy": "Modererad av #{{by}}",
+  "filters": {
+    "kind": "Typ",
+    "status": "Status",
+    "seller": "Säljar-id",
+    "region": "Region-id",
+    "text": "Text",
+    "textPlaceholder": "Titel, beskrivning, nyckelord…",
+    "sort": "Sortering"
+  },
+  "sort": {
+    "newest": "Nyast först",
+    "oldest": "Äldst först",
+    "price_asc": "Pris stigande",
+    "price_desc": "Pris fallande"
+  },
+  "columns": {
+    "announce": "Annons",
+    "kind": "Typ",
+    "status": "Status",
+    "seller": "Säljare",
+    "facts": "Detaljer",
+    "dates": "Datum"
+  },
+  "fields": {
+    "category": "Kategori",
+    "created": "Skapad",
+    "updated": "Uppdaterad",
+    "published": "Publicerad",
+    "expires": "Går ut",
+    "deadline": "Ansök senast",
+    "until": "till",
+    "free": "Fri entré",
+    "price": "Pris",
+    "saleType": "Försäljningstyp",
+    "condition": "Skick",
+    "brand": "Varumärke",
+    "unit": "Enhet",
+    "attributes": "Egenskaper",
+    "variants": "Varianter",
+    "employer": "Arbetsgivare",
+    "contractType": "Anställning",
+    "salary": "Lön",
+    "howToApply": "Så ansöker du",
+    "startsAt": "Börjar",
+    "endsAt": "Slutar",
+    "venue": "Plats",
+    "organizer": "Arrangör",
+    "ticketed": "Biljett",
+    "capacity": "Kapacitet",
+    "brief": "Kort text",
+    "description": "Beskrivning",
+    "keywords": "Nyckelord",
+    "location": "Plats",
+    "gallery": "Galleri"
+  },
+  "actions": {
+    "withdraw": "Dra tillbaka",
+    "expire": "Låt gå ut"
+  },
+  "detail": {
+    "title": "Annons",
+    "general": "Allmänt",
+    "kindBlock": {
+      "GOODS": "Varuuppgifter",
+      "JOB": "Jobbuppgifter",
+      "EVENT": "Evenemangsuppgifter"
+    }
+  },
+  "moderation": {
+    "reason": "Motivering",
+    "reasonPlaceholder": "Varför modereras annonsen? Säljaren kan läsa detta.",
+    "reasonRecorded": "Motiveringen sparas på annonsen och visas i listan.",
+    "reasonRequired": "En motivering krävs.",
+    "reasonTooShort": "Motiveringen är för kort.",
+    "reasonTooLong": "Motiveringen får vara högst 500 tecken.",
+    "done": "Moderering utförd. Ny status:",
+    "withdraw": {
+      "title": "Dra tillbaka annons",
+      "hint": "”{{title}}” dras tillbaka och försvinner från sök och listor.",
+      "confirm": "Dra tillbaka"
+    },
+    "expire": {
+      "title": "Låt annons gå ut",
+      "hint": "”{{title}}” markeras som utgången, som om giltighetstiden hade tagit slut.",
+      "confirm": "Låt gå ut"
+    }
+  }
+}

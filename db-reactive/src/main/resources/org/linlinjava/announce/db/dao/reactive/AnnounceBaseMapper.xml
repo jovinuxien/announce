@@ -22,6 +22,8 @@
     <result column="status" jdbcType="VARCHAR" property="status" />
     <result column="published_at" jdbcType="TIMESTAMP" property="publishedAt" />
     <result column="expires_at" jdbcType="TIMESTAMP" property="expiresAt" />
+    <result column="moderated_by" jdbcType="INTEGER" property="moderatedBy" />
+    <result column="moderation_reason" jdbcType="VARCHAR" property="moderationReason" />
     <result column="last_event_id" jdbcType="VARCHAR" property="lastEventId" />
     <result column="add_time" jdbcType="TIMESTAMP" property="addTime" />
     <result column="update_time" jdbcType="TIMESTAMP" property="updateTime" />
@@ -128,8 +130,8 @@
   </sql>
   <sql id="Base_Column_List">
     id, kind, seller_id, category_id, title, brief, gallery, keywords, region_id, city, 
-    postal_code, latitude, longitude, `status`, published_at, expires_at, last_event_id, 
-    add_time, update_time, deleted
+    postal_code, latitude, longitude, `status`, published_at, expires_at, moderated_by, 
+    moderation_reason, last_event_id, add_time, update_time, deleted
   </sql>
   <sql id="Blob_Column_List">
     detail
@@ -248,16 +250,18 @@
       keywords, region_id, city, 
       postal_code, latitude, longitude, 
       `status`, published_at, expires_at, 
-      last_event_id, add_time, update_time, 
-      deleted, detail)
+      moderated_by, moderation_reason, last_event_id, 
+      add_time, update_time, deleted, 
+      detail)
     values (#{id,jdbcType=VARCHAR}, #{kind,jdbcType=VARCHAR}, #{sellerId,jdbcType=INTEGER}, 
       #{categoryId,jdbcType=INTEGER}, #{title,jdbcType=VARCHAR}, #{brief,jdbcType=VARCHAR}, 
       #{gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.announce.db.mybatis.JsonStringArrayTypeHandler}, 
       #{keywords,jdbcType=VARCHAR}, #{regionId,jdbcType=INTEGER}, #{city,jdbcType=VARCHAR}, 
       #{postalCode,jdbcType=VARCHAR}, #{latitude,jdbcType=DECIMAL}, #{longitude,jdbcType=DECIMAL}, 
       #{status,jdbcType=VARCHAR}, #{publishedAt,jdbcType=TIMESTAMP}, #{expiresAt,jdbcType=TIMESTAMP}, 
-      #{lastEventId,jdbcType=VARCHAR}, #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, 
-      #{deleted,jdbcType=BIT}, #{detail,jdbcType=LONGVARCHAR})
+      #{moderatedBy,jdbcType=INTEGER}, #{moderationReason,jdbcType=VARCHAR}, #{lastEventId,jdbcType=VARCHAR}, 
+      #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, #{deleted,jdbcType=BIT}, 
+      #{detail,jdbcType=LONGVARCHAR})
   </insert>
   <insert id="insertSelective" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
     insert into announce
@@ -309,6 +313,12 @@
       </if>
       <if test="expiresAt != null">
         expires_at,
+      </if>
+      <if test="moderatedBy != null">
+        moderated_by,
+      </if>
+      <if test="moderationReason != null">
+        moderation_reason,
       </if>
       <if test="lastEventId != null">
         last_event_id,
@@ -374,6 +384,12 @@
       </if>
       <if test="expiresAt != null">
         #{expiresAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="moderatedBy != null">
+        #{moderatedBy,jdbcType=INTEGER},
+      </if>
+      <if test="moderationReason != null">
+        #{moderationReason,jdbcType=VARCHAR},
       </if>
       <if test="lastEventId != null">
         #{lastEventId,jdbcType=VARCHAR},
@@ -449,6 +465,12 @@
       <if test="record.expiresAt != null">
         expires_at = #{record.expiresAt,jdbcType=TIMESTAMP},
       </if>
+      <if test="record.moderatedBy != null">
+        moderated_by = #{record.moderatedBy,jdbcType=INTEGER},
+      </if>
+      <if test="record.moderationReason != null">
+        moderation_reason = #{record.moderationReason,jdbcType=VARCHAR},
+      </if>
       <if test="record.lastEventId != null">
         last_event_id = #{record.lastEventId,jdbcType=VARCHAR},
       </if>
@@ -487,6 +509,8 @@
       `status` = #{record.status,jdbcType=VARCHAR},
       published_at = #{record.publishedAt,jdbcType=TIMESTAMP},
       expires_at = #{record.expiresAt,jdbcType=TIMESTAMP},
+      moderated_by = #{record.moderatedBy,jdbcType=INTEGER},
+      moderation_reason = #{record.moderationReason,jdbcType=VARCHAR},
       last_event_id = #{record.lastEventId,jdbcType=VARCHAR},
       add_time = #{record.addTime,jdbcType=TIMESTAMP},
       update_time = #{record.updateTime,jdbcType=TIMESTAMP},
@@ -514,6 +538,8 @@
       `status` = #{record.status,jdbcType=VARCHAR},
       published_at = #{record.publishedAt,jdbcType=TIMESTAMP},
       expires_at = #{record.expiresAt,jdbcType=TIMESTAMP},
+      moderated_by = #{record.moderatedBy,jdbcType=INTEGER},
+      moderation_reason = #{record.moderationReason,jdbcType=VARCHAR},
       last_event_id = #{record.lastEventId,jdbcType=VARCHAR},
       add_time = #{record.addTime,jdbcType=TIMESTAMP},
       update_time = #{record.updateTime,jdbcType=TIMESTAMP},
@@ -570,6 +596,12 @@
       <if test="expiresAt != null">
         expires_at = #{expiresAt,jdbcType=TIMESTAMP},
       </if>
+      <if test="moderatedBy != null">
+        moderated_by = #{moderatedBy,jdbcType=INTEGER},
+      </if>
+      <if test="moderationReason != null">
+        moderation_reason = #{moderationReason,jdbcType=VARCHAR},
+      </if>
       <if test="lastEventId != null">
         last_event_id = #{lastEventId,jdbcType=VARCHAR},
       </if>
@@ -603,8 +635,10 @@
       latitude = #{latitude,jdbcType=DECIMAL},
       longitude = #{longitude,jdbcType=DECIMAL},
       `status` = #{status,jdbcType=VARCHAR},
-      <if test="publishedAt != null">published_at = #{publishedAt,jdbcType=TIMESTAMP},</if>
-      <if test="expiresAt != null">expires_at = #{expiresAt,jdbcType=TIMESTAMP},</if>
+      published_at = #{publishedAt,jdbcType=TIMESTAMP},
+      expires_at = #{expiresAt,jdbcType=TIMESTAMP},
+      moderated_by = #{moderatedBy,jdbcType=INTEGER},
+      moderation_reason = #{moderationReason,jdbcType=VARCHAR},
       last_event_id = #{lastEventId,jdbcType=VARCHAR},
       add_time = #{addTime,jdbcType=TIMESTAMP},
       update_time = #{updateTime,jdbcType=TIMESTAMP},
@@ -627,8 +661,10 @@
       latitude = #{latitude,jdbcType=DECIMAL},
       longitude = #{longitude,jdbcType=DECIMAL},
       `status` = #{status,jdbcType=VARCHAR},
-      <if test="publishedAt != null">published_at = #{publishedAt,jdbcType=TIMESTAMP},</if>
-      <if test="expiresAt != null">expires_at = #{expiresAt,jdbcType=TIMESTAMP},</if>
+      published_at = #{publishedAt,jdbcType=TIMESTAMP},
+      expires_at = #{expiresAt,jdbcType=TIMESTAMP},
+      moderated_by = #{moderatedBy,jdbcType=INTEGER},
+      moderation_reason = #{moderationReason,jdbcType=VARCHAR},
       last_event_id = #{lastEventId,jdbcType=VARCHAR},
       add_time = #{addTime,jdbcType=TIMESTAMP},
       update_time = #{updateTime,jdbcType=TIMESTAMP},
@@ -742,6 +778,7 @@
       keywords, region_id, city, 
       postal_code, latitude, longitude, 
       `status`, published_at, expires_at, 
+      moderated_by, moderation_reason, 
       last_event_id, add_time, update_time, 
       deleted, detail)
     values (#{id,jdbcType=VARCHAR}, #{kind,jdbcType=VARCHAR}, #{sellerId,jdbcType=INTEGER}, 
@@ -750,6 +787,7 @@
       #{keywords,jdbcType=VARCHAR}, #{regionId,jdbcType=INTEGER}, #{city,jdbcType=VARCHAR}, 
       #{postalCode,jdbcType=VARCHAR}, #{latitude,jdbcType=DECIMAL}, #{longitude,jdbcType=DECIMAL}, 
       #{status,jdbcType=VARCHAR}, #{publishedAt,jdbcType=TIMESTAMP}, #{expiresAt,jdbcType=TIMESTAMP}, 
+      #{moderatedBy,jdbcType=INTEGER}, #{moderationReason,jdbcType=VARCHAR}, 
       #{lastEventId,jdbcType=VARCHAR}, #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, 
       #{deleted,jdbcType=BIT}, #{detail,jdbcType=LONGVARCHAR})
     on duplicate key update
@@ -768,6 +806,8 @@
       `status` = values(`status`),
       published_at = values(published_at),
       expires_at = values(expires_at),
+      moderated_by = values(moderated_by),
+      moderation_reason = values(moderation_reason),
       last_event_id = values(last_event_id),
       add_time = values(add_time),
       update_time = values(update_time),
@@ -792,12 +832,14 @@
       update_time = #{updateTime,jdbcType=TIMESTAMP}
     where id = #{id,jdbcType=VARCHAR}
   </update>
-  <!-- hand-written: lifecycle transitions (published, withdrawn, sold, expired) -->
+  <!-- hand-written: lifecycle transitions (published, withdrawn, sold, expired); the moderation columns always follow the transition -->
   <update id="updateStatus" parameterType="org.linlinjava.announce.db.domain.AnnounceBase">
     update announce set
       `status` = #{status,jdbcType=VARCHAR},
       <if test="publishedAt != null">published_at = #{publishedAt,jdbcType=TIMESTAMP},</if>
       <if test="expiresAt != null">expires_at = #{expiresAt,jdbcType=TIMESTAMP},</if>
+      moderated_by = #{moderatedBy,jdbcType=INTEGER},
+      moderation_reason = #{moderationReason,jdbcType=VARCHAR},
       last_event_id = #{lastEventId,jdbcType=VARCHAR},
       update_time = #{updateTime,jdbcType=TIMESTAMP}
     where id = #{id,jdbcType=VARCHAR}
@@ -820,6 +862,8 @@
     <result column="published_at" jdbcType="TIMESTAMP" property="publishedAt" />
     <result column="expires_at" jdbcType="TIMESTAMP" property="expiresAt" />
     <result column="add_time" jdbcType="TIMESTAMP" property="addTime" />
+    <result column="moderated_by" jdbcType="INTEGER" property="moderatedBy" />
+    <result column="moderation_reason" jdbcType="VARCHAR" property="moderationReason" />
     <result column="price" jdbcType="DECIMAL" property="price" />
     <result column="sale_type" jdbcType="VARCHAR" property="saleType" />
     <result column="condition" jdbcType="VARCHAR" property="condition" />
@@ -852,7 +896,7 @@
   </sql>
   <select id="selectSummaries" parameterType="map" resultMap="SummaryResultMap">
     select a.id, a.kind, a.seller_id, a.category_id, a.title, a.brief, a.gallery, a.region_id, a.city, a.postal_code,
-      a.latitude, a.longitude, a.`status`, a.published_at, a.expires_at, a.add_time,
+      a.latitude, a.longitude, a.`status`, a.published_at, a.expires_at, a.add_time, a.moderated_by, a.moderation_reason,
       g.price, g.sale_type, g.`condition`, g.brand_id,
       j.employer, j.contract_type, j.application_deadline,
       e.starts_at, e.ends_at, e.ticketed, e.ticket_price

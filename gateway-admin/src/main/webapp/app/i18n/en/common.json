@@ -1,0 +1,104 @@
+{
+  "loading": "Loading…",
+  "all": "All",
+  "yes": "Yes",
+  "no": "No",
+  "saved": "Saved.",
+  "statusLabel": "Status",
+  "language": "Language",
+  "menu": "Menu",
+  "mocked": "This screen is served by local mock data (MSW) until the backend module is routed through the edge.",
+  "forbidden": {
+    "title": "Not allowed",
+    "detail": "This screen is reserved for super administrators."
+  },
+  "error": {
+    "unknown": "Something went wrong. Please try again.",
+    "code": "Code"
+  },
+  "pagination": {
+    "summary": "Page {{page}} of {{pages}} · {{total}} rows",
+    "size": "Rows per page",
+    "perPage": "{{size}} / page"
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "apply": "Apply",
+    "reset": "Reset",
+    "search": "Search",
+    "back": "Back",
+    "refresh": "Refresh",
+    "close": "Close"
+  },
+  "empty": {
+    "title": "Nothing to show"
+  },
+  "notFound": {
+    "title": "This page does not exist",
+    "home": "Back to the dashboard"
+  },
+  "roles": {
+    "ROLE_ADMIN": "Administrator",
+    "ROLE_SUPER": "Super administrator"
+  },
+  "nav": {
+    "sections": {
+      "overview": "Overview",
+      "catalog": "Catalog",
+      "trade": "Trade",
+      "support": "Support",
+      "people": "People"
+    },
+    "dashboard": "Dashboard",
+    "announces": "Announces",
+    "categories": "Categories",
+    "brands": "Brands",
+    "listings": "Crawled listings",
+    "regions": "Regions",
+    "auctions": "Auctions",
+    "orders": "Orders",
+    "payouts": "Payouts",
+    "support": "Support queue",
+    "bulletins": "Bulletins",
+    "users": "Members",
+    "admins": "Administrators",
+    "roles": "Roles & permissions"
+  },
+  "kind": {
+    "GOODS": "Goods",
+    "JOB": "Job",
+    "EVENT": "Event"
+  },
+  "status": {
+    "DRAFT": "Draft",
+    "PUBLISHED": "Published",
+    "SOLD": "Sold",
+    "WITHDRAWN": "Withdrawn",
+    "EXPIRED": "Expired",
+    "ACTIVE": "Active",
+    "GONE": "Gone"
+  },
+  "saleType": {
+    "FIXED_PRICE": "Fixed price",
+    "AUCTION": "Auction",
+    "GIVEAWAY": "Giveaway"
+  },
+  "condition": {
+    "NEW": "New",
+    "LIKE_NEW": "Like new",
+    "GOOD": "Good",
+    "FAIR": "Fair",
+    "FOR_PARTS": "For parts"
+  },
+  "contractType": {
+    "FULL_TIME": "Full time",
+    "PART_TIME": "Part time",
+    "TEMPORARY": "Temporary",
+    "INTERNSHIP": "Internship",
+    "FREELANCE": "Freelance"
+  }
+}

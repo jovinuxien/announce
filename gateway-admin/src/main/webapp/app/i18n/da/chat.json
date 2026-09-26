@@ -1,0 +1,41 @@
+{
+  "support": {
+    "title": "Supportkø",
+    "subtitle": "Supportsamtaler venter, indtil en medarbejder deltager.",
+    "emptyHint": "Ingen venter.",
+    "conversation": "Samtale",
+    "openedBy": "Åbnet af",
+    "openedAt": "Åbnet",
+    "lastMessage": "Seneste besked",
+    "staff": "Medarbejder",
+    "join": "Deltag"
+  },
+  "conversationStatus": {
+    "WAITING": "Venter",
+    "OPEN": "Åben",
+    "CLOSED": "Lukket",
+    "BLOCKED": "Blokeret"
+  },
+  "conversationType": {
+    "LISTING": "Annonce",
+    "SUPPORT": "Support"
+  },
+  "bulletins": {
+    "title": "Meddelelser",
+    "subtitle": "Meddelelser sendes live til tilsluttede medarbejderklienter af den valgte type.",
+    "post": "Send en meddelelse",
+    "posted": "Meddelelsen er sendt.",
+    "send": "Send",
+    "recent": "Seneste meddelelser",
+    "fields": {
+      "title": "Titel",
+      "content": "Indhold",
+      "clientType": "Klienttype"
+    }
+  },
+  "clientType": {
+    "ALL": "Alle klienter",
+    "WEB": "Web",
+    "MOBILE": "Mobil"
+  }
+}

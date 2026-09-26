@@ -1,0 +1,59 @@
+{
+  "name": "@announce/admin-web",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Staff SPA served by the gateway-admin edge (port 8081).",
+  "scripts": {
+    "build": "webpack --config webpack/webpack.prod.js",
+    "webapp:dev": "webpack serve --config webpack/webpack.dev.js",
+    "test": "jest",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "lint": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "2.5.0",
+    "bootstrap": "5.3.3",
+    "bootstrap-icons": "1.11.3",
+    "i18next": "24.2.0",
+    "react": "18.3.1",
+    "react-bootstrap": "2.10.6",
+    "react-dom": "18.3.1",
+    "react-i18next": "15.4.0",
+    "react-redux": "9.2.0",
+    "react-router-dom": "6.28.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.1.0",
+    "@types/jest": "29.5.14",
+    "@types/node": "^20.17.9",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "copy-webpack-plugin": "12.0.2",
+    "css-loader": "7.1.2",
+    "html-webpack-plugin": "5.6.3",
+    "identity-obj-proxy": "3.0.0",
+    "jest": "29.7.0",
+    "jest-environment-jsdom": "29.7.0",
+    "mini-css-extract-plugin": "2.9.2",
+    "msw": "2.7.0",
+    "style-loader": "^4.0.0",
+    "ts-jest": "29.2.5",
+    "ts-loader": "9.5.1",
+    "typescript": "5.7.2",
+    "webpack": "5.97.1",
+    "webpack-cli": "5.1.4",
+    "webpack-dev-server": "5.2.0",
+    "webpack-merge": "6.0.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
+  }
+}

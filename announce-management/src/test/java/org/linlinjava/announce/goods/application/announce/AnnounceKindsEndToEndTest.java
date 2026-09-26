@@ -245,7 +245,7 @@ class AnnounceKindsEndToEndTest {
     }
 
     @Test
-    @Order(5)
+    @Order(6)
     void publicEventsGoOutOnAnnounceV1AndOrderV1EventsSellAndRelistTheAnnounce() {
         // every publication of test 2 went out with the snapshot other contexts need
         await().atMost(WAIT).untilAsserted(() -> assertThat(published(goodsId)).isNotEmpty());
@@ -298,5 +298,41 @@ class AnnounceKindsEndToEndTest {
         return KafkaProbeConfig.announceEvents.stream()
                 .filter(e -> e instanceof AnnouncePublishedV1 p && p.announceId().equals(announceId))
                 .map(AnnouncePublishedV1.class::cast).toList();
+    }
+
+    @Test
+    @Order(5)
+        void staffModeratesAnnouncesThroughTheAdminControllerAndTheReasonReachesTheReadModel() {
+        // a fresh published goods announce of another seller; staff withdraws it with a reason, no owner header
+        String spam = idOf(post("{" + shared("GOODS", "E2E spam bike", GOODS_CATEGORY) + ",\"goods\":{\"price\":10,\"condition\":\"FAIR\",\"saleType\":\"FIXED_PRICE\"}}"));
+        action(spam, "publish", SELLER).expectStatus().isOk();
+        client.post().uri("/api/admin/announces/" + spam + "/withdraw").header("X-User-Id", "1")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"spam\"}").exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("WITHDRAWN");
+        // the still-published job is force-expired although its date is far away
+        client.post().uri("/api/admin/announces/" + jobId + "/expire").header("X-User-Id", "1")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"employer asked\"}").exchange()
+                .expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("EXPIRED");
+        // a reason is mandatory; a draft cannot be moderated
+        client.post().uri("/api/admin/announces/" + jobId + "/withdraw").header("X-User-Id", "1")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"\"}").exchange().expectStatus().isBadRequest();
+        client.post().uri("/api/admin/announces/" + jobId + "/withdraw").header("X-User-Id", "1")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"again\"}").exchange()
+                .expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("not-published");
+
+        // the admin listing shows every status with the moderation columns; the public listing hides them; the index drops them
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/admin/announces?status=WITHDRAWN&q=E2E spam").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.total").isEqualTo(1).jsonPath("$.items[0].id").isEqualTo(spam)
+                .jsonPath("$.items[0].moderatedBy").isEqualTo(1).jsonPath("$.items[0].moderationReason").isEqualTo("spam"));
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/admin/announces?kind=JOB&status=EXPIRED&q=E2E").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.items[0].id").isEqualTo(jobId).jsonPath("$.items[0].moderationReason").isEqualTo("employer asked"));
+        client.get().uri("/api/admin/announces/" + spam).exchange().expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("WITHDRAWN");
+        client.get().uri("/api/announces/" + spam).exchange().expectStatus().isNotFound();
+        client.get().uri("/api/announces?q=E2E").exchange().expectStatus().isOk().expectBody().jsonPath("$.total").isEqualTo(0);
+        await().atMost(WAIT).untilAsserted(() -> assertThat(indexer.removed()).contains(spam, jobId));
+        // the seller republishes the moderated job and the moderation columns clear
+        action(jobId, "publish", SELLER).expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("PUBLISHED");
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/admin/announces?kind=JOB&status=PUBLISHED&q=E2E").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.items[0].id").isEqualTo(jobId).jsonPath("$.items[0].moderationReason").doesNotExist());
     }
 }

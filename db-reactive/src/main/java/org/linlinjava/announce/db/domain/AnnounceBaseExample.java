@@ -1839,6 +1839,196 @@ public class AnnounceBaseExample {
             return (Criteria) this;
         }
 
+        public Criteria andModeratedByIsNull() {
+            addCriterion("moderated_by is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByIsNotNull() {
+            addCriterion("moderated_by is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByEqualTo(Integer value) {
+            addCriterion("moderated_by =", value, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByEqualToColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderated_by = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByNotEqualTo(Integer value) {
+            addCriterion("moderated_by <>", value, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByNotEqualToColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderated_by <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByGreaterThan(Integer value) {
+            addCriterion("moderated_by >", value, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByGreaterThanColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderated_by > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByGreaterThanOrEqualTo(Integer value) {
+            addCriterion("moderated_by >=", value, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByGreaterThanOrEqualToColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderated_by >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByLessThan(Integer value) {
+            addCriterion("moderated_by <", value, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByLessThanColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderated_by < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByLessThanOrEqualTo(Integer value) {
+            addCriterion("moderated_by <=", value, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByLessThanOrEqualToColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderated_by <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByIn(List<Integer> values) {
+            addCriterion("moderated_by in", values, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByNotIn(List<Integer> values) {
+            addCriterion("moderated_by not in", values, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByBetween(Integer value1, Integer value2) {
+            addCriterion("moderated_by between", value1, value2, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModeratedByNotBetween(Integer value1, Integer value2) {
+            addCriterion("moderated_by not between", value1, value2, "moderatedBy");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonIsNull() {
+            addCriterion("moderation_reason is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonIsNotNull() {
+            addCriterion("moderation_reason is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonEqualTo(String value) {
+            addCriterion("moderation_reason =", value, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonEqualToColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderation_reason = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonNotEqualTo(String value) {
+            addCriterion("moderation_reason <>", value, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonNotEqualToColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderation_reason <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonGreaterThan(String value) {
+            addCriterion("moderation_reason >", value, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonGreaterThanColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderation_reason > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonGreaterThanOrEqualTo(String value) {
+            addCriterion("moderation_reason >=", value, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonGreaterThanOrEqualToColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderation_reason >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonLessThan(String value) {
+            addCriterion("moderation_reason <", value, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonLessThanColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderation_reason < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonLessThanOrEqualTo(String value) {
+            addCriterion("moderation_reason <=", value, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonLessThanOrEqualToColumn(AnnounceBase.Column column) {
+            addCriterion(new StringBuilder("moderation_reason <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonLike(String value) {
+            addCriterion("moderation_reason like", value, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonNotLike(String value) {
+            addCriterion("moderation_reason not like", value, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonIn(List<String> values) {
+            addCriterion("moderation_reason in", values, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonNotIn(List<String> values) {
+            addCriterion("moderation_reason not in", values, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonBetween(String value1, String value2) {
+            addCriterion("moderation_reason between", value1, value2, "moderationReason");
+            return (Criteria) this;
+        }
+
+        public Criteria andModerationReasonNotBetween(String value1, String value2) {
+            addCriterion("moderation_reason not between", value1, value2, "moderationReason");
+            return (Criteria) this;
+        }
+
         public Criteria andLastEventIdIsNull() {
             addCriterion("last_event_id is null");
             return (Criteria) this;

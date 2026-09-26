@@ -1,0 +1,21 @@
+{
+  "title": "Översikt",
+  "generatedAt": "Genererad {{at}}",
+  "window": "Tidsfönster",
+  "lastDays": "Senaste {{days}} dagarna",
+  "tiles": {
+    "members": "Medlemmar",
+    "admins": "Administratörer",
+    "categories": "Kategorier",
+    "brands": "Varumärken",
+    "listingClicks": "Klick vidare till källor"
+  },
+  "announcesByKind": "Annonser per typ och status",
+  "listingsBySource": "Insamlade annonser per källa och status",
+  "newMembers": "Nya medlemmar, senaste {{days}} dagarna",
+  "newAnnounces": "Nya annonser, senaste {{days}} dagarna",
+  "kind": "Typ",
+  "total": "Totalt",
+  "source": "Källa",
+  "noListings": "Inga insamlade annonser ännu."
+}

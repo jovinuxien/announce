@@ -26,6 +26,11 @@ public class AnnounceBrowsing {
                 .switchIfEmpty(Mono.error(() -> new AnnounceNotFoundException(id)));
     }
 
+    /** Staff view: the announce in any status (admin edge only; the gateway enforces the role). */
+    public Mono<Announce> inspect(String id) {
+        return announces.findById(id).switchIfEmpty(Mono.error(() -> new AnnounceNotFoundException(id)));
+    }
+
     public Flux<AnnounceSummary> browse(AnnounceQuery query) {
         return announces.browse(query);
     }

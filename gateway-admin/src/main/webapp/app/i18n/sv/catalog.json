@@ -1,0 +1,44 @@
+{
+  "showHidden": "Visa dolda",
+  "hidden": "dold",
+  "kindInherited": "Typen ärvs från den överordnade kategorin och kan inte ändras.",
+  "fields": {
+    "kind": "Typ",
+    "name": "Namn",
+    "description": "Beskrivning",
+    "iconUrl": "Ikon-URL",
+    "pictureUrl": "Bild-URL",
+    "keywords": "Nyckelord",
+    "sortOrder": "Sorteringsordning"
+  },
+  "actions": {
+    "show": "Visa",
+    "hide": "Dölj",
+    "move": "Flytta till en annan överordnad"
+  },
+  "errors": {
+    "nameRequired": "Ett namn krävs.",
+    "nameTooLong": "Namnet får vara högst 63 tecken.",
+    "kindRequired": "En typ krävs.",
+    "kindFixed": "En underkategori behåller sin överordnade kategoris typ.",
+    "sortOrderInvalid": "Sorteringsordningen måste vara ett icke-negativt heltal.",
+    "descriptionTooLong": "Beskrivningen får vara högst 255 tecken."
+  },
+  "categories": {
+    "title": "Kategorier",
+    "createRoot": "Ny huvudkategori",
+    "addChild": "Lägg till underkategori",
+    "addChildTo": "Lägg till en underkategori till ”{{name}}”",
+    "edit": "Redigera kategori",
+    "emptyHint": "Det finns inga kategorier av den här typen ännu. Skapa en huvudkategori för att börja trädet.",
+    "moveHint": "Välj ny överordnad kategori för ”{{name}}”.",
+    "newParent": "Ny överordnad…"
+  },
+  "brands": {
+    "title": "Varumärken",
+    "create": "Nytt varumärke",
+    "edit": "Redigera varumärke",
+    "floorPrice": "Lägsta pris",
+    "hideConfirm": "Dölj varumärket ”{{name}}”? Det finns kvar på befintliga annonser men kan inte väljas för nya."
+  }
+}

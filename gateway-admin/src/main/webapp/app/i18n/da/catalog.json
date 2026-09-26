@@ -1,0 +1,44 @@
+{
+  "showHidden": "Vis skjulte",
+  "hidden": "skjult",
+  "kindInherited": "Typen arves fra den overordnede kategori og kan ikke ændres.",
+  "fields": {
+    "kind": "Type",
+    "name": "Navn",
+    "description": "Beskrivelse",
+    "iconUrl": "Ikon-URL",
+    "pictureUrl": "Billed-URL",
+    "keywords": "Nøgleord",
+    "sortOrder": "Sortering"
+  },
+  "actions": {
+    "show": "Vis",
+    "hide": "Skjul",
+    "move": "Flyt til en anden overordnet"
+  },
+  "errors": {
+    "nameRequired": "Et navn er påkrævet.",
+    "nameTooLong": "Navnet må højst være 63 tegn.",
+    "kindRequired": "En type er påkrævet.",
+    "kindFixed": "En underkategori beholder sin overordnede kategoris type.",
+    "sortOrderInvalid": "Sorteringen skal være et helt tal, der ikke er negativt.",
+    "descriptionTooLong": "Beskrivelsen må højst være 255 tegn."
+  },
+  "categories": {
+    "title": "Kategorier",
+    "createRoot": "Ny hovedkategori",
+    "addChild": "Tilføj underkategori",
+    "addChildTo": "Tilføj en underkategori til “{{name}}”",
+    "edit": "Rediger kategori",
+    "emptyHint": "Der er endnu ingen kategorier af denne type. Opret en hovedkategori for at starte træet.",
+    "moveHint": "Vælg den nye overordnede kategori for “{{name}}”.",
+    "newParent": "Ny overordnet…"
+  },
+  "brands": {
+    "title": "Mærker",
+    "create": "Nyt mærke",
+    "edit": "Rediger mærke",
+    "floorPrice": "Mindstepris",
+    "hideConfirm": "Skjul mærket “{{name}}”? Det bliver på eksisterende annoncer, men kan ikke vælges til nye."
+  }
+}

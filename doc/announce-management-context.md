@@ -242,7 +242,31 @@ the `search` package) keeps them in `crawled_listing`, imports the scrapy feeds 
 flow, indexes them into the same `announce_index` with `source` as a facet, and links out through `GET /out/{id}`.
 Design, schema, feed format, index fields and the legal stance (snippet + link, no full text): `doc/crawled-listings.md`.
 
-## 10. Public events: `announce.v1` in, `order.v1` out (2026-09-26)
+## 10. Staff moderation (2026-09-26, worktree `gateway-admin`)
+
+The admin edge needs to take an announce down without being its seller, and to end it before its date.
+The seller commands cannot do that (`WithdrawAnnounce` checks the owner, `ExpireAnnounce` is a no-op
+unless the date has passed), so the aggregate gained two staff commands:
+
+| Command | Rule | Event |
+|---|---|---|
+| `ModerateWithdraw(id, moderatorId, reason)` | PUBLISHED only (409 `not-published`); moderator and a non-blank reason of at most 255 characters required (400) | `AnnounceWithdrawn(at, moderatedBy, reason)` |
+| `ModerateExpire(id, moderatorId, reason)` | same; not conditional on `expiresAt` | `AnnounceExpired(at, moderatedBy, reason)` |
+
+`AnnounceWithdrawn` and `AnnounceExpired` keep their single-argument constructors for the seller and
+scheduler paths (`moderatedBy` and `reason` null); events stored before this change deserialise with
+both fields null. The read-model projection writes `announce.moderated_by` and
+`announce.moderation_reason` on every status transition (set by a staff action, null otherwise), so a
+republished announce shows no stale reason; `AnnounceSummary.moderation` and the
+`AnnounceSummaryResponse` fields `moderatedBy` / `moderationReason` expose them.
+
+REST: `AnnounceAdminController` at `/api/admin/announces` (reached only through `gateway-admin`, which
+injects `X-User-Id`): `GET` lists every announce of every seller in every status with the filters of
+the public listing plus `status`; `GET {id}` shows any status; `POST {id}/withdraw` and
+`POST {id}/expire` take `{"reason": "..."}`. Tests: `AnnounceTest` (fixture), `AnnounceAdminControllerTest`
+(slice) and the moderation case of `AnnounceKindsEndToEndTest`.
+
+## 11. Public events: `announce.v1` in, `order.v1` out (2026-09-26)
 
 The service now has a public face over Kafka, built with the `messaging` package of `doc/cqrs-reactive.md` §3. The
 contracts live in the module `announce-management-api` (package `org.linlinjava.announce.goods.api`), which consumers

@@ -57,7 +57,7 @@ public interface AnnounceBaseMapper {
     /** Rewrites the content columns only (title, texts, gallery, keywords, category, location); status and dates stay. */
     Mono<Integer> updateContent(AnnounceBase record);
 
-    /** Rewrites status, last_event_id and update_time; published_at and expires_at only when given. */
+    /** Rewrites status, moderated_by, moderation_reason, last_event_id and update_time; published_at and expires_at only when given. */
     Mono<Integer> updateStatus(AnnounceBase record);
 
     /**

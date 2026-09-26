@@ -185,6 +185,7 @@
         <module>order</module>
         <module>messaging-api</module>
         <module>messaging</module>
+        <module>gateway-admin</module>
     </modules>
 
     <dependencies>

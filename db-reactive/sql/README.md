@@ -3,7 +3,7 @@
 | File | Purpose |
 |---|---|
 | `announce_reactive_db.sql` | **Generated.** Full bootstrap: creates the database and the `announce` user, then every table. Run as a MySQL administrator: `mysql -uroot -p < announce_reactive_db.sql`. Drops the database first, so it is a reset, not an upgrade. |
-| `announce_table.sql` | Source: the base tables inherited from litemall, renamed `announce_*`, with the announce read model: `announce` (shared columns of every kind) plus `announce_goods_detail`, `announce_job`, `announce_event` and the goods children keyed by `announce_id`. `announce_category.kind` separates the goods, job and event trees. |
+| `announce_table.sql` | Source: the base tables inherited from litemall, renamed `announce_*`, with the announce read model: `announce` (shared columns of every kind) plus `announce_goods_detail`, `announce_job`, `announce_event` and the goods children keyed by `announce_id`. `announce_category.kind` separates the goods, job and event trees. `announce.moderated_by` / `moderation_reason` record staff withdrawals and expiries; `announce_refresh_token` holds the hashed refresh tokens of both edges. |
 | `announce_auction_chat.sql` | Source: the 6 auction tables plus columns added to user and order. Re-runnable on an existing database. |
 | `announce_messaging.sql` | Source: the 4 messaging tables (`announce_conversation`, `announce_conversation_participant`, `announce_chat_message`, `announce_bulletin`), read models of the `messaging` module's Conversation aggregate. Re-runnable. |
 | `build_announce_reactive_db.sh` | Regenerates `announce_reactive_db.sql` from the three sources above. Edit the sources, never the generated file. |

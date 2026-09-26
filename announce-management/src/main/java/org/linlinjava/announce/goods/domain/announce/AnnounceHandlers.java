@@ -8,6 +8,8 @@ import org.linlinjava.announce.cqrs.command.Subjects;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.EditAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ExpireAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.MarkSold;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateExpire;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateWithdraw;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PostAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PublishAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.RelistAnnounce;
@@ -153,10 +155,33 @@ public class AnnounceHandlers {
                 });
     }
 
+    /** Staff withdrawal: no owner check; the moderator and the reason travel on the event. */
+    public static CommandHandlerDefinition<Announce, ModerateWithdraw, Announce> moderateWithdraw(Clock clock) {
+        return new CommandHandlerDefinition<>(Announce.class, ModerateWithdraw.class,
+                (CommandHandler.ForInstanceAndCommand<Announce, ModerateWithdraw, Announce>) (state, command, publisher) -> {
+                    AnnounceRules.checkModeration(state, command.moderatorId(), command.reason());
+                    AnnounceWithdrawn event = new AnnounceWithdrawn(now(clock), command.moderatorId(), command.reason().trim());
+                    publisher.publish(event);
+                    return state.apply(event);
+                });
+    }
+
+    /** Staff expiry: ends a published announce now, whatever its date. */
+    public static CommandHandlerDefinition<Announce, ModerateExpire, Announce> moderateExpire(Clock clock) {
+        return new CommandHandlerDefinition<>(Announce.class, ModerateExpire.class,
+                (CommandHandler.ForInstanceAndCommand<Announce, ModerateExpire, Announce>) (state, command, publisher) -> {
+                    AnnounceRules.checkModeration(state, command.moderatorId(), command.reason());
+                    AnnounceExpired event = new AnnounceExpired(now(clock), command.moderatorId(), command.reason().trim());
+                    publisher.publish(event);
+                    return state.apply(event);
+                });
+    }
+
     /** All definitions, for {@code CommandFixture.handlers(...)}. */
     public static List<Object> definitions(Clock clock) {
         return List.of(ON_POSTED, ON_EDITED, ON_PUBLISHED, ON_WITHDRAWN, ON_SOLD, ON_EXPIRED,
-                post(clock), edit(clock), publish(clock), withdraw(clock), markSold(clock), expire(clock), relist(clock));
+                post(clock), edit(clock), publish(clock), withdraw(clock), markSold(clock), expire(clock), relist(clock),
+                moderateWithdraw(clock), moderateExpire(clock));
     }
 
     private static LocalDateTime now(Clock clock) {
@@ -178,4 +203,6 @@ public class AnnounceHandlers {
     @Bean CommandHandlerDefinition<Announce, MarkSold, Announce> announceMarkSold(Clock clock) { return markSold(clock); }
     @Bean CommandHandlerDefinition<Announce, ExpireAnnounce, Announce> announceExpire(Clock clock) { return expire(clock); }
     @Bean CommandHandlerDefinition<Announce, RelistAnnounce, Announce> announceRelist(Clock clock) { return relist(clock); }
+    @Bean CommandHandlerDefinition<Announce, ModerateWithdraw, Announce> announceModerateWithdraw(Clock clock) { return moderateWithdraw(clock); }
+    @Bean CommandHandlerDefinition<Announce, ModerateExpire, Announce> announceModerateExpire(Clock clock) { return moderateExpire(clock); }
 }

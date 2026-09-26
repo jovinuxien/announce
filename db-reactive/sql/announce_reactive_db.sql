@@ -285,6 +285,8 @@ CREATE TABLE `announce` (
   `status` varchar(20) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT, PUBLISHED, SOLD, WITHDRAWN, EXPIRED',
   `published_at` datetime DEFAULT NULL,
   `expires_at` datetime DEFAULT NULL COMMENT 'hidden after this time (scheduler expires it)',
+  `moderated_by` int(11) DEFAULT NULL COMMENT 'announce_admin.id when staff withdrew or expired the announce',
+  `moderation_reason` varchar(255) DEFAULT NULL COMMENT 'reason given by staff (null for seller / scheduler actions)',
   `last_event_id` varchar(64) DEFAULT NULL COMMENT 'EventSourcingDB id of the last event applied (projection idempotency)',
   `add_time` datetime DEFAULT NULL,
   `update_time` datetime DEFAULT NULL,

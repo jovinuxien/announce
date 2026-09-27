@@ -54,7 +54,7 @@ spring:
           group: order-shipping
       kafka:
         binder:
-          brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9092}
+          brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9094}
           auto-create-topics: true
           replication-factor: 1
   # announce_reactive_db through reactive-mybatis-support; the read models of this module are the announce_order*,

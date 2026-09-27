@@ -56,7 +56,7 @@ spring:
           group: announce-management
       kafka:
         binder:
-          brokers: localhost:9092
+          brokers: localhost:9094
 
 esdb:
   server:
@@ -333,7 +333,7 @@ docker compose -f docker/cqrs/docker-compose.yml --profile tools up -d   # adds 
 | service | port | used by |
 |---|---|---|
 | EventSourcingDB 1.2.0 (token `secret`, UI on) | 3000 | every service's command side |
-| Kafka 3.9.1 (KRaft, advertised as `localhost:9092`, topics auto-created) | 9092 | relays and subscribers |
+| Kafka 3.9.1 (KRaft, advertised as `localhost:9094`; host port 9094 because litemall's broker holds 9092, topics auto-created) | 9094 | relays and subscribers |
 | Elasticsearch 7.17 (with the `analysis-stempel` plugin) | 9200 | the OCS tier |
 | OCS indexer | 8535 | announce-management pushes announce and crawled-listing documents here (`SearchIndexer`) |
 | OCS searcher | 8534 | the gateway's search API |

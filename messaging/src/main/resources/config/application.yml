@@ -25,7 +25,7 @@ spring:
           group: messaging-live-${random.uuid}
       kafka:
         binder:
-          brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9092}
+          brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9094}
           auto-create-topics: true
           replication-factor: 1
         bindings:

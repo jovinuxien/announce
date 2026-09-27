@@ -5,11 +5,11 @@
 #   Down:   docker compose -f docker/cqrs/docker-compose.yml down        (-v also drops the data volumes)
 #
 # The services run on the HOST (mvn spring-boot:run), so every port is published on localhost and
-# Kafka advertises localhost:9092. MySQL is the native server on localhost:3306 (announce_reactive_db),
+# Kafka advertises localhost:9094 (host port 9094; litemall's broker holds 9092 on this machine). MySQL is the native server on localhost:3306 (announce_reactive_db),
 # it is not part of this file.
 #
 #   EventSourcingDB  http://localhost:3000   api token "secret"   (esdb.server.uri / esdb.server.api-token)
-#   Kafka            localhost:9092          (spring.cloud.stream.kafka.binder.brokers)
+#   Kafka            localhost:9094          (spring.cloud.stream.kafka.binder.brokers)
 #   Elasticsearch    http://localhost:9200
 #   OCS indexer      http://localhost:8535   (the search context pushes announce documents here)
 #   OCS searcher     http://localhost:8534   (the search API the gateway exposes)
@@ -56,8 +56,10 @@ services:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,INTERNAL://0.0.0.0:19092
-      # host clients (the services) use localhost:9092; containers on the network use kafka:19092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,INTERNAL://kafka:19092
+      # host clients (the services) use localhost:9094 (host port below); containers on the network use kafka:19092
+      # (CLI tools run inside the container must use --bootstrap-server kafka:19092: localhost:9092 answers with the
+      #  advertised localhost:9094, which does not exist inside the container, and the client hangs)
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9094,INTERNAL://kafka:19092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
@@ -69,7 +71,7 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: announce-local-kraft-cluster
     ports:
-      - "9092:9092"
+      - "9094:9092"
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:

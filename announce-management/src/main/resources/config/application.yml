@@ -21,7 +21,7 @@ spring:
           group: announce-management
       kafka:
         binder:
-          brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9092}
+          brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9094}
           auto-create-topics: true
           replication-factor: 1
   profiles:

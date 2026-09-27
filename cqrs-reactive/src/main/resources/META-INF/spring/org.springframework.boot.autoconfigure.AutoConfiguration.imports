@@ -1,4 +1,5 @@
 org.linlinjava.announce.cqrs.observability.ObservabilityAutoConfiguration
+org.linlinjava.announce.cqrs.command.EventTypeAutoConfiguration
 org.linlinjava.announce.cqrs.command.CommandAutoConfiguration
 org.linlinjava.announce.cqrs.readside.ReadSideAutoConfiguration
 org.linlinjava.announce.cqrs.messaging.MessagingAutoConfiguration

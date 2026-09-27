@@ -180,6 +180,14 @@ Ordering per subject is guaranteed by OpenCQRS sequencing (`per_subject` by defa
 group's `retry` policy. When the policy is exhausted the processor stops and logs "giving up"; it restarts
 with the service. Give production groups a long `max-elapsed-time`.
 
+**Foreign events.** Every service shares one EventSourcingDB, so a fetch subject can cover events another
+service wrote (`/` in the order module, whose payment context owns two roots). The framework registers a
+`TolerantEventTypeResolver` (`EventTypeAutoConfiguration`): a stored type name that is no class of this
+service resolves to the empty `ForeignEvent` record, which matches no handler and is skipped, instead of
+throwing `EventTypeResolutionException` until the retry policy gives up. Unknown types are logged once at
+INFO. `cqrs.command.tolerant-event-types=false` restores OpenCQRS's strict resolver. Narrow fetch subjects
+per group anyway (`opencqrs.event-handling.groups.<group>.fetch.subject`), reading `/` is wasted work.
+
 **Replay and rebuild.** `ProjectionRebuilder.rebuild("announce-summary")` stops the group's processors,
 calls `reset()`, drops the group's checkpoints and starts the processors again; they replay the log from the
 beginning. Run it on one instance. A new projection needs no rebuild: a group without a checkpoint starts

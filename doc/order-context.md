@@ -337,3 +337,15 @@ Tests: `AuctionTest`, `OrderTest`, `PaymentTest`, `ShipmentTest` (CommandFixture
 (ArchUnit) and `OrderModuleEndToEndTest` (EventSourcingDB, Kafka and MySQL containers, the fakes, a mutable clock,
 a test producer standing in for announce-management and messaging, a probe on `order.v1`). announce-management's
 `AnnounceKindsEndToEndTest` covers the other direction (SOLD on `OrderPaidV1`, relist on `OrderRefundedV1`).
+
+### Fixes after the first full-stack run (2026-09-27)
+
+- The processor groups read `/` and stopped at start on announce-management's internal event types
+  (`EventTypeResolutionException`, all eight groups). Now `auction-*`, `order-*` and `shipping-*` fetch
+  their own root (`/auction`, `/order`, `/shipment`); `payment-*` keeps `/` because it owns `/payment` and
+  `/seller-account`, and the framework's `TolerantEventTypeResolver` skips foreign types (`doc/cqrs-reactive.md` §2).
+- announce-management's relay `announce-public` failed with a null pointer on the first `AnnouncePublished`
+  written before the event carried seller, content and details, and retried forever, so `announce.v1` stayed
+  empty and no snapshot or auction ever appeared. Such legacy events are now skipped with a warning
+  (`AnnounceMessaging.toPublished` / `toEdited`); announces published before 2026-09-26 are unknown to the
+  order module until they are edited or republished.

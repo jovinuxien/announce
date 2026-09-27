@@ -4,6 +4,7 @@ import com.opencqrs.framework.command.CommandSubjectDoesNotExistException;
 import org.linlinjava.announce.cqrs.command.CommandRejectedException;
 import org.linlinjava.announce.cqrs.command.Subjects;
 import org.linlinjava.announce.cqrs.messaging.PublicEventRelay;
+import org.linlinjava.announce.cqrs.readside.EventEnvelope;
 import org.linlinjava.announce.cqrs.messaging.PublicEventRelays;
 import org.linlinjava.announce.cqrs.messaging.PublicEventSubscriber;
 import org.linlinjava.announce.cqrs.messaging.PublicEventSubscribers;
@@ -60,14 +61,8 @@ public class AnnounceMessaging {
     @Bean
     PublicEventRelay announcePublicEvents(PublicEventRelays relays, @Value("${announce.currency:DKK}") String currency) {
         return relays.forGroup(RELAY_GROUP).binding(OUT_BINDING)
-                .map(AnnouncePublished.class, AnnouncePublishedV1.class, (event, envelope) -> new AnnouncePublishedV1(
-                        Subjects.idOf(envelope.subject()), event.details().kind().name(), event.sellerId().value(),
-                        event.content().title(), event.content().mainPicture(), priceCents(event.details()), currency,
-                        saleType(event.details()), event.content().categoryId().value(), event.at(), event.expiresAt()))
-                .map(AnnounceEdited.class, AnnounceEditedV1.class, (event, envelope) -> new AnnounceEditedV1(
-                        Subjects.idOf(envelope.subject()), event.details().kind().name(),
-                        event.content().title(), event.content().mainPicture(), priceCents(event.details()), currency,
-                        saleType(event.details()), event.content().categoryId().value()))
+                .map(AnnouncePublished.class, AnnouncePublishedV1.class, (event, envelope) -> toPublished(event, envelope, currency))
+                .map(AnnounceEdited.class, AnnounceEditedV1.class, (event, envelope) -> toEdited(event, envelope, currency))
                 .map(AnnounceWithdrawn.class, AnnounceWithdrawnV1.class, (event, envelope) -> new AnnounceWithdrawnV1(Subjects.idOf(envelope.subject()), event.at()))
                 .map(AnnounceExpired.class, AnnounceExpiredV1.class, (event, envelope) -> new AnnounceExpiredV1(Subjects.idOf(envelope.subject()), event.at()))
                 .map(AnnounceSold.class, AnnounceSoldV1.class, (event, envelope) -> new AnnounceSoldV1(Subjects.idOf(envelope.subject()), event.at()))
@@ -102,6 +97,38 @@ public class AnnounceMessaging {
     private static Mono<Void> skip(Object event, Throwable cause) {
         log.warn("order.v1 event {} not applied to the announce: {}", event, cause.getMessage());
         return Mono.empty();
+    }
+
+    /**
+     * The public record for a publication, or {@code null} (the relay then skips the event) for an event written
+     * before {@link AnnouncePublished} carried the seller, content and details: those announces predate the public
+     * topic and other contexts never learn about them, which beats stopping the relay on the first old event.
+     */
+    static AnnouncePublishedV1 toPublished(AnnouncePublished event, EventEnvelope envelope, String currency) {
+        if (event.details() == null || event.content() == null || event.sellerId() == null) {
+            return skipLegacy(envelope);
+        }
+        return new AnnouncePublishedV1(
+                Subjects.idOf(envelope.subject()), event.details().kind().name(), event.sellerId().value(),
+                event.content().title(), event.content().mainPicture(), priceCents(event.details()), currency,
+                saleType(event.details()), event.content().categoryId().value(), event.at(), event.expiresAt());
+    }
+
+    /** Same rule for an edit: an event without details is a legacy one and is skipped. */
+    static AnnounceEditedV1 toEdited(AnnounceEdited event, EventEnvelope envelope, String currency) {
+        if (event.details() == null || event.content() == null) {
+            return skipLegacy(envelope);
+        }
+        return new AnnounceEditedV1(
+                Subjects.idOf(envelope.subject()), event.details().kind().name(),
+                event.content().title(), event.content().mainPicture(), priceCents(event.details()), currency,
+                saleType(event.details()), event.content().categoryId().value());
+    }
+
+    private static <T> T skipLegacy(EventEnvelope envelope) {
+        log.warn("Skipping legacy event {} ({}) on {}: it predates the public announce topic", envelope.eventId(),
+                envelope.type(), envelope.subject());
+        return null;
     }
 
     static long priceCents(AnnounceKind details) {

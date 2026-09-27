@@ -311,8 +311,8 @@ search projection only indexes on events, so the 240 seed announces (which carry
 absent from home and search; the announces posted through the wizard had no pictures because it only
 accepted pasted URLs. Two additions:
 
-- announce-management: `AnnounceReindexService` + `POST /api/admin/announces/reindex` (class
-  `AnnounceAdminController`, the place the gateway-admin block reserves for moderation) walk the PUBLISHED
+- announce-management: `AnnounceReindexService` + `POST /api/admin/announces/reindex` (on gateway-admin's
+  `interfaces.rest.admin.AnnounceAdminController`, next to the moderation endpoints) walk the PUBLISHED
   rows of the read model and push every document again. Covered in `AnnounceKindsEndToEndTest`.
 - gateway-api: package `storage` — `POST /api/storage/upload` (member, multipart `file`, images only,
   10 MB) stores under `announce.storage.dir` and in `announce_storage`, `GET /api/storage/fetch/{key}` is
@@ -320,7 +320,7 @@ accepted pasted URLs. Two additions:
   first is the main picture) next to the URL box; the detail page renders HTML descriptions through
   DOMPurify (the migrated litemall goods carry `<p>` and `<img>`).
 
-The moderation endpoints of the gateway-admin block will land in the same `AnnounceAdminController`; that
-worktree also adds a `moderated_by` column to `announce`, so whoever installs `db-reactive` into the local
-Maven repository last decides which mapper the other worktree's tests see (reinstall your own before testing).
+Build note: the worktrees share one local Maven repository, so whoever installs `db-reactive` last decides
+which mappers the other worktrees' tests see; after a merge that removes mappers, `mvn -pl db-reactive clean
+install` is needed, because a removed mapper XML survives in `target/classes` and gets packaged otherwise.
 

@@ -2,6 +2,7 @@ package org.linlinjava.announce.goods.interfaces.rest.admin;
 
 import org.linlinjava.announce.goods.application.announce.AnnounceBrowsing;
 import org.linlinjava.announce.goods.application.announce.AnnouncePublishing;
+import org.linlinjava.announce.goods.application.search.AnnounceReindexService;
 import org.linlinjava.announce.goods.domain.announce.AnnounceQuery;
 import org.linlinjava.announce.goods.domain.announce.AnnounceStatus;
 import org.linlinjava.announce.goods.domain.announce.Kind;
@@ -20,12 +21,15 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Staff view of the announces, reached only through the admin edge ({@code gateway-admin}), which authenticates the
  * administrator and injects {@code X-User-Id}. Unlike {@code /api/announces} there is no owner header and no
  * status restriction: every announce of every seller in every status is listed, and moderation actions (withdraw,
- * expire) dispatch the {@code Moderate*} commands with the moderator and a mandatory reason.
+ * expire) dispatch the {@code Moderate*} commands with the moderator and a mandatory reason. {@code POST /reindex}
+ * re-pushes every PUBLISHED announce from the read model to the search index (after an index rebuild, or for the
+ * seed rows that never produced an event).
  */
 @RestController
 @RequestMapping("/api/admin/announces")
@@ -36,10 +40,12 @@ public class AnnounceAdminController {
 
     private final AnnouncePublishing publishing;
     private final AnnounceBrowsing browsing;
+    private final AnnounceReindexService reindex;
 
-    public AnnounceAdminController(AnnouncePublishing publishing, AnnounceBrowsing browsing) {
+    public AnnounceAdminController(AnnouncePublishing publishing, AnnounceBrowsing browsing, AnnounceReindexService reindex) {
         this.publishing = publishing;
         this.browsing = browsing;
+        this.reindex = reindex;
     }
 
     /** The reason is mandatory; it is recorded on the event and shown in the admin listing. */
@@ -80,5 +86,11 @@ public class AnnounceAdminController {
                                          @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId,
                                          @RequestBody ModerationRequest body) {
         return publishing.moderateExpire(id, moderator, body.reason(), commandId).map(AnnounceResponse::of);
+    }
+
+    /** Full pass over the PUBLISHED announces of the read model; answers {@code {"indexed": n}}. */
+    @PostMapping("/reindex")
+    public Mono<Map<String, Long>> reindex() {
+        return reindex.reindexPublished().map(n -> Map.of("indexed", n));
     }
 }

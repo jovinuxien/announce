@@ -19,10 +19,22 @@
     "city": "Stad",
     "description": "Beskrivning",
     "gallery": "Bild-URL:er",
-    "galleryHint": "En URL per rad; uppladdning kommer senare.",
+    "galleryHint": "En URL per rad, för bilder som finns någon annanstans.",
+    "galleryUrls": "Eller bild-URL:er",
     "keywords": "Nyckelord (kommaseparerade)",
     "postalCode": "Postnummer",
     "title": "Titel"
+  },
+  "gallery": {
+    "add": "Lägg till bilder",
+    "hint": "JPEG, PNG, GIF, WebP eller AVIF, högst 10 MB vardera, högst {{max}}. Den första är huvudbilden.",
+    "main": "Huvud",
+    "moveLeft": "Flytta vänster",
+    "moveRight": "Flytta höger",
+    "remove": "Ta bort bild",
+    "tooBig": "{{name}} är större än 10 MB.",
+    "tooMany": "Högst {{max}} bilder.",
+    "uploadFailed": "Kunde inte ladda upp {{name}}."
   },
   "goods": {
     "addAttribute": "Lägg till egenskap",

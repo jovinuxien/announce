@@ -1,5 +1,7 @@
 package org.linlinjava.announce.gatewayapi.auth;
 
+import org.linlinjava.announce.gatewayapi.storage.StorageRecords;
+import org.linlinjava.announce.gatewayapi.storage.StoredFile;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -10,7 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** In-memory {@link UserAccounts} and {@link RefreshTokenStore} so the route tests need no MySQL. */
+/** In-memory {@link UserAccounts}, {@link RefreshTokenStore} and {@link StorageRecords} so the route tests need no MySQL. */
 @TestConfiguration
 public class InMemoryAuthStores {
 
@@ -74,6 +76,24 @@ public class InMemoryAuthStores {
             public Mono<Void> revoke(String id) {
                 byId.computeIfPresent(id, (k, r) -> new RefreshTokenRecord(r.id(), r.userType(), r.userId(), r.tokenHash(), r.expiresAt(), true));
                 return Mono.empty();
+            }
+        };
+    }
+
+    @Bean
+    @Primary
+    public StorageRecords inMemoryStorageRecords() {
+        Map<String, StoredFile> byKey = new ConcurrentHashMap<>();
+        return new StorageRecords() {
+            @Override
+            public Mono<Void> save(StoredFile file) {
+                byKey.put(file.key(), file);
+                return Mono.empty();
+            }
+
+            @Override
+            public Mono<StoredFile> findByKey(String key) {
+                return Mono.justOrEmpty(byKey.get(key));
             }
         };
     }

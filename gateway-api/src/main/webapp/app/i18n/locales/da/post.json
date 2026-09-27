@@ -19,10 +19,22 @@
     "city": "By",
     "description": "Beskrivelse",
     "gallery": "Billed-URL’er",
-    "galleryHint": "Én URL pr. linje; upload kommer senere.",
+    "galleryHint": "Én URL pr. linje, til billeder der ligger et andet sted.",
+    "galleryUrls": "Eller billed-URL’er",
     "keywords": "Nøgleord (kommasepareret)",
     "postalCode": "Postnummer",
     "title": "Titel"
+  },
+  "gallery": {
+    "add": "Tilføj billeder",
+    "hint": "JPEG, PNG, GIF, WebP eller AVIF, højst 10 MB hver, højst {{max}}. Det første er hovedbilledet.",
+    "main": "Hoved",
+    "moveLeft": "Flyt til venstre",
+    "moveRight": "Flyt til højre",
+    "remove": "Fjern billede",
+    "tooBig": "{{name}} er større end 10 MB.",
+    "tooMany": "Højst {{max}} billeder.",
+    "uploadFailed": "Kunne ikke uploade {{name}}."
   },
   "goods": {
     "addAttribute": "Tilføj egenskab",

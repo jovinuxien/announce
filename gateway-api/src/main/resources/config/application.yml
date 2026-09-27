@@ -96,6 +96,8 @@ server:
   compression:
     enabled: true
 
+spring.codec.max-in-memory-size: 11MB
+
 eureka:
   instance:
     hostname: localhost
@@ -116,6 +118,12 @@ announce:
     order: lb://order
     messaging: lb://messaging
     messaging-ws: lb:ws://messaging
+  storage:
+    # uploaded pictures (POST /api/storage/upload, served on GET /api/storage/fetch/{key}); public-base is prefixed
+    # to the served path in the stored URL (empty = relative, same origin)
+    dir: ${ANNOUNCE_STORAGE_DIR:${user.home}/announce_storage}
+    max-size: 10MB
+    public-base: ${ANNOUNCE_STORAGE_PUBLIC_BASE:}
   auth:
     # the refresh cookie is httpOnly and scoped to /auth; Secure is off for plain-http local development
     cookie-name: announce_refresh

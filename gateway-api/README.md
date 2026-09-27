@@ -36,6 +36,25 @@ Properties: `announce.jwt.*` (dev keypair in `application.yml`, override with `A
 - `machine` — `MachineTokenRelayFilter` adds `X-Service-Token` on routes with metadata `serviceToken: true`.
 - `gateway` — route filter `SellerHeader` (copies `X-User-Id` into `X-Seller-Id` for announce-management).
 - `web` — `SpaHistoryFallbackFilter` (deep links -> `index.html`), `ProblemDetails` (401/403 bodies).
+- `storage` — pictures of the announces: `POST /api/storage/upload` (member, multipart field `file`, images only,
+  `announce.storage.max-size` 10 MB) stores the file under `announce.storage.dir` (default `~/announce_storage`),
+  records it in `announce_storage` and answers `{key, url}`; `GET /api/storage/fetch/{key}` serves it to everyone
+  (30-day cache). `announce.storage.public-base` prefixes the stored URL (empty = relative, same origin).
+
+## Pictures and the search index
+
+The post wizard uploads pictures through the edge and puts the returned URLs into the announce gallery; the
+first one is the main picture (`pictureUrl` in listings, `image_url` in the search index). Seed announces keep
+their original CDN URLs. Descriptions that contain HTML (the migrated goods) are rendered sanitised.
+
+The search projection indexes announces on their events only. Rows that never produced an event (the seed data)
+or a rebuilt Elasticsearch need one full pass from the read model, through announce-management's admin trigger
+(reached through the admin edge, or directly on the service in development):
+
+```
+curl -X POST http://localhost:8085/api/admin/announces/reindex      # {"indexed": 240}
+curl -X POST http://localhost:8085/api/admin/listings/reindex       # crawled listings, same idea
+```
 
 ## SPA feature flags
 

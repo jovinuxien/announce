@@ -19,10 +19,22 @@
     "city": "City",
     "description": "Description",
     "gallery": "Picture URLs",
-    "galleryHint": "One URL per line; upload comes later.",
+    "galleryHint": "One URL per line, for pictures hosted elsewhere.",
+    "galleryUrls": "Or picture URLs",
     "keywords": "Keywords (comma separated)",
     "postalCode": "Postal code",
     "title": "Title"
+  },
+  "gallery": {
+    "add": "Add pictures",
+    "hint": "JPEG, PNG, GIF, WebP or AVIF, up to 10 MB each, at most {{max}}. The first one is the main picture.",
+    "main": "Main",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "remove": "Remove picture",
+    "tooBig": "{{name}} is larger than 10 MB.",
+    "tooMany": "At most {{max}} pictures.",
+    "uploadFailed": "Could not upload {{name}}."
   },
   "goods": {
     "addAttribute": "Add attribute",

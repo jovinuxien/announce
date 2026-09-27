@@ -244,3 +244,24 @@ because a Jenkins holds 8080 on the development machine; 8080 stays the configur
 - Not done (follow-ups): announce-management reading `X-User-Id` (then drop `SellerHeader`), backends
   verifying `X-Service-Token`, profile editing, image upload, a real WebSocket mock for the chat screens,
   `gateway-admin`.
+
+### 9.1 Pictures and the reindex (2026-09-27)
+
+After the first run the announces showed no pictures: the search index had been recreated empty and the
+search projection only indexes on events, so the 240 seed announces (which carry CDN picture URLs) were
+absent from home and search; the announces posted through the wizard had no pictures because it only
+accepted pasted URLs. Two additions:
+
+- announce-management: `AnnounceReindexService` + `POST /api/admin/announces/reindex` (class
+  `AnnounceAdminController`, the place the gateway-admin block reserves for moderation) walk the PUBLISHED
+  rows of the read model and push every document again. Covered in `AnnounceKindsEndToEndTest`.
+- gateway-api: package `storage` — `POST /api/storage/upload` (member, multipart `file`, images only,
+  10 MB) stores under `announce.storage.dir` and in `announce_storage`, `GET /api/storage/fetch/{key}` is
+  public; `StorageRoutesTest`. The wizard's gallery step got an uploader (pick files, reorder, remove, the
+  first is the main picture) next to the URL box; the detail page renders HTML descriptions through
+  DOMPurify (the migrated litemall goods carry `<p>` and `<img>`).
+
+The moderation endpoints of the gateway-admin block will land in the same `AnnounceAdminController`; that
+worktree also adds a `moderated_by` column to `announce`, so whoever installs `db-reactive` into the local
+Maven repository last decides which mapper the other worktree's tests see (reinstall your own before testing).
+

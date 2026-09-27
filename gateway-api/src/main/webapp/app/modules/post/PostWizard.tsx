@@ -7,6 +7,7 @@ import ProblemAlert from 'app/shared/components/ProblemAlert';
 import { AnnounceRequest, AnnounceResponse, Kind, KINDS } from 'app/shared/model/announce';
 import { describeError } from 'app/shared/util/problem';
 import { useCategories } from 'app/modules/home/useCategories';
+import ImageUploader from 'app/shared/components/ImageUploader';
 import { EventForm, GoodsForm, JobForm } from './KindForms';
 import { emptyRequest, Errors, toRequest, validateAnnounce } from './validation';
 
@@ -178,7 +179,11 @@ export default function PostWizard() {
             </Row>
             <Form.Group className="mb-3" controlId="post-gallery">
               <Form.Label>{t('fields.gallery')}</Form.Label>
-              <Form.Control as="textarea" rows={3} value={(draft.gallery ?? []).join('\n')} onChange={e => setDraft({ ...draft, gallery: e.target.value.split('\n').map(s => s.trim()) })} placeholder="https://…" />
+              <ImageUploader urls={(draft.gallery ?? []).filter(Boolean)} onChange={gallery => setDraft({ ...draft, gallery })} />
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="post-gallery-urls">
+              <Form.Label>{t('fields.galleryUrls')}</Form.Label>
+              <Form.Control as="textarea" rows={2} value={(draft.gallery ?? []).join('\n')} onChange={e => setDraft({ ...draft, gallery: e.target.value.split('\n').map(s => s.trim()) })} placeholder="https://…" />
               <Form.Text>{t('fields.galleryHint')}</Form.Text>
             </Form.Group>
             <Form.Group className="mb-3" controlId="post-keywords">

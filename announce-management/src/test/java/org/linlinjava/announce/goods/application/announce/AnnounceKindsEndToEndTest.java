@@ -158,6 +158,23 @@ class AnnounceKindsEndToEndTest {
 
     @Test
     @Order(3)
+    void reindexPushesEveryPublishedAnnounceFromTheReadModel() {
+        // the admin trigger walks the read model, so rows that never produced an event (the seed) reach the index too
+        int before = indexer.indexed().size();
+        client.mutate().responseTimeout(Duration.ofMinutes(3)).build()
+                .post().uri("/api/admin/announces/reindex").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.indexed").value(n -> assertThat(((Number) n).longValue()).isGreaterThanOrEqualTo(3L));
+        assertThat(indexer.indexed().size()).isGreaterThan(before);
+        assertThat(indexer.indexed().subList(before, indexer.indexed().size())).extracting(RecordingSearchIndexer.Indexed::id)
+                .contains(goodsId, jobId, eventId);
+        Map<String, Object> seed = indexer.indexed().subList(before, indexer.indexed().size()).stream()
+                .filter(d -> d.id().equals("1006002")).findFirst().orElseThrow().data();
+        assertThat(seed.get("source")).isEqualTo("local");
+        assertThat(String.valueOf(seed.get("image_url"))).startsWith("http");
+    }
+
+    @Test
+    @Order(4)
     void kindInvariantsAreEnforcedOverHttp() {
         // an event that ends before it starts is accepted as a draft but cannot be published
         String backwards = idOf(post("{" + shared("EVENT", "E2E backwards", EVENT_CATEGORY)
@@ -180,7 +197,7 @@ class AnnounceKindsEndToEndTest {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     void withdrawnAndSoldAnnouncesLeaveTheListingAndTheIndex() {
         action(goodsId, "sold", SELLER).expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("SOLD");
         action(eventId, "withdraw", SELLER).expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("WITHDRAWN");

@@ -22,9 +22,9 @@ public final class PublicPaths {
     /** Auth endpoints reachable logged out ({@code /auth/me} is not among them). */
     public static final String[] AUTH_ANY_METHOD = {"/auth/login", "/auth/register", "/auth/refresh", "/auth/logout"};
 
-    /** Catalog reads, click-out and the search tier. */
+    /** Catalog reads, click-out, the search tier and the uploaded pictures. */
     public static final String[] PUBLIC_GET = {
-            "/api/announces/**", "/api/categories/**", "/api/brands/**", "/out/**", "/api/search", "/api/suggest"};
+            "/api/announces/**", "/api/categories/**", "/api/brands/**", "/out/**", "/api/search", "/api/suggest", "/api/storage/fetch/**"};
 
     /** Provider-signed webhooks; the order module verifies the signature. */
     public static final String[] WEBHOOK_POST = {"/api/payments/webhook/**", "/api/shipping/webhook/**"};

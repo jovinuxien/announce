@@ -6,6 +6,7 @@ import { features } from 'app/config/features';
 import { useAppSelector } from 'app/config/store';
 import { announceApi } from 'app/shared/api/announceApi';
 import ProblemAlert from 'app/shared/components/ProblemAlert';
+import RichText, { looksLikeHtml } from 'app/shared/components/RichText';
 import { AnnounceResponse } from 'app/shared/model/announce';
 import { formatDateTime } from 'app/shared/util/dates';
 import { formatMoney } from 'app/shared/util/money';
@@ -139,7 +140,11 @@ export default function AnnounceDetail() {
         <Card className="mt-3">
           <Card.Body>
             <h2 className="h5">{t('description')}</h2>
-            <p style={{ whiteSpace: 'pre-wrap' }} className="mb-0">{a.description || a.brief || t('noDescription')}</p>
+            {looksLikeHtml(a.description) ? (
+              <RichText html={a.description as string} />
+            ) : (
+              <p style={{ whiteSpace: 'pre-wrap' }} className="mb-0">{a.description || a.brief || t('noDescription')}</p>
+            )}
             {(a.keywords ?? []).length > 0 && (
               <div className="mt-2">
                 {(a.keywords ?? []).map(k => (

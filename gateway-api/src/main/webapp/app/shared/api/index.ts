@@ -5,3 +5,4 @@ export { brandApi } from './brandApi';
 export { searchApi } from './searchApi';
 export { tradeApi } from './tradeApi';
 export { chatApi } from './chatApi';
+export { storageApi } from './storageApi';

@@ -21,7 +21,12 @@ public record AnnounceSummary(String id,
                               LocalDateTime createdAt,
                               LocalDateTime publishedAt,
                               LocalDateTime expiresAt,
-                              KindFacts kindFacts) {
+                              KindFacts kindFacts,
+                              Moderation moderation) {
+
+    /** Set when staff withdrew or expired the announce (admin listing); null otherwise. */
+    public record Moderation(Integer moderatedBy, String reason) {
+    }
 
     /** The kind-specific columns of a summary; fields of the other kinds are null. */
     public record KindFacts(Money price, SaleType saleType, Condition condition,

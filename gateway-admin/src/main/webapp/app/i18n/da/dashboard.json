@@ -1,0 +1,21 @@
+{
+  "title": "Oversigt",
+  "generatedAt": "Genereret {{at}}",
+  "window": "Tidsrum",
+  "lastDays": "Seneste {{days}} dage",
+  "tiles": {
+    "members": "Medlemmer",
+    "admins": "Administratorer",
+    "categories": "Kategorier",
+    "brands": "Mærker",
+    "listingClicks": "Klik videre til kilder"
+  },
+  "announcesByKind": "Annoncer pr. type og status",
+  "listingsBySource": "Indsamlede annoncer pr. kilde og status",
+  "newMembers": "Nye medlemmer, seneste {{days}} dage",
+  "newAnnounces": "Nye annoncer, seneste {{days}} dage",
+  "kind": "Type",
+  "total": "I alt",
+  "source": "Kilde",
+  "noListings": "Ingen indsamlede annoncer endnu."
+}

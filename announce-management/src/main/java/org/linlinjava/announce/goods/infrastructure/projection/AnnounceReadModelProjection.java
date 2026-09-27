@@ -29,6 +29,8 @@ import org.linlinjava.announce.goods.domain.announce.events.AnnounceSold;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceWithdrawn;
 import org.linlinjava.announce.goods.infrastructure.persistence.mybatis.AnnounceRows;
 import org.springframework.r2dbc.core.DatabaseClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
@@ -47,6 +49,8 @@ import java.time.LocalDateTime;
  */
 @Component
 public class AnnounceReadModelProjection implements ReactiveProjection {
+
+    private static final Logger log = LoggerFactory.getLogger(AnnounceReadModelProjection.class);
 
     public static final String GROUP = "announce-read-model";
 
@@ -96,10 +100,10 @@ public class AnnounceReadModelProjection implements ReactiveProjection {
             AnnounceRows.fillContent(row, event.content());
             return tx.transactional(announces.updateContent(row).then(writeDetails(id, event.details(), event.at()))).then();
         });
-        handlers.on(AnnouncePublished.class, (event, envelope) -> status(envelope, AnnounceStatus.PUBLISHED, event.at(), event.at(), event.expiresAt()));
-        handlers.on(AnnounceWithdrawn.class, (event, envelope) -> status(envelope, AnnounceStatus.WITHDRAWN, event.at(), null, null));
-        handlers.on(AnnounceSold.class, (event, envelope) -> status(envelope, AnnounceStatus.SOLD, event.at(), null, null));
-        handlers.on(AnnounceExpired.class, (event, envelope) -> status(envelope, AnnounceStatus.EXPIRED, event.at(), null, null));
+        handlers.on(AnnouncePublished.class, (event, envelope) -> status(envelope, AnnounceStatus.PUBLISHED, event.at(), event.at(), event.expiresAt(), null, null));
+        handlers.on(AnnounceWithdrawn.class, (event, envelope) -> status(envelope, AnnounceStatus.WITHDRAWN, event.at(), null, null, event.moderatedBy(), event.reason()));
+        handlers.on(AnnounceSold.class, (event, envelope) -> status(envelope, AnnounceStatus.SOLD, event.at(), null, null, null, null));
+        handlers.on(AnnounceExpired.class, (event, envelope) -> status(envelope, AnnounceStatus.EXPIRED, event.at(), null, null, event.moderatedBy(), event.reason()));
     }
 
     @Override
@@ -110,15 +114,21 @@ public class AnnounceReadModelProjection implements ReactiveProjection {
                 .then();
     }
 
-    private Mono<Void> status(EventEnvelope envelope, AnnounceStatus status, LocalDateTime at, LocalDateTime publishedAt, LocalDateTime expiresAt) {
+    /** The moderation columns always reflect the latest transition: set by a staff action, cleared by every other one. */
+    private Mono<Void> status(EventEnvelope envelope, AnnounceStatus status, LocalDateTime at, LocalDateTime publishedAt, LocalDateTime expiresAt,
+                              Integer moderatedBy, String moderationReason) {
         AnnounceBase row = new AnnounceBase();
         row.setId(idOf(envelope));
         row.setStatus(status.name());
         row.setPublishedAt(publishedAt);
         row.setExpiresAt(expiresAt);
+        row.setModeratedBy(moderatedBy);
+        row.setModerationReason(moderationReason);
         row.setUpdateTime(at);
         row.setLastEventId(envelope.eventId());
-        return announces.updateStatus(row).then();
+        return announces.updateStatus(row)
+                .doOnNext(n -> log.debug("announce {}: status {} after event {} ({} row)", row.getId(), status, envelope.eventId(), n))
+                .then();
     }
 
     private Mono<Void> writeDetails(String id, AnnounceKind details, LocalDateTime at) {

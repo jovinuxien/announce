@@ -10,6 +10,20 @@ spring:
         enabled: true
     config:
       enabled: false
+    function:
+      definition: orderEvents                       # subscriber beans (AnnounceMessaging)
+    stream:
+      bindings:
+        announce-out-0:
+          destination: announce.v1                  # the public topic of this service (PublicEventRelay announce-public)
+        orderEvents-in-0:
+          destination: order.v1                     # marks announces SOLD / relists them from the order module's events
+          group: announce-management
+      kafka:
+        binder:
+          brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9092}
+          auto-create-topics: true
+          replication-factor: 1
   profiles:
     #active: db, core, elastic, admin, wx
     active: dev
@@ -96,6 +110,7 @@ opencqrs:
     groups:
       announce-read-model: {}
       announce-search: {}
+      announce-public: {}
 
 cqrs:
   readside:
@@ -111,6 +126,8 @@ cqrs:
         base-url: ${ANNOUNCE_OCS_INDEXER_URL:http://localhost:8535}
 
 announce:
+  # The site trades in one currency; public events carry it next to prices in minor units
+  currency: DKK
   # Announces expire automatically (see AnnounceExpiryJob)
   expiry:
     enabled: true

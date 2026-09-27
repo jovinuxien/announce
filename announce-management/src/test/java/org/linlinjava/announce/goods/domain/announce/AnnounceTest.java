@@ -6,8 +6,11 @@ import org.linlinjava.announce.cqrs.test.CommandFixture;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.EditAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ExpireAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.MarkSold;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateExpire;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateWithdraw;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PostAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PublishAnnounce;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.RelistAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.WithdrawAnnounce;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceEdited;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceExpired;
@@ -66,7 +69,12 @@ class AnnounceTest {
     }
 
     static AnnouncePublished published() {
-        return new AnnouncePublished(NOW.minusHours(1), NOW.minusHours(1).plus(Announce.DEFAULT_VALIDITY));
+        return published(bike(), NOW.minusHours(1), NOW.minusHours(1).plus(Announce.DEFAULT_VALIDITY));
+    }
+
+    /** The published event carries the owner, content and details as they were, for the public event relay. */
+    static AnnouncePublished published(AnnounceKind details, LocalDateTime at, LocalDateTime expiresAt) {
+        return new AnnouncePublished(at, expiresAt, OWNER, content("Bike", STOCKHOLM), details);
     }
 
     // ------------------------------------------------------------------ one path per kind
@@ -81,7 +89,7 @@ class AnnounceTest {
         assertNull(draft.publishedAt());
 
         Announce live = fixture().given(posted(bike())).when(new PublishAnnounce(ID, OWNER, null))
-                .thenExpectEvents(new AnnouncePublished(NOW, NOW.plus(Announce.DEFAULT_VALIDITY)))
+                .thenExpectEvents(published(bike(), NOW, NOW.plus(Announce.DEFAULT_VALIDITY)))
                 .state();
         assertEquals(AnnounceStatus.PUBLISHED, live.status());
         assertEquals(NOW.plusDays(60), live.expiresAt());
@@ -97,10 +105,10 @@ class AnnounceTest {
         fixture().when(new PostAnnounce(ID, OWNER, content("Java developer", STOCKHOLM), developer()))
                 .thenExpectEvents(new AnnouncePosted(OWNER, content("Java developer", STOCKHOLM), developer(), NOW));
         Announce live = fixture().given(posted(developer())).when(new PublishAnnounce(ID, OWNER, Duration.ofDays(14)))
-                .thenExpectEvents(new AnnouncePublished(NOW, NOW.plusDays(14))).state();
+                .thenExpectEvents(published(developer(), NOW, NOW.plusDays(14))).state();
         assertEquals(Kind.JOB, live.kind());
-        assertEquals("sold-not-applicable", rejected(fixture().given(posted(developer()), published()).when(new MarkSold(ID, OWNER))).getCode());
-        fixture().given(posted(developer()), published()).when(new WithdrawAnnounce(ID, OWNER)).thenExpectEvents(new AnnounceWithdrawn(NOW));
+        assertEquals("sold-not-applicable", rejected(fixture().given(posted(developer()), published(developer(), NOW.minusHours(1), NOW.plusDays(13))).when(new MarkSold(ID, OWNER))).getCode());
+        fixture().given(posted(developer()), published(developer(), NOW.minusHours(1), NOW.plusDays(13))).when(new WithdrawAnnounce(ID, OWNER)).thenExpectEvents(new AnnounceWithdrawn(NOW));
     }
 
     @Test
@@ -109,9 +117,9 @@ class AnnounceTest {
         fixture().when(new PostAnnounce(ID, OWNER, content("Flea market", STOCKHOLM), market))
                 .thenExpectEvents(new AnnouncePosted(OWNER, content("Flea market", STOCKHOLM), market, NOW));
         Announce live = fixture().given(posted(market)).when(new PublishAnnounce(ID, OWNER, null))
-                .thenExpectEvents(new AnnouncePublished(NOW, NOW.plus(Announce.DEFAULT_VALIDITY))).state();
+                .thenExpectEvents(published(market, NOW, NOW.plus(Announce.DEFAULT_VALIDITY))).state();
         assertEquals(Kind.EVENT, live.kind());
-        assertEquals("sold-not-applicable", rejected(fixture().given(posted(market), published()).when(new MarkSold(ID, OWNER))).getCode());
+        assertEquals("sold-not-applicable", rejected(fixture().given(posted(market), published(market, NOW.minusHours(1), NOW.plusDays(59))).when(new MarkSold(ID, OWNER))).getCode());
     }
 
     // ------------------------------------------------------------------ kind invariants
@@ -170,14 +178,45 @@ class AnnounceTest {
     @Test
     void withdrawnAndExpiredAnnouncesCanBeRepublishedAndExpiryIsIdempotent() {
         fixture().given(posted(bike()), published(), new AnnounceWithdrawn(NOW)).when(new PublishAnnounce(ID, OWNER, null))
-                .thenExpectEvents(new AnnouncePublished(NOW, NOW.plus(Announce.DEFAULT_VALIDITY)));
+                .thenExpectEvents(published(bike(), NOW, NOW.plus(Announce.DEFAULT_VALIDITY)));
         assertEquals("not-published", rejected(fixture().given(posted(bike())).when(new WithdrawAnnounce(ID, OWNER))).getCode());
 
         fixture().given(posted(bike()), published()).when(new ExpireAnnounce(ID)).thenExpectNoEvents();
-        AnnouncePublished longAgo = new AnnouncePublished(NOW.minusDays(61), NOW.minusDays(1));
+        AnnouncePublished longAgo = published(bike(), NOW.minusDays(61), NOW.minusDays(1));
         fixture().given(posted(bike()), longAgo).when(new ExpireAnnounce(ID)).thenExpectEvents(new AnnounceExpired(NOW));
         fixture().given(posted(bike()), longAgo, new AnnounceExpired(NOW)).when(new ExpireAnnounce(ID)).thenExpectNoEvents();
         fixture().given(posted(bike()), longAgo, new AnnounceExpired(NOW)).when(new PublishAnnounce(ID, OWNER, null)).thenExpectNoError();
+    }
+
+    @Test
+    void aSoldAnnounceIsRelistedWhenTheDealFallsThroughAndRelistIsIdempotent() {
+        // sold with time left: relisted with the same expiry
+        Announce relisted = fixture().given(posted(bike()), published(), new AnnounceSold(NOW.minusMinutes(5))).when(new RelistAnnounce(ID))
+                .thenExpectEvents(published(bike(), NOW, published().expiresAt())).state();
+        assertEquals(AnnounceStatus.PUBLISHED, relisted.status());
+        // sold and expiry passed meanwhile: relisted with a fresh validity
+        AnnouncePublished longAgo = published(bike(), NOW.minusDays(61), NOW.minusDays(1));
+        fixture().given(posted(bike()), longAgo, new AnnounceSold(NOW.minusDays(2))).when(new RelistAnnounce(ID))
+                .thenExpectEvents(published(bike(), NOW, NOW.plus(Announce.DEFAULT_VALIDITY)));
+        // any other status: nothing happens
+        fixture().given(posted(bike()), published()).when(new RelistAnnounce(ID)).thenExpectNoEvents();
+        fixture().given(posted(bike()), published(), new AnnounceWithdrawn(NOW)).when(new RelistAnnounce(ID)).thenExpectNoEvents();
+        fixture().given(posted(bike())).when(new RelistAnnounce(ID)).thenExpectNoEvents();
+    }
+
+    @Test
+        void staffModeratesWithoutOwningAndTheReasonTravelsOnTheEvent() {
+        fixture().given(posted(bike()), published()).when(new ModerateWithdraw(ID, 42, " spam "))
+                .thenExpectEvents(new AnnounceWithdrawn(NOW, 42, "spam"));
+        fixture().given(posted(bike()), published()).when(new ModerateExpire(ID, 42, "duplicate"))
+                .thenExpectEvents(new AnnounceExpired(NOW, 42, "duplicate"));
+        // a moderated announce is withdrawn / expired like any other and can be republished by its owner
+        fixture().given(posted(bike()), published(), new AnnounceWithdrawn(NOW, 42, "spam")).when(new PublishAnnounce(ID, OWNER, null)).thenExpectNoError();
+        // only published announces; reason and moderator mandatory
+        assertEquals("not-published", rejected(fixture().given(posted(bike())).when(new ModerateWithdraw(ID, 42, "spam"))).getCode());
+        assertEquals("not-published", rejected(fixture().given(posted(bike()), published(), new AnnounceWithdrawn(NOW)).when(new ModerateExpire(ID, 42, "x"))).getCode());
+        fixture().given(posted(bike()), published()).when(new ModerateWithdraw(ID, 42, "  ")).thenExpectException(IllegalArgumentException.class);
+        fixture().given(posted(bike()), published()).when(new ModerateExpire(ID, null, "x")).thenExpectException(IllegalArgumentException.class);
     }
 
     private static CommandRejectedException rejected(CommandFixture<Announce>.Then then) {

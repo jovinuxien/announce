@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["jest", "@testing-library/jest-dom", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "app/*": ["app/*"]
+    }
+  },
+  "include": ["app/**/*.ts", "app/**/*.tsx", "app/**/*.d.ts", "app/**/*.json"],
+  "exclude": ["node_modules", "dist"]
+}

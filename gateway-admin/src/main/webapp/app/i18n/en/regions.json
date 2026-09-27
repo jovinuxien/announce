@@ -1,0 +1,26 @@
+{
+  "title": "Regions",
+  "create": "New region",
+  "edit": "Edit region",
+  "delete": "Delete region",
+  "deleteConfirm": "Delete the region “{{name}}”?",
+  "root": "All countries",
+  "searchResults": "Search: “{{q}}”",
+  "searchPlaceholder": "Region name",
+  "emptyHint": "No regions here yet.",
+  "fields": {
+    "name": "Name",
+    "type": "Level",
+    "code": "Code",
+    "pid": "Parent id"
+  },
+  "types": {
+    "1": "Country / state",
+    "2": "City / county",
+    "3": "Area"
+  },
+  "errors": {
+    "hasChildren": "The region still has child regions; delete or move them first.",
+    "nameRequired": "A name is required."
+  }
+}

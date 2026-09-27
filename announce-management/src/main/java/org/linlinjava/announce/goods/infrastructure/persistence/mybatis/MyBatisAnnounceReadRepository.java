@@ -16,6 +16,7 @@ import org.linlinjava.announce.goods.domain.announce.Announce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceKind;
 import org.linlinjava.announce.goods.domain.announce.AnnounceQuery;
 import org.linlinjava.announce.goods.domain.announce.AnnounceReadRepository;
+import org.linlinjava.announce.goods.domain.announce.AnnounceReadRepository.Applied;
 import org.linlinjava.announce.goods.domain.announce.AnnounceStatus;
 import org.linlinjava.announce.goods.domain.announce.AnnounceSummary;
 import org.linlinjava.announce.goods.domain.announce.Kind;
@@ -51,9 +52,14 @@ public class MyBatisAnnounceReadRepository implements AnnounceReadRepository {
 
     @Override
     public Mono<Announce> findById(String id) {
+        return findApplied(id).map(Applied::announce);
+    }
+
+    @Override
+    public Mono<Applied> findApplied(String id) {
         return announces.selectByPrimaryKey(id)
                 .filter(row -> !Boolean.TRUE.equals(row.getDeleted()))
-                .flatMap(row -> details(row).map(d -> AnnounceRows.toAnnounce(row, d)));
+                .flatMap(row -> details(row).map(d -> new Applied(AnnounceRows.toAnnounce(row, d), row.getLastEventId())));
     }
 
     private Mono<AnnounceKind> details(AnnounceBase row) {
@@ -77,12 +83,6 @@ public class MyBatisAnnounceReadRepository implements AnnounceReadRepository {
             case JOB -> jobs.selectByPrimaryKey(id).map(AnnounceRows::toJob);
             case EVENT -> events.selectByPrimaryKey(id).map(AnnounceRows::toEvent);
         };
-    }
-
-    @Override
-    public Mono<String> lastAppliedEventId(String id) {
-        return announces.selectByPrimaryKeySelective(id, AnnounceBase.Column.id, AnnounceBase.Column.lastEventId)
-                .mapNotNull(AnnounceBase::getLastEventId);
     }
 
     @Override

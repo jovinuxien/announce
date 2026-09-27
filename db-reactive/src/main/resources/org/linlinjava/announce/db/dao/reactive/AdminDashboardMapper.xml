@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.linlinjava.announce.db.dao.reactive.AdminDashboardMapper">
+    <select id="announceCounts" resultType="map">
+        select kind, `status`, count(*) as total
+        from announce
+        where deleted = 0
+        group by kind, `status`
+    </select>
+    <select id="listingCounts" resultType="map">
+        select source, `status`, count(*) as total
+        from crawled_listing
+        group by source, `status`
+    </select>
+    <select id="memberCount" resultType="long">
+        select count(*) from announce_user where deleted = 0
+    </select>
+    <select id="adminCount" resultType="long">
+        select count(*) from announce_admin where deleted = 0
+    </select>
+    <select id="categoryCount" resultType="long">
+        select count(*) from announce_category where deleted = 0
+    </select>
+    <select id="brandCount" resultType="long">
+        select count(*) from announce_brand where deleted = 0
+    </select>
+    <select id="newMembersPerDay" resultType="map">
+        select date_format(add_time, '%Y-%m-%d') as day, count(*) as total
+        from announce_user
+        where deleted = 0 and add_time >= date_sub(curdate(), interval #{days} day)
+        group by date_format(add_time, '%Y-%m-%d')
+        order by day
+    </select>
+    <select id="newAnnouncesPerDay" resultType="map">
+        select date_format(add_time, '%Y-%m-%d') as day, count(*) as total
+        from announce
+        where deleted = 0 and add_time >= date_sub(curdate(), interval #{days} day)
+        group by date_format(add_time, '%Y-%m-%d')
+        order by day
+    </select>
+    <select id="listingClickTotal" resultType="long">
+        select coalesce(sum(click_count), 0) from crawled_listing
+    </select>
+</mapper>

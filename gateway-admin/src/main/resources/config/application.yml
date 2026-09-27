@@ -1,0 +1,135 @@
+# gateway-admin: the staff edge (doc/frontend-edges.md sections 2 and 4).
+spring:
+  application:
+    name: gateway-admin
+  main:
+    web-application-type: reactive
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  cloud:
+    config:
+      enabled: false
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: false
+          # Explicit, ordered routes; no StripPrefix; the target URIs come from announce.routes.* so a profile
+          # (or a test) can point them at a fixed host instead of Eureka.
+          routes:
+            - id: admin-listings
+              uri: ${announce.routes.announce-management}
+              predicates:
+                - Path=/api/admin/listings/**
+            - id: admin-announces
+              uri: ${announce.routes.announce-management}
+              predicates:
+                - Path=/api/admin/announces/**
+            - id: catalog
+              uri: ${announce.routes.announce-management}
+              predicates:
+                - Path=/api/categories/**,/api/brands/**
+            - id: order-admin
+              uri: ${announce.routes.order}
+              predicates:
+                - Path=/api/admin/orders/**,/api/admin/bids/**,/api/admin/payouts/**,/api/admin/auctions/**
+            - id: messaging-admin
+              uri: ${announce.routes.messaging}
+              predicates:
+                - Path=/api/admin/conversations/**,/api/admin/bulletins/**
+  # Auth store and edge-hosted admin CRUD over the announce_* reactive mappers (reactive-mybatis-support keys)
+  r2dbc:
+    mybatis:
+      r2dbc-url: ${ANNOUNCE_R2DBC_URL:r2dbc:mysql://localhost:3306/announce_reactive_db}
+      username: ${ANNOUNCE_DB_USER:announce}
+      password: ${ANNOUNCE_DB_PASSWORD:Calliste_1006}
+      pool:
+        initial-size: 2
+        max-size: 10
+
+r2dbc:
+  mybatis:
+    mapper-locations: classpath:org/linlinjava/announce/db/dao/reactive/*.xml
+    configuration:
+      map-underscore-to-camel-case: true
+
+server:
+  port: 8081
+  compression:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  health:
+    binders:
+      enabled: false
+
+eureka:
+  client:
+    enabled: ${ANNOUNCE_EUREKA_ENABLED:false}
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: ${ANNOUNCE_EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    preferIpAddress: true
+
+announce:
+  routes:
+    announce-management: lb://announce-management
+    order: lb://order
+    messaging: lb://messaging
+  jwt:
+    issuer: announce-admin
+    audience: announce-admin
+    access-ttl: PT2H
+    # Blank means: fall back to the committed development key pair (config/dev-admin-jwt-*.pem) with a warning;
+    # the prod profile refuses to start without real keys (JwtKeyGuard).
+    private-key-pem: ${ANNOUNCE_ADMIN_JWT_PRIVATE_KEY_PEM:}
+    public-key-pem: ${ANNOUNCE_ADMIN_JWT_PUBLIC_KEY_PEM:}
+  refresh:
+    ttl: P30D
+    cookie-name: announce_admin_refresh
+    cookie-secure: ${ANNOUNCE_COOKIE_SECURE:false}
+  machine:
+    # Shared with the backends (X-Service-Token = <epoch-seconds>.<hmac-sha256>); they verify it in a later step.
+    secret: ${ANNOUNCE_SERVICE_SECRET:dev-service-secret-change-me}
+    issuer: gateway-admin
+
+logging:
+  level:
+    org.linlinjava.announce.gatewayadmin: INFO
+    org.springframework.cloud.gateway: INFO
+
+---
+# Local development: the services do not register with Eureka yet, so the routes point at their fixed ports.
+spring:
+  config:
+    activate:
+      on-profile: dev
+announce:
+  routes:
+    announce-management: http://localhost:8085
+    messaging: http://localhost:8086
+logging:
+  level:
+    org.linlinjava.announce.gatewayadmin: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+announce:
+  refresh:
+    cookie-secure: true
+management:
+  endpoint:
+    health:
+      show-details: never
+server:
+  forward-headers-strategy: framework

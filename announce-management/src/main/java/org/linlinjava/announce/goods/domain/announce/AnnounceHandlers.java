@@ -8,8 +8,11 @@ import org.linlinjava.announce.cqrs.command.Subjects;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.EditAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ExpireAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.MarkSold;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateExpire;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateWithdraw;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PostAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PublishAnnounce;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.RelistAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.WithdrawAnnounce;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceEdited;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceExpired;
@@ -95,7 +98,22 @@ public class AnnounceHandlers {
                     Duration validity = command.validity() == null ? Announce.DEFAULT_VALIDITY : command.validity();
                     LocalDateTime now = now(clock);
                     AnnounceRules.checkPublish(state, validity, now);
-                    AnnouncePublished event = new AnnouncePublished(now, now.plus(validity));
+                    AnnouncePublished event = new AnnouncePublished(now, now.plus(validity), state.sellerId(), state.content(), state.details());
+                    publisher.publish(event);
+                    return state.apply(event);
+                });
+    }
+
+    /** Idempotent: only a SOLD announce is relisted; the expiry is kept when still ahead, else the default validity applies. */
+    public static CommandHandlerDefinition<Announce, RelistAnnounce, Announce> relist(Clock clock) {
+        return new CommandHandlerDefinition<>(Announce.class, RelistAnnounce.class,
+                (CommandHandler.ForInstanceAndCommand<Announce, RelistAnnounce, Announce>) (state, command, publisher) -> {
+                    LocalDateTime now = now(clock);
+                    if (!AnnounceRules.canBeRelisted(state)) {
+                        return state;
+                    }
+                    LocalDateTime expiresAt = state.expiresAt() != null && state.expiresAt().isAfter(now) ? state.expiresAt() : now.plus(Announce.DEFAULT_VALIDITY);
+                    AnnouncePublished event = new AnnouncePublished(now, expiresAt, state.sellerId(), state.content(), state.details());
                     publisher.publish(event);
                     return state.apply(event);
                 });
@@ -137,10 +155,33 @@ public class AnnounceHandlers {
                 });
     }
 
+    /** Staff withdrawal: no owner check; the moderator and the reason travel on the event. */
+    public static CommandHandlerDefinition<Announce, ModerateWithdraw, Announce> moderateWithdraw(Clock clock) {
+        return new CommandHandlerDefinition<>(Announce.class, ModerateWithdraw.class,
+                (CommandHandler.ForInstanceAndCommand<Announce, ModerateWithdraw, Announce>) (state, command, publisher) -> {
+                    AnnounceRules.checkModeration(state, command.moderatorId(), command.reason());
+                    AnnounceWithdrawn event = new AnnounceWithdrawn(now(clock), command.moderatorId(), command.reason().trim());
+                    publisher.publish(event);
+                    return state.apply(event);
+                });
+    }
+
+    /** Staff expiry: ends a published announce now, whatever its date. */
+    public static CommandHandlerDefinition<Announce, ModerateExpire, Announce> moderateExpire(Clock clock) {
+        return new CommandHandlerDefinition<>(Announce.class, ModerateExpire.class,
+                (CommandHandler.ForInstanceAndCommand<Announce, ModerateExpire, Announce>) (state, command, publisher) -> {
+                    AnnounceRules.checkModeration(state, command.moderatorId(), command.reason());
+                    AnnounceExpired event = new AnnounceExpired(now(clock), command.moderatorId(), command.reason().trim());
+                    publisher.publish(event);
+                    return state.apply(event);
+                });
+    }
+
     /** All definitions, for {@code CommandFixture.handlers(...)}. */
     public static List<Object> definitions(Clock clock) {
         return List.of(ON_POSTED, ON_EDITED, ON_PUBLISHED, ON_WITHDRAWN, ON_SOLD, ON_EXPIRED,
-                post(clock), edit(clock), publish(clock), withdraw(clock), markSold(clock), expire(clock));
+                post(clock), edit(clock), publish(clock), withdraw(clock), markSold(clock), expire(clock), relist(clock),
+                moderateWithdraw(clock), moderateExpire(clock));
     }
 
     private static LocalDateTime now(Clock clock) {
@@ -161,4 +202,7 @@ public class AnnounceHandlers {
     @Bean CommandHandlerDefinition<Announce, WithdrawAnnounce, Announce> announceWithdraw(Clock clock) { return withdraw(clock); }
     @Bean CommandHandlerDefinition<Announce, MarkSold, Announce> announceMarkSold(Clock clock) { return markSold(clock); }
     @Bean CommandHandlerDefinition<Announce, ExpireAnnounce, Announce> announceExpire(Clock clock) { return expire(clock); }
+    @Bean CommandHandlerDefinition<Announce, RelistAnnounce, Announce> announceRelist(Clock clock) { return relist(clock); }
+    @Bean CommandHandlerDefinition<Announce, ModerateWithdraw, Announce> announceModerateWithdraw(Clock clock) { return moderateWithdraw(clock); }
+    @Bean CommandHandlerDefinition<Announce, ModerateExpire, Announce> announceModerateExpire(Clock clock) { return moderateExpire(clock); }
 }

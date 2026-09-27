@@ -1,0 +1,46 @@
+{
+  "title": "Administrators",
+  "create": "New administrator",
+  "edit": "Edit administrator",
+  "delete": "Delete administrator",
+  "deleteConfirm": "Delete the administrator “{{name}}”? This cannot be undone.",
+  "searchPlaceholder": "Username",
+  "you": "you",
+  "passwordKeep": "Leave empty to keep the current password.",
+  "noRoles": "No roles exist yet; create one first.",
+  "fields": {
+    "username": "Username",
+    "password": "Password",
+    "newPassword": "New password",
+    "avatar": "Avatar URL",
+    "roles": "Roles",
+    "lastLogin": "Last sign-in",
+    "created": "Created"
+  },
+  "errors": {
+    "usernameTaken": "That username is already taken.",
+    "selfDelete": "You cannot delete your own account.",
+    "usernameRequired": "A username is required.",
+    "passwordTooShort": "The password must be at least 6 characters.",
+    "roleRequired": "Pick at least one role."
+  },
+  "roles": {
+    "title": "Roles & permissions",
+    "create": "New role",
+    "edit": "Edit role",
+    "delete": "Delete role",
+    "deleteConfirm": "Delete the role “{{name}}”?",
+    "permissions": "Permissions",
+    "permissionsOf": "Permissions of “{{name}}”",
+    "fields": {
+      "name": "Name",
+      "description": "Description",
+      "enabled": "Enabled"
+    },
+    "errors": {
+      "inUse": "The role is still assigned to an administrator and cannot be deleted.",
+      "nameTaken": "A role with that name already exists.",
+      "nameRequired": "A name is required."
+    }
+  }
+}

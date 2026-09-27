@@ -1,0 +1,44 @@
+{
+  "showHidden": "Show hidden",
+  "hidden": "hidden",
+  "kindInherited": "The kind is inherited from the parent and cannot change.",
+  "fields": {
+    "kind": "Kind",
+    "name": "Name",
+    "description": "Description",
+    "iconUrl": "Icon URL",
+    "pictureUrl": "Picture URL",
+    "keywords": "Keywords",
+    "sortOrder": "Sort order"
+  },
+  "actions": {
+    "show": "Show",
+    "hide": "Hide",
+    "move": "Move to another parent"
+  },
+  "errors": {
+    "nameRequired": "A name is required.",
+    "nameTooLong": "The name must be at most 63 characters.",
+    "kindRequired": "A kind is required.",
+    "kindFixed": "A child category keeps the kind of its parent.",
+    "sortOrderInvalid": "The sort order must be a non-negative whole number.",
+    "descriptionTooLong": "The description must be at most 255 characters."
+  },
+  "categories": {
+    "title": "Categories",
+    "createRoot": "New root category",
+    "addChild": "Add child",
+    "addChildTo": "Add a child to “{{name}}”",
+    "edit": "Edit category",
+    "emptyHint": "No categories of this kind yet. Create a root category to start the tree.",
+    "moveHint": "Choose the new parent for “{{name}}”.",
+    "newParent": "New parent…"
+  },
+  "brands": {
+    "title": "Brands",
+    "create": "New brand",
+    "edit": "Edit brand",
+    "floorPrice": "Floor price",
+    "hideConfirm": "Hide the brand “{{name}}”? It stays on existing announces but cannot be picked for new ones."
+  }
+}

@@ -138,14 +138,17 @@ public final class AnnounceDtos {
                                           LocalDateTime createdAt, LocalDateTime publishedAt, LocalDateTime expiresAt,
                                           BigDecimal price, SaleType saleType, Condition condition,
                                           String employer, ContractType contractType, LocalDateTime applicationDeadline,
-                                          LocalDateTime startsAt, LocalDateTime endsAt, Boolean ticketed, BigDecimal ticketPrice) {
+                                          LocalDateTime startsAt, LocalDateTime endsAt, Boolean ticketed, BigDecimal ticketPrice,
+                                          Integer moderatedBy, String moderationReason) {
         public static AnnounceSummaryResponse of(AnnounceSummary s) {
             AnnounceSummary.KindFacts f = s.kindFacts();
+            AnnounceSummary.Moderation m = s.moderation();
             return new AnnounceSummaryResponse(s.id(), s.kind(), s.sellerId().value(), s.title(), s.brief(), s.pictureUrl(), s.status(),
                     s.categoryId().value(), LocationDto.of(s.location()), s.createdAt(), s.publishedAt(), s.expiresAt(),
                     f.price() == null ? null : f.price().amount(), f.saleType(), f.condition(),
                     f.employer(), f.contractType(), f.applicationDeadline(),
-                    f.startsAt(), f.endsAt(), f.ticketed(), f.ticketPrice() == null ? null : f.ticketPrice().amount());
+                    f.startsAt(), f.endsAt(), f.ticketed(), f.ticketPrice() == null ? null : f.ticketPrice().amount(),
+                    m == null ? null : m.moderatedBy(), m == null ? null : m.reason());
         }
     }
 

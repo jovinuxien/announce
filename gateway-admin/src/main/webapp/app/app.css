@@ -1,0 +1,72 @@
+:root {
+  --admin-sidebar-width: 240px;
+  --admin-topbar-height: 56px;
+}
+body {
+  background: #f5f6f8;
+}
+.admin-shell {
+  min-height: 100vh;
+}
+.admin-sidebar {
+  position: fixed;
+  top: var(--admin-topbar-height);
+  bottom: 0;
+  left: 0;
+  width: var(--admin-sidebar-width);
+  overflow-y: auto;
+  transform: translateX(-100%);
+  transition: transform 0.2s ease;
+  z-index: 1020;
+}
+.admin-sidebar.open {
+  transform: translateX(0);
+}
+.admin-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 1010;
+}
+.admin-main {
+  padding-top: var(--admin-topbar-height);
+}
+.admin-nav-link {
+  color: var(--bs-body-color);
+  border-left: 3px solid transparent;
+}
+.admin-nav-link.active {
+  color: var(--bs-primary);
+  border-left-color: var(--bs-primary);
+  background: rgba(13, 110, 253, 0.08);
+  font-weight: 600;
+}
+@media (min-width: 992px) {
+  .admin-sidebar {
+    transform: none;
+  }
+  .admin-main {
+    margin-left: var(--admin-sidebar-width);
+  }
+}
+.stat-tile .stat-value {
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+.mini-chart {
+  width: 100%;
+  height: 140px;
+}
+.tree-node {
+  border-left: 2px solid var(--bs-border-color);
+}
+.table td,
+.table th {
+  vertical-align: middle;
+}
+.text-truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

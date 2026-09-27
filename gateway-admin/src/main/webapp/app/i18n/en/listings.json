@@ -1,0 +1,39 @@
+{
+  "title": "Crawled listings",
+  "subtitle": "Listings crawled from dba.dk and tradera.com: snippet and link out only, indexed next to local announces.",
+  "reindex": {
+    "button": "Reindex active",
+    "done": "Reindexed {{indexed}} active listings."
+  },
+  "counts": {
+    "title": "Per source and status",
+    "clicks": "click-outs in total",
+    "empty": "No crawled listings yet."
+  },
+  "import": {
+    "title": "Import a feed file",
+    "hint": "Absolute path of a scrapy JSON Lines file on the announce-management host. The source is derived from the file name (dba_*, tradera_*) unless chosen here.",
+    "path": "File path",
+    "source": "Source",
+    "sourceAuto": "Detect from the file name",
+    "button": "Import",
+    "done": "Import finished",
+    "report": {
+      "seen": "{{n}} items read",
+      "inserted": "{{n}} new listings",
+      "updated": "{{n}} changed listings reindexed",
+      "unchanged": "{{n}} unchanged (last seen touched)",
+      "rejected": "{{n}} rejected"
+    }
+  },
+  "topClicked": "Most clicked",
+  "recentGone": "Recently gone",
+  "columns": {
+    "title": "Listing",
+    "source": "Source",
+    "price": "Price",
+    "status": "Status",
+    "clicks": "Clicks",
+    "lastSeen": "Last seen"
+  }
+}

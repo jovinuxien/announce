@@ -107,6 +107,15 @@
 			<artifactId>db-reactive</artifactId>
 			<version>${project.version}</version>
 		</dependency>
+		<!-- Public contracts: this service's own announce.v1 records and the order.v1 records it consumes -->
+		<dependency>
+			<groupId>org.joviste</groupId>
+			<artifactId>announce-management-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.joviste</groupId>
+			<artifactId>order-api</artifactId>
+		</dependency>
 		<!-- CQRS framework: OpenCQRS command side, reactive projections, R2DBC checkpoints, service clients -->
 		<dependency>
 			<groupId>org.joviste</groupId>

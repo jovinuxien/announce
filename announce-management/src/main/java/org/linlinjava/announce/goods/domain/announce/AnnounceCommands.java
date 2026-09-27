@@ -8,7 +8,8 @@ import java.time.Duration;
 /**
  * Commands of the Announce aggregate, dispatched through {@code ReactiveCommandRouter} to subject
  * {@code /announce/{id}}. Every member command carries the seller so ownership can be enforced by the aggregate;
- * {@link ExpireAnnounce} is issued by the scheduler.
+ * {@link ExpireAnnounce} is issued by the scheduler, {@link RelistAnnounce} by the order.v1 subscriber; {@link ModerateWithdraw}
+ * and {@link ModerateExpire} by staff through the admin edge (no owner check, the moderator and a reason are recorded on the event).
  */
 public final class AnnounceCommands {
 
@@ -50,6 +51,27 @@ public final class AnnounceCommands {
 
     /** System command: expires the announce when its date has passed, otherwise does nothing. */
     public record ExpireAnnounce(String id) implements Command {
+        @Override public String getSubject() { return subjectOf(id); }
+        @Override public SubjectCondition getSubjectCondition() { return SubjectCondition.EXISTS; }
+    }
+
+    /**
+     * System command sent when a deal on a sold announce falls through (order cancelled or refunded): a SOLD announce
+     * becomes PUBLISHED again, keeping its expiry when still in the future. Any other status is left as it is.
+     */
+    public record RelistAnnounce(String id) implements Command {
+        @Override public String getSubject() { return subjectOf(id); }
+        @Override public SubjectCondition getSubjectCondition() { return SubjectCondition.EXISTS; }
+    }
+
+    /** Staff takes a published announce down; {@code moderatorId} is the admin, {@code reason} is mandatory. */
+    public record ModerateWithdraw(String id, Integer moderatorId, String reason) implements Command {
+        @Override public String getSubject() { return subjectOf(id); }
+        @Override public SubjectCondition getSubjectCondition() { return SubjectCondition.EXISTS; }
+    }
+
+    /** Staff ends a published announce before its date; unlike {@link ExpireAnnounce} it is not conditional on the date. */
+    public record ModerateExpire(String id, Integer moderatorId, String reason) implements Command {
         @Override public String getSubject() { return subjectOf(id); }
         @Override public SubjectCondition getSubjectCondition() { return SubjectCondition.EXISTS; }
     }

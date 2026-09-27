@@ -8,8 +8,11 @@ import org.linlinjava.announce.goods.domain.announce.Announce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.EditAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ExpireAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.MarkSold;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateExpire;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.ModerateWithdraw;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PostAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.PublishAnnounce;
+import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.RelistAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceCommands.WithdrawAnnounce;
 import org.linlinjava.announce.goods.domain.announce.AnnounceContent;
 import org.linlinjava.announce.goods.domain.announce.AnnounceKind;
@@ -27,7 +30,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Use cases of the announce lifecycle: post, edit, publish, withdraw, mark sold, expire. The rules live in the
+ * Use cases of the announce lifecycle: post, edit, publish, withdraw, mark sold, expire, relist. The rules live in the
  * aggregate; this facade checks the references the aggregate cannot see (category of the right kind, brand) and
  * dispatches the command through the framework router. A caller-supplied command id makes the dispatch idempotent.
  */
@@ -71,6 +74,21 @@ public class AnnouncePublishing {
 
     public Mono<Announce> markSold(String id, SellerId seller, String commandId) {
         return send(new MarkSold(id, seller), commandId);
+    }
+
+    /** System use (order.v1 subscriber): a SOLD announce becomes PUBLISHED again; any other status is left alone. */
+    public Mono<Announce> relist(String id, String commandId) {
+        return send(new RelistAnnounce(id), commandId);
+    }
+
+    /** Staff takes an announce down (admin edge); the moderator and the reason are recorded on the event. */
+    public Mono<Announce> moderateWithdraw(String id, Integer moderatorId, String reason, String commandId) {
+        return send(new ModerateWithdraw(id, moderatorId, reason), commandId);
+    }
+
+    /** Staff ends an announce now, whatever its expiry date. */
+    public Mono<Announce> moderateExpire(String id, Integer moderatorId, String reason, String commandId) {
+        return send(new ModerateExpire(id, moderatorId, reason), commandId);
     }
 
     /** Expires every published announce past its date (read model lookup, one command per announce). Returns how many. */

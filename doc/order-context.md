@@ -1,7 +1,8 @@
 # The order context: auction, deal, payment and shipping
 
-Status: design agreed 2026-09-26, not yet implemented. Worktrees: `order-reactive` (this
-module) and `messaging` (chat, its own module). See the matching blocks in `CLAUDE.md`.
+Status: implemented 2026-09-26 in the `order` module (worktree `order-reactive`); deviations
+from the agreed design are recorded in §11. The `messaging` module (chat) is its own worktree.
+See the matching blocks in `CLAUDE.md`.
 Builds on `doc/announce-management-context.md` (context map, rules) and
 `doc/auction-chat-schema.md` (ActionBazaar mapping, `announce_auction*` tables).
 
@@ -300,3 +301,51 @@ Status: implemented 2026-09-26 in modules `messaging` and `messaging-api` (detai
 Real Stripe and PostNord adapters (ports plus fakes are in scope; adapters follow behind
 the same ports), buyer-to-buyer resale, partial refunds, multi-item orders, invoices and
 VAT reporting, seller subscriptions, promoted announces.
+
+## 11. Implementation notes and deviations (2026-09-26)
+
+Module `order` (`org.linlinjava.announce.{auction,order,payment,shipping}`, Boot app and cross-cutting
+config in `org.linlinjava.announce.orderservice`), contracts in `order-api` (and `messaging-api` for the offer door), schema in
+`db-reactive/sql/announce_order.sql`. `ContextBoundariesTest` (ArchUnit) proves that no root depends on
+another root, on `orderservice`, and that the slices are free of cycles; `order.api` is the one package
+under the `order` prefix that every root may import.
+
+| Design (§2 to §9) | What was built | Why |
+|---|---|---|
+| Topics `announce.v1`, `auction.v1`, `order.v1`, `messaging.v1` | plus `payment.v1` and `shipping.v1`; `order.v1` also carries `OrderShippedV1`, `OrderDeliveredV1`, `PayoutReleaseRequestedV1`, `RefundRequestedV1` | "cross-context wiring only through the topics" holds inside the module too: `order` never imports `payment` or `shipping` classes, so their facts travel as public events |
+| `RequestShipment` by the seller after PAID | the shipment is opened by `OrderPaidV1` (`OpenShipment`, status OPEN), then the seller books it (`RequestShipment`) | shipping learns who may book without reading order's tables |
+| "order refuses AcceptPurchase / OpenAuction until the seller account exists" | payment publishes `SellerAccountUpdatedV1`; `order` and `auction` each keep a one-row-per-seller table (`announce_order_seller`, `announce_auction_seller`) and refuse with `seller-not-payable`; `order.seller-account.required` / `auction.seller-account.required` (default true) | the gate is data each context owns; the fake provider verifies at onboarding so local flows work at once |
+| `AnnouncePublishedV1` built by a relay | `AnnouncePublished` (internal) carries seller, content and details; currency comes from `announce.currency` (default DKK) | `Money` has no currency and the relay maps synchronously without a read-model lookup |
+| announce "back to PUBLISHED" on cancel / refund | new system command `RelistAnnounce` in announce-management (no-op unless SOLD; keeps the expiry when still ahead) | `AnnounceStatus.canBePublished()` excludes SOLD on purpose for owners |
+| auction settings on the announce | an auction opened from `AnnouncePublishedV1` uses the announce price as start price and the `auction.*` defaults (increment, anti-sniping window, duration capped by the announce expiry); no reserve or snag-it price yet | the announce carries no auction fields; a later `EditAnnounce` extension can supply them |
+| proxy bidding (`maxAmount`) | stored on the bid, not acted on | out of the first iteration; the column is there |
+| `announce_order` money columns | `decimal(10,2)` in the read models, `long` minor units in commands, events and public records | one conversion at the projection |
+| `PayoutReleaseRequested` on delivery grace | the release rule in `OrderRules.checkRelease`: DISPUTED blocks (`dispute-open`); DELIVERED releases after `delivery-grace` or on `ConfirmReceipt`; SHIPPED with `release.on=DELIVERY` is refused (`not-delivered`) until `dispatch-grace` elapses; SHIPPED with `release.on=DISPATCH` releases after `delivery-grace` counted from dispatch or on `ConfirmReceipt` | matches §3; the graces are validated against the allowed ranges at start-up |
+| `ShipmentFailed` -> staff dispute path | the shipping fact opens a SYSTEM dispute on the order (`carrier: <reason>`); staff resolve it as RELEASE or REFUND | keeps the payout blocked without a new state |
+| ids | orders from the auction door are `UUID.nameUUIDFromBytes("auction:" + announceId)`, from the offer door `"offer:" + conversationId`; a redelivered closing or offer event maps to the same subject and is skipped | idempotent doors without a dedup table |
+| webhooks | `POST /api/payments/webhook/fake` and `POST /api/shipping/webhook/fake`, HMAC-SHA256 hex of the raw body in `X-Fake-Signature` with `payment.fake.secret` / `shipping.fake.secret`; a provider event id already applied is acknowledged and ignored; the `stripe` and `postnord` hooks answer 501 | the real adapters are stubs behind the ports (`StripeConnectPaymentProvider`, `PostNordCarrier`) |
+| `announce_order_snapshot` | keyed by announce id, fed by `announce.v1` (`orderAnnounceEvents`); `RequestPurchase` needs it PUBLISHED, GOODS and not AUCTION | the ACL of §5 |
+| `OfferAcceptedV1` | the record of `messaging-api` (type `messaging.offer-accepted` v1, fields as in §9); `order` depends on `messaging-api` | one contract, published by messaging and consumed by order |
+
+Jobs (`@Scheduled`, `*.jobs.enabled`, one `runOnce()` each for tests and operators): `AuctionClosingJob`,
+`OrderPayWindowJob`, `OrderShipWindowJob`, `OrderReleaseJob`, `ShipmentTrackingJob`. Admin endpoints:
+`POST /api/admin/orders/{id}/resolve-dispute`, `POST /api/admin/orders/{id}/release`,
+`POST /api/admin/bids/{id}/cancel`, `POST /api/admin/auctions/{announceId}/cancel`,
+`POST /api/admin/auctions/close-due`. Staff come from `X-Admin-Id`, members from `X-User-Id`.
+
+Tests: `AuctionTest`, `OrderTest`, `PaymentTest`, `ShipmentTest` (CommandFixture), `ContextBoundariesTest`
+(ArchUnit) and `OrderModuleEndToEndTest` (EventSourcingDB, Kafka and MySQL containers, the fakes, a mutable clock,
+a test producer standing in for announce-management and messaging, a probe on `order.v1`). announce-management's
+`AnnounceKindsEndToEndTest` covers the other direction (SOLD on `OrderPaidV1`, relist on `OrderRefundedV1`).
+
+### Fixes after the first full-stack run (2026-09-27)
+
+- The processor groups read `/` and stopped at start on announce-management's internal event types
+  (`EventTypeResolutionException`, all eight groups). Now `auction-*`, `order-*` and `shipping-*` fetch
+  their own root (`/auction`, `/order`, `/shipment`); `payment-*` keeps `/` because it owns `/payment` and
+  `/seller-account`, and the framework's `TolerantEventTypeResolver` skips foreign types (`doc/cqrs-reactive.md` §2).
+- announce-management's relay `announce-public` failed with a null pointer on the first `AnnouncePublished`
+  written before the event carried seller, content and details, and retried forever, so `announce.v1` stayed
+  empty and no snapshot or auction ever appeared. Such legacy events are now skipped with a warning
+  (`AnnounceMessaging.toPublished` / `toEdited`); announces published before 2026-09-26 are unknown to the
+  order module until they are edited or republished.

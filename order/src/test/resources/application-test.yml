@@ -1,0 +1,49 @@
+# Profile "test": the container-backed suite. EventSourcingDB, Kafka and MySQL come from @DynamicPropertySource.
+spring:
+  cloud:
+    discovery:
+      enabled: false
+    function:
+      definition: auctionAnnounceEvents;auctionPaymentEvents;orderAnnounceEvents;orderAuctionEvents;orderMessagingEvents;orderPaymentEvents;orderShippingEvents;paymentOrderEvents;shippingOrderEvents;orderProbe
+    stream:
+      bindings:
+        orderProbe-in-0:
+          destination: order.v1
+          group: order-test-probe
+eureka:
+  client:
+    enabled: false
+management:
+  health:
+    binders:
+      enabled: false
+
+opencqrs:
+  event-handling:
+    standard:
+      retry:
+        policy: exponential_backoff
+        initial-interval: 200ms
+        max-interval: 2s
+        max-attempts: 30
+
+cqrs:
+  readside:
+    handler-timeout: 15s
+
+order:
+  jobs:
+    enabled: false      # the tests drive the jobs by hand with an advanced clock
+auction:
+  jobs:
+    enabled: false
+shipping:
+  jobs:
+    enabled: false
+
+logging:
+  level:
+    org.linlinjava.announce: INFO
+    org.linlinjava.announce.cqrs: DEBUG
+    org.apache.kafka: WARN
+    org.springframework.kafka: WARN

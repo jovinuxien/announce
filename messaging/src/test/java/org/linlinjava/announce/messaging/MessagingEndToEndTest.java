@@ -16,8 +16,8 @@ import org.linlinjava.announce.messaging.application.AnnounceLookup;
 import org.linlinjava.announce.messaging.application.AnnounceRef;
 import org.linlinjava.announce.messaging.domain.conversation.ConversationIds;
 import org.linlinjava.announce.messaging.infrastructure.live.LiveSessions;
-import org.linlinjava.announce.messaging.infrastructure.messaging.order.OrderAgreedV1;
-import org.linlinjava.announce.messaging.infrastructure.messaging.order.OrderPaidV1;
+import org.linlinjava.announce.order.api.OrderAgreedV1;
+import org.linlinjava.announce.order.api.OrderPaidV1;
 import org.linlinjava.announce.messaging.interfaces.Principals;
 import org.linlinjava.announce.messaging.interfaces.ws.ConversationWebSocketHandler;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -392,7 +392,7 @@ class MessagingEndToEndTest {
         // a deal without any chat gets its conversation opened by the order event
         String other = ConversationIds.listing(OTHER_ANNOUNCE, OTHER_BUYER);
         conversations.add(other);
-        publishOrderEvent(new OrderAgreedV1("o-2", OTHER_ANNOUNCE, OTHER_BUYER, SELLER, "AUCTION", null, 120000, "SEK", now), UUID.randomUUID().toString());
+        publishOrderEvent(new OrderAgreedV1("o-2", OTHER_ANNOUNCE, OTHER_BUYER, SELLER, "AUCTION", 120000, 10100, 109900, "SEK", "Bike", now), UUID.randomUUID().toString());
         await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + other + "/messages", Principals.USER_HEADER, OTHER_BUYER)
                 .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(1)
                 .jsonPath("$[0].content").isEqualTo("Deal agreed at 1200.00 SEK. The buyer can now pay."));

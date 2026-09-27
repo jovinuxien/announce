@@ -1,0 +1,116 @@
+{
+  "reason": "Reason",
+  "auctions": {
+    "title": "Auctions",
+    "announce": "Announce",
+    "seller": "Seller",
+    "currentPrice": "Current price",
+    "from": "from {{price}}",
+    "bids": "Bids",
+    "ends": "Ends",
+    "bidsOf": "Bids on “{{title}}”",
+    "bidder": "Bidder",
+    "amount": "Amount",
+    "placedAt": "Placed",
+    "cancelBid": "Cancel bid"
+  },
+  "auctionStatus": {
+    "OPEN": "Open",
+    "CLOSED_WON": "Closed, won",
+    "CLOSED_UNSOLD": "Closed, unsold",
+    "SNAGGED": "Snagged",
+    "CANCELLED": "Cancelled"
+  },
+  "bidStatus": {
+    "ACTIVE": "Leading",
+    "OUTBID": "Outbid",
+    "WON": "Won",
+    "RETRACTED": "Retracted",
+    "CANCELLED": "Cancelled"
+  },
+  "orders": {
+    "title": "Orders",
+    "detail": "Order",
+    "order": "Order",
+    "door": "Door",
+    "parties": "Parties",
+    "buyer": "Buyer",
+    "seller": "Seller",
+    "announce": "Announce",
+    "price": "Price",
+    "fee": "Fee",
+    "payout": "Payout",
+    "label": "Shipping label",
+    "agreedAt": "Agreed",
+    "disputeReason": "Dispute",
+    "summary": "Summary",
+    "payment": "Payment",
+    "shipment": "Shipment",
+    "confirmedAt": "Confirmed",
+    "releasedAt": "Released",
+    "refundedAt": "Refunded",
+    "lastEvent": "Last carrier event",
+    "deliveredAt": "Delivered",
+    "labelLink": "Open label",
+    "timeline": "Timeline",
+    "release": "Release payout",
+    "refund": "Refund buyer",
+    "resolveHint": "Resolving the dispute is final: RELEASE pays the seller, REFUND returns the money to the buyer. The reason is recorded."
+  },
+  "door": {
+    "AUCTION": "Auction",
+    "FIXED_PRICE": "Fixed price",
+    "OFFER": "Offer in chat"
+  },
+  "orderStatus": {
+    "PROPOSED": "Proposed",
+    "AGREED": "Agreed",
+    "PAYMENT_PENDING": "Payment pending",
+    "PAID": "Paid",
+    "SHIPPED": "Shipped",
+    "DELIVERED": "Delivered",
+    "RELEASING": "Releasing payout",
+    "SETTLED": "Settled",
+    "CANCELLED": "Cancelled",
+    "DISPUTED": "Disputed",
+    "REFUNDING": "Refunding",
+    "REFUNDED": "Refunded"
+  },
+  "paymentStatus": {
+    "INTENT_CREATED": "Intent created",
+    "CONFIRMED": "Confirmed",
+    "RELEASED": "Released",
+    "REFUNDED": "Refunded",
+    "FAILED": "Failed"
+  },
+  "shipmentStatus": {
+    "REQUESTED": "Requested",
+    "DISPATCHED": "Dispatched",
+    "IN_TRANSIT": "In transit",
+    "DELIVERED": "Delivered",
+    "FAILED": "Failed",
+    "CANCELLED": "Cancelled"
+  },
+  "payouts": {
+    "title": "Payouts",
+    "pending": "Pending release",
+    "sent": "Sent",
+    "blocked": "Blocked by disputes",
+    "fees": "Fees collected",
+    "account": "Seller account",
+    "due": "Due / released",
+    "ref": "Provider reference"
+  },
+  "payoutStatus": {
+    "PENDING_RELEASE": "Pending release",
+    "RELEASING": "Releasing",
+    "SENT": "Sent",
+    "FAILED": "Failed",
+    "BLOCKED_DISPUTE": "Blocked by dispute"
+  },
+  "accountStatus": {
+    "PENDING": "Pending",
+    "VERIFIED": "Verified",
+    "RESTRICTED": "Restricted"
+  }
+}

@@ -45,10 +45,10 @@ class CrawledListingTest {
 
     @Test
     void lifecycleFirstSeenSeenAgainStaleGone() {
-        CrawledListing first = CrawledListing.firstSeen(item("22900", "brief"), null, 1005007, NOW);
+        CrawledListing first = CrawledListing.firstSeen(item("22900", "brief"), null, 1005001, NOW);
         assertThat(first.status()).isEqualTo(ListingStatus.ACTIVE);
         assertThat(first.address()).isEqualTo(new Address("6580 Vamdrup", "6580", "Vamdrup"));
-        assertThat(first.categoryId()).isEqualTo(1005007);
+        assertThat(first.categoryId()).isEqualTo(1005001);
         assertThat(first.contentChanged(item("22900", "brief"))).isFalse();
         assertThat(first.contentChanged(item("21900", "brief"))).isTrue();
 

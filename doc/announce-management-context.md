@@ -193,9 +193,12 @@ cannot see (a visible category of the same kind, the brand) and dispatches throu
 
 The former `announce_goods` table is gone; the auction columns it had gained (seller_id, sale_type, expire_time,
 status, location) live in `announce` and `announce_goods_detail`. `announce_auction_chat.sql` no longer alters goods.
-The seed (`announce_data_en.sql`) was migrated with `announce_migrate_goods.sql`: every goods row became kind GOODS,
-fixed price, owned by member 1, published when it was on sale, without location or expiry. Other contexts keep
-their `goods_id int` columns; the migrated ids still match by value.
+The seed (`announce_data_en.sql`) is English only: category trees per kind (GOODS roots 1005000-1013000, Jobs
+1037000, Events 1038000), Danish and Swedish regions (type 1 country, 2 region/county, 3 municipality, so the
+crawled-listing city lookup matches municipality names), a few brands and keywords, and 21 published sample
+announces (ids 2000001-2000021, member 1) with region, city and postal code set. The litemall catalogue that used
+to be migrated in is gone; `announce_reseed_en.sql` (via `reseed_en.sh`) applies the same content in place to a
+live database, see `db-reactive/sql/README.md`.
 
 Mappers: `AnnounceBaseMapper` (table `announce`, with hand-written `upsert`, `updateContent`, `updateStatus` and the
 joined `selectSummaries` / `countSummaries` listing query), `AnnounceGoodsDetailMapper`, `AnnounceJobDetailMapper`,

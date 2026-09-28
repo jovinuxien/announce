@@ -120,13 +120,13 @@ class CrawledListingMapperTest {
         ListingCategoryMap row = new ListingCategoryMap();
         row.setSource("DBA");
         row.setSourceCategory(PREFIX + "Cars/Private Car");
-        row.setCategoryId(1005007);
+        row.setCategoryId(1005001);
         StepVerifier.create(categoryMap.insert(row)).expectNext(1).verifyComplete();
 
         ListingCategoryMapKey key = new ListingCategoryMapKey();
         key.setSource("DBA");
         key.setSourceCategory(PREFIX + "Cars/Private Car");
-        StepVerifier.create(categoryMap.selectByPrimaryKey(key).map(ListingCategoryMap::getCategoryId)).expectNext(1005007).verifyComplete();
+        StepVerifier.create(categoryMap.selectByPrimaryKey(key).map(ListingCategoryMap::getCategoryId)).expectNext(1005001).verifyComplete();
 
         key.setSource("TRADERA");
         StepVerifier.create(categoryMap.selectByPrimaryKey(key)).verifyComplete();

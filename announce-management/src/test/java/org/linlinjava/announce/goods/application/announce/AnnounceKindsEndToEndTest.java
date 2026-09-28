@@ -63,7 +63,7 @@ class AnnounceKindsEndToEndTest {
     static final Duration WAIT = Duration.ofSeconds(60);
     static final LocalDateTime NOW = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
     static final String SELLER = "7";
-    static final int GOODS_CATEGORY = 1005007;   // seed: a GOODS child category
+    static final int GOODS_CATEGORY = 1005001;   // seed: "Cars" under Vehicles
     static final int JOB_CATEGORY = 1037001;     // seed: "IT and software" under Jobs
     static final int EVENT_CATEGORY = 1038001;   // seed: "Concerts" under Events
 
@@ -143,10 +143,10 @@ class AnnounceKindsEndToEndTest {
     @Order(1)
     void seedLoadedIntoTheNewSchema() {
         client.get().uri("/api/announces?kind=GOODS&size=1").exchange().expectStatus().isOk()
-                .expectBody().jsonPath("$.total").value(org.hamcrest.Matchers.greaterThanOrEqualTo(238))
+                .expectBody().jsonPath("$.total").value(org.hamcrest.Matchers.greaterThanOrEqualTo(15))
                 .jsonPath("$.items[0].kind").isEqualTo("GOODS").jsonPath("$.items[0].price").isNotEmpty();
         client.get().uri("/api/categories?kind=JOB").exchange().expectStatus().isOk()
-                .expectBody().jsonPath("$[0].category.name").isEqualTo("Jobs").jsonPath("$[0].children.length()").isEqualTo(3);
+                .expectBody().jsonPath("$[0].category.name").isEqualTo("Jobs").jsonPath("$[0].children.length()").isEqualTo(8);
     }
 
     @Test
@@ -209,7 +209,7 @@ class AnnounceKindsEndToEndTest {
         assertThat(indexer.indexed().subList(before, indexer.indexed().size())).extracting(RecordingSearchIndexer.Indexed::id)
                 .contains(goodsId, jobId, eventId);
         Map<String, Object> seed = indexer.indexed().subList(before, indexer.indexed().size()).stream()
-                .filter(d -> d.id().equals("1006002")).findFirst().orElseThrow().data();
+                .filter(d -> d.id().equals("2000001")).findFirst().orElseThrow().data();
         assertThat(seed.get("source")).isEqualTo("local");
         assertThat(String.valueOf(seed.get("image_url"))).startsWith("http");
     }

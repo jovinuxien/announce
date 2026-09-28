@@ -23,7 +23,7 @@ class ListingDocumentTest {
         CrawledItem item = new CrawledItem(ListingSource.TRADERA, "640012345", "https://www.tradera.com/item/640012345", ListingKind.GOODS,
                 "Volvo V70", "Volvo V70 2.4 D5 2008", null, new BigDecimal("15000"), "SEK", ListingSaleType.AUCTION, ends, "Cars",
                 Map.of("model_year", "2008"), "113 45 Stockholm", now.minusDays(2));
-        CrawledListing listing = CrawledListing.firstSeen(item, 3, 1005007, now);
+        CrawledListing listing = CrawledListing.firstSeen(item, 3, 1005001, now);
         Map<String, Object> d = ListingDocument.of(listing).data();
         assertThat(ListingDocument.of(listing).id()).isEqualTo("tradera-640012345");
         assertThat(d).containsEntry("announce_id", "tradera-640012345")
@@ -35,7 +35,7 @@ class ListingDocumentTest {
                 .containsEntry("status", "PUBLISHED")
                 .containsEntry("sale_type", "AUCTION")
                 .containsEntry("currency", "SEK")
-                .containsEntry("category_ids", "1005007")
+                .containsEntry("category_ids", "1005001")
                 .containsEntry("region_id", "3")
                 .containsEntry("source_category", "Cars")
                 .containsEntry("ends_epoch", ends.toEpochSecond(ZoneOffset.UTC))

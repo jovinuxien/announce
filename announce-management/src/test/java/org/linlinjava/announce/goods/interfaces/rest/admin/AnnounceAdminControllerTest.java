@@ -22,6 +22,7 @@ import org.linlinjava.announce.goods.interfaces.rest.CatalogExceptionHandler;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.linlinjava.announce.goods.application.search.AnnounceReindexService;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -50,6 +51,7 @@ class AnnounceAdminControllerTest {
     @Autowired WebTestClient client;
     @MockBean AnnouncePublishing publishing;
     @MockBean AnnounceBrowsing browsing;
+    @MockBean AnnounceReindexService reindex;
 
     static Announce announce(AnnounceStatus status) {
         AnnounceContent content = new AnnounceContent("Bike", "brief", "<p>d</p>", List.of(), List.of("http://x/1.jpg"),

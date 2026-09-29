@@ -1,5 +1,7 @@
 package org.linlinjava.announce.messaging.application;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.linlinjava.announce.cqrs.command.CommandRejectedException;
 import org.linlinjava.announce.cqrs.command.ReactiveCommandRouter;
 import org.linlinjava.announce.cqrs.observability.MetaDataKeys;
@@ -18,6 +20,7 @@ import org.linlinjava.announce.messaging.domain.conversation.ConversationIds;
 import org.linlinjava.announce.messaging.domain.conversation.ParticipantType;
 import org.linlinjava.announce.messaging.domain.conversation.PostResult;
 import org.linlinjava.announce.messaging.domain.conversation.Sender;
+import org.linlinjava.announce.messaging.infrastructure.metrics.MessagingMeters;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -32,6 +35,8 @@ import java.util.Map;
  * dispatch idempotent; the client message id of a post is idempotent on its own.
  *
  * <p>Reading positions are not domain facts: {@link #markRead} writes the read model directly.
+ *
+ * <p>Every dispatch is timed as {@code messaging.command.latency} (tags: command type, outcome).
  */
 @Service
 public class Conversations {
@@ -42,12 +47,15 @@ public class Conversations {
     private final AnnounceLookup announces;
     private final AnnounceConversationParticipantMapper participants;
     private final Clock clock;
+    private final MeterRegistry meters;
 
-    public Conversations(ReactiveCommandRouter router, AnnounceLookup announces, AnnounceConversationParticipantMapper participants, Clock clock) {
+    public Conversations(ReactiveCommandRouter router, AnnounceLookup announces, AnnounceConversationParticipantMapper participants, Clock clock,
+                         MeterRegistry meters) {
         this.router = router;
         this.announces = announces;
         this.participants = participants;
         this.clock = clock;
+        this.meters = meters;
     }
 
     /** Opens, or finds, the conversation between this buyer and the seller of the announce. */
@@ -106,6 +114,13 @@ public class Conversations {
 
     private <R> Mono<R> send(com.opencqrs.framework.command.Command command, String commandId, Class<R> resultType) {
         Map<String, ?> metaData = commandId == null ? Map.of() : Map.of(MetaDataKeys.COMMAND_ID, commandId);
-        return router.send(command, metaData, resultType);
+        String name = command.getClass().getSimpleName();
+        return Mono.defer(() -> {
+            Timer.Sample sample = Timer.start(meters);
+            return router.send(command, metaData, resultType)
+                    .doOnSuccess(r -> sample.stop(MessagingMeters.commandLatency(meters, name, MessagingMeters.OUTCOME_OK)))
+                    .doOnError(e -> sample.stop(MessagingMeters.commandLatency(meters, name, e instanceof CommandRejectedException
+                            ? MessagingMeters.OUTCOME_REJECTED : MessagingMeters.OUTCOME_ERROR)));
+        });
     }
 }

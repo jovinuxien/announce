@@ -111,7 +111,12 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      # which node a sample comes from; set ANNOUNCE_NODE when several nodes run on one host
+      node: ${ANNOUNCE_NODE:${server.port}}
+    # p50/p95/p99 of the messaging.* timers: see infrastructure.metrics.MessagingMetricsConfig
 
 logging:
   level:

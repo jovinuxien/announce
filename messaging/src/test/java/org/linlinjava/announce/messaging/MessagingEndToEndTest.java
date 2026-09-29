@@ -64,6 +64,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import org.linlinjava.announce.messaging.infrastructure.metrics.MessagingMeters;
+import org.linlinjava.announce.messaging.infrastructure.projection.ConversationReadModelProjection;
+import org.linlinjava.announce.messaging.infrastructure.messaging.MessagingRelays;
 import static org.awaitility.Awaitility.await;
 
 /**
@@ -142,6 +147,7 @@ class MessagingEndToEndTest {
     @Autowired LiveSessions sessions;
     @Autowired StreamBridge streamBridge;
     @Autowired ObjectMapper objectMapper;
+    @Autowired MeterRegistry meters;
     @Autowired io.r2dbc.spi.ConnectionFactory connectionFactory;
     @LocalServerPort int port;
 
@@ -460,5 +466,34 @@ class MessagingEndToEndTest {
             mobile.close();
         }
         assertThat(new WsClient().connect("/ws/staff", null, 0).awaitClose().getCode()).isEqualTo(ConversationWebSocketHandler.NOT_AUTHENTICATED);
+    }
+
+    /** The meters of doc/messaging-architecture.md section 5 saw the traffic of the tests above. */
+    @Test
+    @Order(6)
+    void metersCoverCommandsProjectionsAndTheLiveFanOut() {
+        assertThat(timer(MessagingMeters.COMMAND_LATENCY, MessagingMeters.TAG_COMMAND, "PostMessage", MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_OK).count())
+                .isGreaterThan(0);
+        assertThat(timer(MessagingMeters.COMMAND_LATENCY, MessagingMeters.TAG_COMMAND, "PostMessage", MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_REJECTED).count())
+                .as("the stranger's post was rejected").isGreaterThan(0);
+        for (String group : List.of(ConversationReadModelProjection.GROUP, MessagingRelays.PUBLIC_GROUP, MessagingRelays.LIVE_GROUP)) {
+            assertThat(timer(MessagingMeters.PROJECTION_DELAY, MessagingMeters.TAG_GROUP, group).count()).as(group).isGreaterThan(0);
+            assertThat(timer(MessagingMeters.PROJECTION_HANDLER, MessagingMeters.TAG_GROUP, group, MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_OK).count())
+                    .as(group).isGreaterThan(0);
+        }
+        Timer live = timer(MessagingMeters.LIVE_LATENCY, MessagingMeters.TAG_RECORD, "message");
+        assertThat(live.count()).isGreaterThan(0);
+        assertThat(live.max(java.util.concurrent.TimeUnit.SECONDS)).isLessThan(WAIT.toSeconds());
+        assertThat(timer(MessagingMeters.LIVE_LATENCY, MessagingMeters.TAG_RECORD, "bulletin").count()).isGreaterThan(0);
+        assertThat(meters.get(MessagingMeters.LIVE_DELIVERED).tag(MessagingMeters.TAG_RECORD, "message").counter().count())
+                .as("both sockets of the listing conversation received the messages").isGreaterThanOrEqualTo(2);
+        assertThat(meters.get(MessagingMeters.SESSIONS).gauge().value()).as("every socket detached").isZero();
+        assertThat(meters.get(MessagingMeters.STAFF_SESSIONS).gauge().value()).isZero();
+        assertThat(meters.get(MessagingMeters.SINK_BUFFERED).gauge().value()).isZero();
+        assertThat(meters.find(MessagingMeters.SINK_DROPPED).counters()).allSatisfy(c -> assertThat(c.count()).isZero());
+    }
+
+    Timer timer(String name, String... tags) {
+        return meters.get(name).tags(tags).timer();
     }
 }

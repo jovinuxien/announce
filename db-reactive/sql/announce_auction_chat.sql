@@ -27,7 +27,7 @@ SET NAMES utf8mb4;
 -- Daily spotlight (book: featured item singleton reloaded at midnight).
 CREATE TABLE IF NOT EXISTS `announce_featured_item` (
   `id`          int(11)      NOT NULL AUTO_INCREMENT,
-  `goods_id`    int(11)      NOT NULL,
+  `announce_id` varchar(36)  NOT NULL COMMENT 'announce.id (any kind)',
   `start_time`  datetime     NOT NULL,
   `end_time`    datetime     NOT NULL,
   `position`    smallint(6)  NOT NULL DEFAULT '0' COMMENT 'ordering on the home page',
@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS `announce_featured_item` (
   `update_time` datetime     DEFAULT NULL,
   `deleted`     tinyint(1)   DEFAULT '0',
   PRIMARY KEY (`id`),
-  KEY `idx_featured_window` (`start_time`, `end_time`)
+  KEY `idx_featured_window` (`start_time`, `end_time`),
+  KEY `idx_featured_announce` (`announce_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Featured announces';
 
 -- Post-trade rating between the two parties of an order (book: Seller.status
@@ -107,6 +108,23 @@ CALL announce_add_column('announce_user', 'seller_verified', '`seller_verified` 
 -- Note: seller_id, sale_type, expire_time, status and the location columns of the former announce_goods table
 -- now live in `announce` and `announce_goods_detail` (announce_table.sql); nothing is altered on goods here.
 
+-- Databases created before 2026-10-01 keyed the featured item by the integer goods id; announce ids are
+-- varchar(36) (subject /announce/{id}), so the column is renamed and widened once. Existing numeric ids
+-- are kept as strings, like the goods rows migrated into `announce`.
+DROP PROCEDURE IF EXISTS announce_change_column;
+DELIMITER $$
+CREATE PROCEDURE announce_change_column(IN p_table VARCHAR(64), IN p_old_column VARCHAR(64), IN p_ddl TEXT)
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = p_table AND COLUMN_NAME = p_old_column) THEN
+    SET @sql = CONCAT('ALTER TABLE `', p_table, '` CHANGE COLUMN `', p_old_column, '` ', p_ddl);
+    PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+  END IF;
+END$$
+DELIMITER ;
+CALL announce_change_column('announce_featured_item', 'goods_id', '`announce_id` varchar(36) NOT NULL COMMENT ''announce.id (any kind)''');
+DROP PROCEDURE IF EXISTS announce_change_column;
+
 DROP PROCEDURE IF EXISTS announce_add_index;
 DELIMITER $$
 CREATE PROCEDURE announce_add_index(IN p_table VARCHAR(64), IN p_index VARCHAR(64), IN p_ddl TEXT)
@@ -118,7 +136,8 @@ BEGIN
   END IF;
 END$$
 DELIMITER ;
--- (no index to add: the order table's indexes are in announce_order.sql)
+-- (the order table's indexes are in announce_order.sql)
+CALL announce_add_index('announce_featured_item', 'idx_featured_announce', '(`announce_id`)');
 DROP PROCEDURE IF EXISTS announce_add_index;
 
 DROP PROCEDURE IF EXISTS announce_add_column;

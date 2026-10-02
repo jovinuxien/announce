@@ -32,14 +32,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Round trips of the category and brand repositories against the local announce_reactive_db, with only the persistence slice
  * loaded (no Eureka, Kafka or web). Rows are prefixed "it-" and removed afterwards.
  */
-@SpringJUnitConfig(MyBatisRepositoriesIT.Slice.class)
+@SpringJUnitConfig(MyBatisRepositoriesTest.Slice.class)
 @TestPropertySource(properties = {
         "spring.r2dbc.mybatis.r2dbc-url=r2dbc:mysql://localhost:3306/announce_reactive_db",
         "spring.r2dbc.mybatis.username=announce",
         "spring.r2dbc.mybatis.password=Calliste_1006",
         "spring.r2dbc.mybatis.pool.initial-size=1",
         "r2dbc.mybatis.mapper-locations=classpath:org/linlinjava/announce/db/dao/reactive/*.xml"})
-class MyBatisRepositoriesIT {
+class MyBatisRepositoriesTest {
 
     @Configuration
     @EnableConfigurationProperties

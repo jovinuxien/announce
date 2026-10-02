@@ -121,6 +121,11 @@ public class ConversationWebSocketHandler implements WebSocketHandler {
         if (e instanceof com.opencqrs.framework.command.CommandSubjectDoesNotExistException) {
             return frames.error(action, clientMsgId, 404, "conversation-not-found", e.getMessage());
         }
+        if (e instanceof com.opencqrs.framework.client.ConcurrencyException) {
+            // the retries of Conversations.send were not enough; same answer as REST, the client may send it again
+            return frames.error(action, clientMsgId, 409, "concurrent-modification",
+                    "The conversation changed while the frame was being handled; send it again");
+        }
         log.warn("WebSocket frame {} failed", action, e);
         return frames.error(action, clientMsgId, 500, "internal", "The frame could not be handled");
     }

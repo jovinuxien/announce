@@ -273,8 +273,9 @@ Status: implemented 2026-09-26 in modules `messaging` and `messaging-api` (detai
   subscriber therefore opens-or-finds the thread for any deal (auction, fixed price) and
   posts the SYSTEM message there, without a lookup.
 - The seller of an announce is resolved through an `AnnounceLookup` port over the
-  announce-management API (`GET /api/announces/{id}`); switch to a snapshot from
-  `announce.v1` once `announce-management-api` is merged.
+  announce-management API (`GET /api/announces/{id}`). `announce-management-api` is merged
+  and `announce.v1` exists, but messaging does not consume it yet: a local snapshot of
+  (announce id, seller) from `AnnouncePublishedV1` is the follow-up that removes the HTTP call.
 - Read models: `db-reactive/sql/announce_messaging.sql` (the four chat tables moved out of
   `announce_auction_chat.sql`; conversation and message ids varchar(36), `announce_id`
   varchar(36), `seq`, offer columns, `last_event_id`). Member and staff ids stay `Integer`
@@ -284,16 +285,25 @@ Status: implemented 2026-09-26 in modules `messaging` and `messaging-api` (detai
   announceId, buyerId, sellerId, amountCents, currency, acceptedAt)` with type
   `messaging.offer-accepted`, and `ConversationOpenedV1` (`messaging.conversation-opened`).
 - Consumes `order.v1` (`OrderAgreedV1`, `OrderPaidV1`, `OrderShippedV1`, `OrderSettledV1`,
-  types `order.agreed|paid|shipped|settled`) as local stubs under
-  `infrastructure.messaging.order`; replace them by the `order-api` dependency when that
-  module lands. Field names match `order-api`'s `OrderPaidV1`. Each SYSTEM message uses
-  the Kafka event id as `clientMsgId`, so redelivery posts once.
+  types `order.agreed|paid|shipped|settled`) through the `order-api` dependency; the local
+  stand-ins of the first version were dropped when the order module was merged
+  (`OrderAgreedV1` carries `priceCents`, `feeCents`, `payoutCents`; `OrderShippedV1` has no
+  carrier). Each SYSTEM message uses the Kafka event id as `clientMsgId`, so redelivery
+  posts once.
 - Delivery: `/ws/conversations/{id}` (frames `post`, `offer`, `accept-offer`,
   `decline-offer`, `read`, `close`, `ping`; answers `ack` / `error`; pushes `message` /
   `status`) and `/ws/staff?clientType=` (pushes `bulletin`). Fan-out across nodes is a
   second relay group `messaging-live` on topic `messaging.live` keyed by the conversation
   subject; every node consumes it with its own consumer group. Handshake auth by
   `X-User-Id` / `X-Staff-Id` (4401 without, 4403 when not a participant).
+- **Added 2026-10-01: two races closed.** Commands handled at the same moment on one
+  conversation used to lose one of them (EventSourcingDB refuses the later write); the
+  command facade now dispatches the refused command again, up to
+  `messaging.command-retry.max-retries` (3) times, and a command that still loses answers
+  409 `concurrent-modification` on REST and on the socket. A socket opened right after the
+  conversation was opened used to be refused with 4403 because the read model did not have
+  the row yet; the handshake now looks an unknown conversation up again
+  (`messaging.attach.rechecks` 5, `recheck-interval` 200 ms) before it refuses.
 - Bulletins are plain `announce_bulletin` rows plus a live record; not event-sourced.
 
 ## 10. Out of scope for the first iteration

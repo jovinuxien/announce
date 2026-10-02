@@ -144,8 +144,9 @@ public final class ChatLoadDriver {
     }
 
     /**
-     * The socket handshake checks the participants in the read model, which the projection writes a little
-     * after the command answers; connecting before that closes the socket with 4403. Wait for the join to show.
+     * Waits until the read model shows the conversation OPEN (the staff join has been projected). The socket
+     * handshake no longer needs this: since 2026-10-01 it looks a conversation up again when the read model does
+     * not have it yet ({@code messaging.attach.*}). The wait stays so the runs remain comparable with the baseline.
      */
     void awaitOpen(String id, int member) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);

@@ -106,6 +106,15 @@ messaging:
   max-text-length: 4000
   # how many messages one history page returns at most
   max-page-size: 200
+  # two commands racing on one conversation: the one the event store refused is dispatched again on the new state
+  command-retry:
+    max-retries: 3
+    min-backoff: 5ms
+    max-backoff: 50ms
+  # socket handshake: a conversation the read model does not know yet is looked up again before the socket is refused
+  attach:
+    rechecks: 5
+    recheck-interval: 200ms
 
 management:
   endpoints:

@@ -65,11 +65,11 @@ each processor run.
 
 | Component | Role | Notes |
 |---|---|---|
-| `Conversations` | command facade; resolves the seller through `AnnounceLookup`; `markRead` writes the read model directly | Every write except `markRead` is one command = one EventSourcingDB round trip |
-| `ConversationQueries` | inbox, one conversation, message page, support queue; always the MySQL read model | `view()` does one participants query per conversation row, so an inbox page of 20 is 21 statements |
+| `Conversations` | command facade; resolves the seller through `AnnounceLookup`; `markRead` writes the read model directly; dispatches a command again when the event store refused its write (`messaging.command-retry.*`) | Every write except `markRead` is one command = one EventSourcingDB round trip, plus one per lost race |
+| `ConversationQueries` | inbox, one conversation, message page, support queue; always the MySQL read model; `mayAttach` for the socket handshake looks an unknown conversation up again (`messaging.attach.*`) | `view()` does one participants query per conversation row, so an inbox page of 20 is 21 statements |
 | `Bulletins` | writes `announce_bulletin`, publishes `BulletinLive` on the live topic | Not event-sourced |
 | `AnnounceLookup` | `@HttpExchange` client to announce-management (`GET /api/announces/{id}`) via `HttpExchangeClients`: discovered, load-balanced, Resilience4j-wrapped; pinned by `cqrs.api.clients.announce-management.base-url` | On the path of `POST /api/conversations` for LISTING only |
-| `MessagingProperties` | `max-text-length` 4000, `max-page-size` 200 | |
+| `MessagingProperties` | `max-text-length` 4000, `max-page-size` 200, `command-retry` (3 retries, 5 to 50 ms), `attach` (5 re-checks, 200 ms apart) | |
 
 ### 2.3 Domain
 
@@ -86,7 +86,8 @@ model.
    on `Schedulers.boundedElastic()` (default cap: 10 x CPU threads, 100 000 queued tasks).
 2. OpenCQRS reads the subject's events from EventSourcingDB over its blocking HTTP client, replays
    them through the state rebuilding handlers, runs the command handler, and appends the new event
-   with a precondition on the subject (optimistic concurrency).
+   with a precondition on the subject (optimistic concurrency). A write that loses raises
+   `ConcurrencyException`; `Conversations` dispatches the command again (section 5, step 0 of section 6).
 3. When the caller supplied `X-Command-Id`, `R2dbcCommandIdStore` claims the id in
    `cqrs_command_log` before the dispatch and stores the JSON result after it (two more MySQL
    statements per command). WebSocket frames never pass a command id; they rely on `clientMsgId`
@@ -261,7 +262,8 @@ samples of a meter that also has buckets. With a Prometheus server, set
 
 | Meter | Type | Tags | Where | Meaning |
 |---|---|---|---|---|
-| `messaging.command.latency` | timer | `command`, `outcome` (`ok`, `rejected`, `error`) | `Conversations.send` | dispatch to answer, i.e. the ack latency minus the socket hop |
+| `messaging.command.latency` | timer | `command`, `outcome` (`ok`, `rejected`, `error`) | `Conversations.send` | dispatch to answer, retries included, i.e. the ack latency minus the socket hop |
+| `messaging.command.retries` | counter | `command` | `Conversations.send` | re-dispatches after EventSourcingDB refused a write because another command changed the conversation first; the contention on single conversations |
 | `messaging.live.latency` | timer | `record` (`message`, `status`, `bulletin`) | `LiveEventsSubscriber` | record timestamp (the event time on the command side) to the push on this node: ESDB write, processor pickup, relay, Kafka, consumer |
 | `messaging.live.delivered` | counter | `record` | `LiveEventsSubscriber` | frames pushed to local sockets |
 | `messaging.projection.delay` | timer | `group` | `MeteredProjection` | event written in ESDB to handled by the group on this node; the per-event lag |
@@ -299,27 +301,42 @@ mvn -pl messaging -DskipTests test-compile exec:java -Dexec.classpathScope=test 
 them with `delete ... where subject like 'load %'` on `announce_conversation` and the participant and
 message rows keyed by those ids. A rebuild of the read model brings them back from the event store.
 
-Two things the driver had to work around, both worth knowing:
+Two defects the baseline run found, both fixed on 2026-10-01:
 
-- **Read-your-writes gap on the socket handshake.** `ConversationWebSocketHandler` checks the participants in
-  the read model; a client that connects right after `POST .../join` answers is closed with 4403 because the
-  projection has not written the participant row yet (p95 of `messaging.projection.delay` is about 120 ms,
-  max 770 ms under this load). The driver polls `GET /api/conversations/{id}` until the status is OPEN. A real
-  client will hit this too after opening a conversation; either the handshake should fall back to the
-  aggregate (a `mayAttach` through the command side) or the open/join answer should be delayed until the read
-  model has caught up.
-- **Concurrent posts in one conversation fail.** When both participants post at the same moment, the second
-  write hits EventSourcingDB's precondition (409) and OpenCQRS raises `ConcurrencyException`; nothing retries,
-  and the WebSocket handler maps it to an `error` frame with status 500 and code `internal` (REST maps it to
-  409). Under the load below 12 of 800 posts (1.5 %) were lost this way. The fix is a retry with back-off on
-  `ConcurrencyException` (in `Conversations.send` or, better, in `ReactiveCommandRouter` for every service)
-  and, until then, mapping it to 409 with a code the client can act on. This is a defect, not a tuning item,
-  and comes first in section 6.
+- **Read-your-writes gap on the socket handshake.** `ConversationWebSocketHandler` authorises against the
+  read model; a client that connected right after the conversation was opened was closed with 4403 because
+  the projection had not written the row yet (p95 of `messaging.projection.delay` is about 120 ms, max 770 ms
+  under this load). The driver worked around it by polling `GET /api/conversations/{id}`. Fix:
+  `ConversationQueries.mayAttach` looks a conversation the read model does not have up again,
+  `messaging.attach.rechecks` (5) times, `recheck-interval` (200 ms) apart, before the socket is refused. Only
+  the missing row is re-checked: the row and its first participants are written in one transaction, members
+  never join later and staff may attach to anything, so a stranger on an existing conversation is still
+  refused at once. A lag above one second (the 770 ms maximum is close) still refuses; raise the two settings
+  if `messaging.projection.delay` grows, or move the check to the command side.
+- **Concurrent posts in one conversation failed.** When both participants post at the same moment, the second
+  write hits EventSourcingDB's precondition (409) and OpenCQRS raises `ConcurrencyException`; nothing retried,
+  and the WebSocket handler answered `error` 500 `internal`. Under the baseline load 12 of 800 posts (1.5 %)
+  were lost this way. Fix: `Conversations.send` re-subscribes to the dispatch on `ConcurrencyException`, at
+  most `messaging.command-retry.max-retries` (3) times with a jittered back-off of 5 to 50 ms; nothing was
+  written by the refused attempt, so the handler simply runs again on the new state. Every failed attempt
+  means another writer got through, so up to four simultaneous writers always succeed. A writer that keeps
+  losing against a continuous stream (possible: the back-off puts it behind the next post of the other
+  socket) answers 409 `concurrent-modification` on the socket as on REST, and the client repeats the frame
+  with the same `clientMsgId`. The retry lives in the messaging facade, not in `ReactiveCommandRouter`, to
+  keep the change inside this module; moving it into the router would give `order` and `announce-management`
+  the same behaviour and is a framework follow-up. Serialising the commands of one conversation inside a
+  node would remove same-node races altogether and is not done.
 
 ## 6. Order of experiments
 
-0. Retry on `ConcurrencyException` (defect found by the baseline; see section 5). Measure: `outcome=error`
-   count of `messaging.command.latency` at zero under the baseline load.
+0. Retry on `ConcurrencyException` and the handshake re-check (defects found by the baseline; see
+   section 5). Done 2026-10-01. Verified by `MessagingEndToEndTest`: ten rounds of buyer and seller posting
+   at the same moment over two sockets plus four simultaneous REST posts, 24 of 24 acknowledged with distinct
+   `seq`, `outcome=error` at zero, and `messaging.command.retries` above zero (15 re-dispatches in the run of
+   2026-10-01); with
+   `max-retries=0` the first round already loses a post, and with `attach.rechecks=0` the socket opened right
+   after the conversation is refused. Not yet measured: the `outcome=error` count under the baseline load of
+   section 7 (`ChatLoadDriver`); take it together with the next load run.
 1. Instrument (section 5). Done 2026-09-29; baseline in section 7.
 2. State rebuilding cache on the command side (`opencqrs.command-handling.cache.type`, `capacity`, `ref`);
    measure `messaging.command.latency` for `PostMessage` on long conversations.

@@ -40,11 +40,13 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.reactive.socket.WebSocketMessage;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
 import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
@@ -59,9 +61,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -97,6 +102,9 @@ class MessagingEndToEndTest {
     static final int STAFF = 3;
     static final int OTHER_STAFF = 4;
     static final String CONVERSATION = ConversationIds.listing(ANNOUNCE, BUYER);
+    static final String RACE_ANNOUNCE = "e2e-" + UUID.randomUUID().toString().substring(0, 8);
+    /** A second listing conversation, for the tests that race the read model and each other. */
+    static final String RACE = ConversationIds.listing(RACE_ANNOUNCE, BUYER);
     static final List<String> conversations = new CopyOnWriteArrayList<>();
     static final List<Integer> bulletins = new CopyOnWriteArrayList<>();
     static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
@@ -207,6 +215,14 @@ class MessagingEndToEndTest {
         Map<String, Object> awaitFrame(String type, java.util.function.Predicate<Map<String, Object>> matching) {
             await().atMost(WAIT).until(() -> received.stream().anyMatch(f -> type.equals(f.get("type")) && matching.test(f)));
             return received.stream().filter(f -> type.equals(f.get("type")) && matching.test(f)).findFirst().orElseThrow();
+        }
+
+        /** The {@code ack} or {@code error} that answers the frame sent with this client message id. */
+        Map<String, Object> awaitAnswer(String clientMsgId) {
+            java.util.function.Predicate<Map<String, Object>> answer = f -> clientMsgId.equals(f.get("clientMsgId"))
+                    && ("ack".equals(f.get("type")) || "error".equals(f.get("type")));
+            await().atMost(WAIT).until(() -> received.stream().anyMatch(answer));
+            return received.stream().filter(answer).findFirst().orElseThrow();
         }
 
         CloseStatus awaitClose() {
@@ -468,14 +484,86 @@ class MessagingEndToEndTest {
         assertThat(new WsClient().connect("/ws/staff", null, 0).awaitClose().getCode()).isEqualTo(ConversationWebSocketHandler.NOT_AUTHENTICATED);
     }
 
-    /** The meters of doc/messaging-architecture.md section 5 saw the traffic of the tests above. */
+    /**
+     * The handshake authorises against the read model, which the projection writes a little after the command
+     * answered. The client does not wait: the handshake looks the conversation up again until it is there.
+     */
     @Test
     @Order(6)
+    void aSocketAttachesRightAfterTheConversationIsOpened() {
+        conversations.add(RACE);
+        open(BUYER, "{\"type\":\"LISTING\",\"announceId\":\"" + RACE_ANNOUNCE + "\"}").expectStatus().isCreated()
+                .expectBody().jsonPath("$.id").isEqualTo(RACE);
+        WsClient buyer = new WsClient().connect("/ws/conversations/" + RACE, Principals.USER_HEADER, BUYER);
+        try {
+            buyer.send(Map.of("type", "ping"));
+            buyer.awaitFrame("pong", f -> true);
+            assertThat(sessions.sessions(RACE)).isEqualTo(1);
+        } finally {
+            buyer.close();
+        }
+        await().atMost(WAIT).until(() -> sessions.sessions(RACE) == 0);
+
+        // a conversation that never appears is still refused, once the look-ups are used up
+        assertThat(new WsClient().connect("/ws/conversations/" + UUID.randomUUID(), Principals.USER_HEADER, BUYER).awaitClose().getCode())
+                .isEqualTo(ConversationWebSocketHandler.NOT_PARTICIPANT);
+    }
+
+    /**
+     * Commands handled at the same moment on one conversation read the same state; the event store takes the
+     * first write and refuses the others. The refused ones are dispatched again, so nobody's message is lost.
+     */
+    @Test
+    @Order(7)
+    void postsRacingInOneConversationAreAllAcknowledged() {
+        WsClient buyer = new WsClient().connect("/ws/conversations/" + RACE, Principals.USER_HEADER, BUYER);
+        WsClient seller = new WsClient().connect("/ws/conversations/" + RACE, Principals.USER_HEADER, SELLER);
+        await().atMost(WAIT).until(() -> sessions.sessions(RACE) == 2);
+        int rounds = 10;
+        try {
+            // buyer and seller post at the same moment, round after round
+            Set<Object> seqs = new java.util.HashSet<>();
+            for (int round = 1; round <= rounds; round++) {
+                buyer.send(Map.of("type", "post", "clientMsgId", "rb" + round, "content", "buyer " + round));
+                seller.send(Map.of("type", "post", "clientMsgId", "rs" + round, "content", "seller " + round));
+                for (Map<String, Object> answer : List.of(buyer.awaitAnswer("rb" + round), seller.awaitAnswer("rs" + round))) {
+                    assertThat(answer).as("round %d", round).containsEntry("type", "ack").containsEntry("duplicate", false);
+                    seqs.add(answer.get("seq"));
+                }
+            }
+            assertThat(seqs).as("every post got its own place in the conversation")
+                    .containsExactlyInAnyOrderElementsOf(IntStream.rangeClosed(1, 2 * rounds).boxed().collect(Collectors.toList()));
+        } finally {
+            buyer.close();
+            seller.close();
+        }
+        await().atMost(WAIT).until(() -> sessions.sessions(RACE) == 0);
+
+        // four writers at once over REST: each can lose to the three others, which the three retries absorb
+        WebClient http = WebClient.create("http://localhost:" + port);
+        List<Integer> statuses = Flux.range(1, 4).flatMap(i -> http.post().uri("/api/conversations/" + RACE + "/messages")
+                .header(Principals.USER_HEADER, String.valueOf(i % 2 == 0 ? BUYER : SELLER)).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"clientMsgId\":\"rr" + i + "\",\"content\":\"burst " + i + "\"}")
+                .exchangeToMono(response -> response.releaseBody().thenReturn(response.statusCode().value())), 4).collectList().block(WAIT);
+        assertThat(statuses).containsExactly(201, 201, 201, 201);
+
+        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + RACE, Principals.USER_HEADER, BUYER).expectStatus().isOk()
+                .expectBody().jsonPath("$.messageCount").isEqualTo(2 * rounds + 4).jsonPath("$.lastMessageSeq").isEqualTo(2 * rounds + 4));
+    }
+
+    /** The meters of doc/messaging-architecture.md section 5 saw the traffic of the tests above. */
+    @Test
+    @Order(8)
     void metersCoverCommandsProjectionsAndTheLiveFanOut() {
         assertThat(timer(MessagingMeters.COMMAND_LATENCY, MessagingMeters.TAG_COMMAND, "PostMessage", MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_OK).count())
                 .isGreaterThan(0);
         assertThat(timer(MessagingMeters.COMMAND_LATENCY, MessagingMeters.TAG_COMMAND, "PostMessage", MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_REJECTED).count())
                 .as("the stranger's post was rejected").isGreaterThan(0);
+        assertThat(meters.find(MessagingMeters.COMMAND_LATENCY).tag(MessagingMeters.TAG_COMMAND, "PostMessage")
+                .tag(MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_ERROR).timers())
+                .as("no post was lost to a concurrent write").allSatisfy(t -> assertThat(t.count()).isZero());
+        assertThat(MessagingMeters.commandRetries(meters, "PostMessage").count())
+                .as("the racing posts collided and were dispatched again").isGreaterThan(0);
         for (String group : List.of(ConversationReadModelProjection.GROUP, MessagingRelays.PUBLIC_GROUP, MessagingRelays.LIVE_GROUP)) {
             assertThat(timer(MessagingMeters.PROJECTION_DELAY, MessagingMeters.TAG_GROUP, group).count()).as(group).isGreaterThan(0);
             assertThat(timer(MessagingMeters.PROJECTION_HANDLER, MessagingMeters.TAG_GROUP, group, MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_OK).count())

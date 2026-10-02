@@ -74,6 +74,13 @@ directly.
 closed with 4401, one who is neither a participant nor staff with 4403. History is not replayed on the
 socket: load it with the REST route, then keep the socket for what follows.
 
+The handshake authorises against the read model, which trails the command side by the projection delay
+(about 0.1 s). A client may connect as soon as `POST /api/conversations` has answered: a conversation the
+read model does not have yet is looked up again, `messaging.attach.rechecks` (5) times,
+`messaging.attach.recheck-interval` (200 ms) apart, before the socket is closed with 4403. A conversation
+that is there answers at once, so a stranger is not kept waiting; an id that never existed costs about one
+second.
+
 Frames the client sends (JSON, `type` first):
 
 ```json
@@ -88,6 +95,8 @@ Frames the client receives:
 - `ack`: `{"type":"ack","action":"post","messageId":..,"seq":..,"clientMsgId":..,"duplicate":false}` (for
   `accept-offer`, `decline-offer`, `read`, `close` only `action`);
 - `error`: `{"type":"error","action":..,"clientMsgId":..,"status":403,"code":"not-buyer","detail":..}`;
+  status 409 with code `concurrent-modification` means the frame lost a race against other writers of the
+  conversation even after the server's retries (below) and can be sent again as is;
 - `message`: a `MessageLive` (`conversationId, messageId, seq, senderType, senderId, contentType, content,
   attachmentUrl, offerAmountCents, currency, clientMsgId, sentAt`) for every message of the conversation,
   the client's own included;
@@ -103,6 +112,15 @@ Frames the client receives:
 every node consumes the topic with its own consumer group (`messaging-live-${random.uuid}`, start
 offset latest) and pushes to the sockets it holds (`LiveSessions`). Delivery is at least once: clients
 de-duplicate on `messageId`. Bulletins reach the same topic through `StreamBridgeLiveFeed`.
+
+**Posts at the same moment.** Two commands on one conversation that are handled together read the same
+state; EventSourcingDB accepts the first write and refuses the second, and nothing of the second is written.
+`Conversations` dispatches the refused command again on the new state, at most
+`messaging.command-retry.max-retries` (3) times with a short jittered back-off (`min-backoff` 5 ms,
+`max-backoff` 50 ms), so both posts are acknowledged, each with its own `seq`. Each failed attempt means
+another writer got through, so up to four writers at once always succeed; a writer that keeps losing against a
+continuous stream gets 409 `concurrent-modification` (REST and socket) and may repeat the request with the
+same `clientMsgId`. The re-dispatches are counted in `messaging.command.retries`.
 
 ## 6. Public events and subscriptions
 
@@ -126,10 +144,16 @@ mvn -pl messaging spring-boot:run
 ```
 
 `mvn -pl messaging test`: `ConversationTest` (aggregate through `CommandFixture`),
-`ConversationControllerTest` (REST slice) and `MessagingEndToEndTest` (EventSourcingDB and Kafka from
-Testcontainers, the read model in the live `announce_reactive_db`; the class removes the rows it writes
+`ConversationControllerTest` (REST slice), `ConversationsRetryTest` and `ConversationQueriesAttachTest`
+(the retry and the handshake re-check against mocks) and `MessagingEndToEndTest` (EventSourcingDB and Kafka
+from Testcontainers, the read model in the live `announce_reactive_db`; the class removes the rows it writes
 and clears the three groups' checkpoints before it starts). Several worktrees share `~/.m2`, so build
 with `-am` when another session may have installed an older `db-reactive`.
+
+After a test run the three checkpoints in `cqrs_readside_progress` hold event ids of the test's
+EventSourcingDB container. Before starting a node against the local `docker/cqrs` store, set them to that
+store's latest `/conversation` event id (or delete them for a full rebuild); otherwise the node resumes from
+an id that means something else there and replays old events onto `messaging.v1` and `messaging.live`.
 
 Out of scope for this iteration: push notifications, attachment storage (URLs only), moderation beyond
 Block, read receipts per message.

@@ -1,5 +1,6 @@
 package org.linlinjava.announce.messaging.infrastructure.metrics;
 
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 
@@ -12,7 +13,9 @@ import java.time.Duration;
  *
  * <ul>
  *   <li>{@link #COMMAND_LATENCY}: time inside the command facade, from dispatch to answer, per command type
- *       and outcome ({@code ok}, {@code rejected}, {@code error});</li>
+ *       and outcome ({@code ok}, {@code rejected}, {@code error}), retries included;</li>
+ *   <li>{@link #COMMAND_RETRIES}: re-dispatches after the event store refused a write because another command
+ *       changed the conversation first, per command type;</li>
  *   <li>{@link #LIVE_LATENCY}: end-to-end fan-out delay, from the event's own timestamp to the moment this
  *       node pushes it to its sockets, per record type;</li>
  *   <li>{@link #LIVE_DELIVERED}: frames pushed to local sockets from the live topic;</li>
@@ -27,6 +30,7 @@ import java.time.Duration;
 public final class MessagingMeters {
 
     public static final String COMMAND_LATENCY = "messaging.command.latency";
+    public static final String COMMAND_RETRIES = "messaging.command.retries";
     public static final String LIVE_LATENCY = "messaging.live.latency";
     public static final String LIVE_DELIVERED = "messaging.live.delivered";
     public static final String PROJECTION_DELAY = "messaging.projection.delay";
@@ -54,6 +58,11 @@ public final class MessagingMeters {
     public static Timer commandLatency(MeterRegistry registry, String command, String outcome) {
         return Timer.builder(COMMAND_LATENCY).description("Command dispatch to answer, inside the messaging facade")
                 .tag(TAG_COMMAND, command).tag(TAG_OUTCOME, outcome).register(registry);
+    }
+
+    public static Counter commandRetries(MeterRegistry registry, String command) {
+        return Counter.builder(COMMAND_RETRIES).description("Re-dispatches after a concurrent write on the same conversation")
+                .tag(TAG_COMMAND, command).register(registry);
     }
 
     public static Timer liveLatency(MeterRegistry registry, String record) {

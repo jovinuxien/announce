@@ -94,9 +94,25 @@ public class ConversationQueries {
         return view(id, viewer).flatMapMany(v -> messages.selectAfter(id, Math.max(0, afterSeq), bounded)).map(MessageView::of);
     }
 
-    /** Whether the viewer may attach to the conversation: a participant, or any staff member. */
+    /**
+     * Whether the viewer may attach to the conversation: a participant, or any staff member.
+     *
+     * <p>The read model trails the command side: a socket opened right after the conversation was opened may ask
+     * before the projection wrote the row. A conversation that is not there (yet) is therefore looked up again,
+     * {@code messaging.attach.rechecks} times, {@code messaging.attach.recheck-interval} apart, before the answer
+     * is no. A conversation that is there answers at once: its row and its first participants are written in one
+     * transaction, members never join later, and staff may attach to any conversation.
+     */
     public Mono<Boolean> mayAttach(String id, Viewer viewer) {
-        return view(id, viewer).map(v -> true).onErrorReturn(CommandRejectedException.class, false);
+        return mayAttach(id, viewer, Math.max(0, properties.getAttach().getRechecks()));
+    }
+
+    private Mono<Boolean> mayAttach(String id, Viewer viewer, int rechecksLeft) {
+        return Mono.defer(() -> conversations.selectByPrimaryKey(id))
+                .flatMap(row -> view(row, viewer))
+                .map(view -> viewer.staff() || view.unread() != null)
+                .switchIfEmpty(Mono.defer(() -> rechecksLeft == 0 ? Mono.just(false)
+                        : Mono.delay(properties.getAttach().getRecheckInterval()).then(mayAttach(id, viewer, rechecksLeft - 1))));
     }
 
     /** The support queue (status WAITING) or any other status, oldest first; staff only. */

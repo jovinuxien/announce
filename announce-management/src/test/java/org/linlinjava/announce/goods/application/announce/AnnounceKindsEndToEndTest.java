@@ -1,16 +1,21 @@
 package org.linlinjava.announce.goods.application.announce;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.linlinjava.announce.cqrs.messaging.PublicEventSubscribers;
+import org.linlinjava.announce.cqrs.test.EdgeRequests;
 import org.linlinjava.announce.cqrs.test.PublicEventTestProducer;
 import org.linlinjava.announce.cqrs.test.containers.CqrsContainers;
 import org.linlinjava.announce.cqrs.test.containers.EventSourcingDbContainer;
 import org.linlinjava.announce.search.RecordingSearchIndexer;
 import org.linlinjava.announce.goods.api.AnnouncePublishedV1;
 import org.linlinjava.announce.goods.api.AnnounceSoldV1;
+import org.linlinjava.announce.cqrs.security.ServiceTokenWebFilter;
+import org.linlinjava.announce.cqrs.security.ServiceTokens;
+import org.linlinjava.announce.goods.interfaces.rest.Callers;
 import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceController;
 import org.linlinjava.announce.order.api.OrderPaidV1;
 import org.linlinjava.announce.order.api.OrderRefundedV1;
@@ -35,6 +40,7 @@ import org.testcontainers.utility.MountableFile;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
@@ -53,7 +59,9 @@ import static org.awaitility.Awaitility.await;
  * injected by the test (the order module is not running) mark an announce SOLD and relist it.
  */
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        // the suite runs as in production: only requests signed by an edge are served (the test profile says off)
+        properties = {EdgeRequests.ENFORCE, EdgeRequests.SECRET_PROPERTY})
 @ActiveProfiles("test")
 @DirtiesContext
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -109,7 +117,9 @@ class AnnounceKindsEndToEndTest {
         }
     }
 
-    @Autowired WebTestClient client;
+    @Autowired WebTestClient direct;   // straight to the service, as someone bypassing the edges would call it
+    WebTestClient client;              // through the customer edge: every request carries a fresh X-Service-Token
+    WebTestClient staff;               // through the admin edge, as staff member 1
     @Autowired RecordingSearchIndexer indexer;   // announce.search.mode=noop in the test profile
     @Autowired PublicEventTestProducer orderModule;
 
@@ -117,13 +127,19 @@ class AnnounceKindsEndToEndTest {
     static String jobId;
     static String eventId;
 
+    @BeforeEach
+    void throughAnEdge() {
+        client = direct.mutate().filter(EdgeRequests.signing()).build();
+        staff = client.mutate().defaultHeader(Callers.USER_HEADER, "1").defaultHeader(Callers.TYPE_HEADER, Callers.ADMIN).build();
+    }
+
     private WebTestClient.ResponseSpec post(String body) {
-        return client.post().uri("/api/announces").header(AnnounceController.SELLER_HEADER, SELLER)
+        return client.post().uri("/api/announces").header(Callers.USER_HEADER, SELLER).header(Callers.TYPE_HEADER, Callers.MEMBER)
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(body).exchange();
     }
 
     private WebTestClient.ResponseSpec action(String id, String action, String seller) {
-        return client.post().uri("/api/announces/" + id + "/" + action).header(AnnounceController.SELLER_HEADER, seller).exchange();
+        return client.post().uri("/api/announces/" + id + "/" + action).header(Callers.USER_HEADER, seller).header(Callers.TYPE_HEADER, Callers.MEMBER).exchange();
     }
 
     private static String shared(String kind, String title, int category) {
@@ -137,6 +153,35 @@ class AnnounceKindsEndToEndTest {
         String json = new String(body);
         int i = json.indexOf("\"id\":\"") + 6;
         return json.substring(i, json.indexOf('"', i));
+    }
+
+    @Test
+    @Order(0)
+    void onlyRequestsThatPassedAnEdgeAreServed() {
+        direct.get().uri("/api/announces").exchange().expectStatus().isUnauthorized()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody().jsonPath("$.type").isEqualTo(ServiceTokenWebFilter.PROBLEM_TYPE_MISSING);
+        // identity headers alone are worth nothing, and neither is a token signed with a guessed secret or an old one
+        direct.post().uri("/api/announces").header(Callers.USER_HEADER, SELLER).header(Callers.TYPE_HEADER, Callers.MEMBER)
+                .contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange().expectStatus().isUnauthorized();
+        direct.get().uri("/api/announces")
+                .header(ServiceTokens.HEADER, ServiceTokens.mint("gateway-api", "guessed", Instant.now().getEpochSecond()))
+                .exchange().expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.type").isEqualTo(ServiceTokenWebFilter.PROBLEM_TYPE_INVALID);
+        direct.get().uri("/api/announces")
+                .header(ServiceTokens.HEADER, ServiceTokens.mint("gateway-api", EdgeRequests.SECRET, Instant.now().getEpochSecond() - 600))
+                .exchange().expectStatus().isUnauthorized();
+        direct.get().uri("/out/dba-1").exchange().expectStatus().isUnauthorized();
+        direct.post().uri("/api/admin/announces/reindex").header(Callers.USER_HEADER, "1").header(Callers.TYPE_HEADER, Callers.ADMIN)
+                .exchange().expectStatus().isUnauthorized();
+        // health checks reach the service directly
+        direct.get().uri("/actuator/health").exchange().expectStatus().value(status -> assertThat(status).isNotEqualTo(401));
+
+        client.get().uri("/api/announces").exchange().expectStatus().isOk();
+        // a member coming through the customer edge is not staff
+        client.get().uri("/api/admin/announces").header(Callers.USER_HEADER, SELLER).header(Callers.TYPE_HEADER, Callers.MEMBER)
+                .exchange().expectStatus().isForbidden();
+        staff.get().uri("/api/admin/announces?size=1").exchange().expectStatus().isOk();
     }
 
     @Test
@@ -202,7 +247,7 @@ class AnnounceKindsEndToEndTest {
     void reindexPushesEveryPublishedAnnounceFromTheReadModel() {
         // the admin trigger walks the read model, so rows that never produced an event (the seed) reach the index too
         int before = indexer.indexed().size();
-        client.mutate().responseTimeout(Duration.ofMinutes(3)).build()
+        staff.mutate().responseTimeout(Duration.ofMinutes(3)).build()
                 .post().uri("/api/admin/announces/reindex").exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.indexed").value(n -> assertThat(((Number) n).longValue()).isGreaterThanOrEqualTo(3L));
         assertThat(indexer.indexed().size()).isGreaterThan(before);
@@ -243,17 +288,17 @@ class AnnounceKindsEndToEndTest {
         action(goodsId, "sold", SELLER).expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("SOLD");
         action(eventId, "withdraw", SELLER).expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("WITHDRAWN");
         await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/announces/" + goodsId).exchange().expectStatus().isNotFound());
-        client.get().uri("/api/announces/" + goodsId).header(AnnounceController.SELLER_HEADER, SELLER).exchange().expectStatus().isOk()
+        client.get().uri("/api/announces/" + goodsId).header(Callers.USER_HEADER, SELLER).header(Callers.TYPE_HEADER, Callers.MEMBER).exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.status").isEqualTo("SOLD");
         await().atMost(WAIT).untilAsserted(() -> assertThat(indexer.removed()).contains(goodsId, eventId));
         client.get().uri("/api/announces?q=E2E").exchange().expectStatus().isOk().expectBody().jsonPath("$.total").isEqualTo(1);
 
         // idempotent retry of a command id replays the stored result
-        client.put().uri("/api/announces/" + jobId).header(AnnounceController.SELLER_HEADER, SELLER).header(AnnounceController.COMMAND_ID_HEADER, "edit-job-1")
+        client.put().uri("/api/announces/" + jobId).header(Callers.USER_HEADER, SELLER).header(Callers.TYPE_HEADER, Callers.MEMBER).header(AnnounceController.COMMAND_ID_HEADER, "edit-job-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{" + shared("JOB", "E2E Java developer (senior)", JOB_CATEGORY) + ",\"job\":{\"employer\":\"Acme\",\"howToApply\":\"jobs@acme.invalid\"}}")
                 .exchange().expectStatus().isOk().expectBody().jsonPath("$.title").isEqualTo("E2E Java developer (senior)");
-        client.put().uri("/api/announces/" + jobId).header(AnnounceController.SELLER_HEADER, SELLER).header(AnnounceController.COMMAND_ID_HEADER, "edit-job-1")
+        client.put().uri("/api/announces/" + jobId).header(Callers.USER_HEADER, SELLER).header(Callers.TYPE_HEADER, Callers.MEMBER).header(AnnounceController.COMMAND_ID_HEADER, "edit-job-1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{" + shared("JOB", "ignored on replay", JOB_CATEGORY) + ",\"job\":{\"employer\":\"Acme\",\"howToApply\":\"jobs@acme.invalid\"}}")
                 .exchange().expectStatus().isOk().expectBody().jsonPath("$.title").isEqualTo("E2E Java developer (senior)");
@@ -288,7 +333,7 @@ class AnnounceKindsEndToEndTest {
         await().atMost(WAIT).untilAsserted(() -> assertThat(published(sofaId)).hasSize(1));
         String paidEventId = orderModule.send(OrderTopics.ORDER_V1, "/order/o-1",
                 new OrderPaidV1("o-1", sofaId, 9, Integer.valueOf(SELLER), 80000L, "DKK", NOW));
-        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/announces/" + sofaId).header(AnnounceController.SELLER_HEADER, SELLER)
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/announces/" + sofaId).header(Callers.USER_HEADER, SELLER).header(Callers.TYPE_HEADER, Callers.MEMBER)
                 .exchange().expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("SOLD"));
         await().atMost(WAIT).untilAsserted(() -> assertThat(KafkaProbeConfig.announceEvents)
                 .filteredOn(e -> e instanceof AnnounceSoldV1 sold && sold.announceId().equals(sofaId)).hasSize(1));
@@ -323,33 +368,33 @@ class AnnounceKindsEndToEndTest {
         // a fresh published goods announce of another seller; staff withdraws it with a reason, no owner header
         String spam = idOf(post("{" + shared("GOODS", "E2E spam bike", GOODS_CATEGORY) + ",\"goods\":{\"price\":10,\"condition\":\"FAIR\",\"saleType\":\"FIXED_PRICE\"}}"));
         action(spam, "publish", SELLER).expectStatus().isOk();
-        client.post().uri("/api/admin/announces/" + spam + "/withdraw").header("X-User-Id", "1")
+        staff.post().uri("/api/admin/announces/" + spam + "/withdraw")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"spam\"}").exchange()
                 .expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("WITHDRAWN");
         // the still-published job is force-expired although its date is far away
-        client.post().uri("/api/admin/announces/" + jobId + "/expire").header("X-User-Id", "1")
+        staff.post().uri("/api/admin/announces/" + jobId + "/expire")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"employer asked\"}").exchange()
                 .expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("EXPIRED");
         // a reason is mandatory; a draft cannot be moderated
-        client.post().uri("/api/admin/announces/" + jobId + "/withdraw").header("X-User-Id", "1")
+        staff.post().uri("/api/admin/announces/" + jobId + "/withdraw")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"\"}").exchange().expectStatus().isBadRequest();
-        client.post().uri("/api/admin/announces/" + jobId + "/withdraw").header("X-User-Id", "1")
+        staff.post().uri("/api/admin/announces/" + jobId + "/withdraw")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"again\"}").exchange()
                 .expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("not-published");
 
         // the admin listing shows every status with the moderation columns; the public listing hides them; the index drops them
-        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/admin/announces?status=WITHDRAWN&q=E2E spam").exchange().expectStatus().isOk()
+        await().atMost(WAIT).untilAsserted(() -> staff.get().uri("/api/admin/announces?status=WITHDRAWN&q=E2E spam").exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.total").isEqualTo(1).jsonPath("$.items[0].id").isEqualTo(spam)
                 .jsonPath("$.items[0].moderatedBy").isEqualTo(1).jsonPath("$.items[0].moderationReason").isEqualTo("spam"));
-        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/admin/announces?kind=JOB&status=EXPIRED&q=E2E").exchange().expectStatus().isOk()
+        await().atMost(WAIT).untilAsserted(() -> staff.get().uri("/api/admin/announces?kind=JOB&status=EXPIRED&q=E2E").exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.items[0].id").isEqualTo(jobId).jsonPath("$.items[0].moderationReason").isEqualTo("employer asked"));
-        client.get().uri("/api/admin/announces/" + spam).exchange().expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("WITHDRAWN");
+        staff.get().uri("/api/admin/announces/" + spam).exchange().expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("WITHDRAWN");
         client.get().uri("/api/announces/" + spam).exchange().expectStatus().isNotFound();
         client.get().uri("/api/announces?q=E2E").exchange().expectStatus().isOk().expectBody().jsonPath("$.total").isEqualTo(0);
         await().atMost(WAIT).untilAsserted(() -> assertThat(indexer.removed()).contains(spam, jobId));
         // the seller republishes the moderated job and the moderation columns clear
         action(jobId, "publish", SELLER).expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("PUBLISHED");
-        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/admin/announces?kind=JOB&status=PUBLISHED&q=E2E").exchange().expectStatus().isOk()
+        await().atMost(WAIT).untilAsserted(() -> staff.get().uri("/api/admin/announces?kind=JOB&status=PUBLISHED&q=E2E").exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.items[0].id").isEqualTo(jobId).jsonPath("$.items[0].moderationReason").doesNotExist());
     }
 }

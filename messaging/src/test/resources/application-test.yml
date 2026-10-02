@@ -40,6 +40,10 @@ opencqrs:
         max-interval: 2s
         max-attempts: 30
 
+announce:
+  service-token:
+    mode: "off"         # suites call the controllers directly; the end-to-end test turns enforce on
+
 cqrs:
   readside:
     handler-timeout: 15s

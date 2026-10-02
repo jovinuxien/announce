@@ -7,12 +7,12 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
 /**
- * Security of the catalog API in this phase: authentication and authorisation happen at the gateway, which is
- * expected to inject the member as the {@code X-Seller-Id} header. This service therefore accepts the API and
- * actuator routes without its own login, and disables CSRF for the stateless JSON API.
- *
- * <p>Replace with resource-server JWT validation once the auth-server issues tokens; until then this service must
- * not be exposed directly to the internet.
+ * Security of the catalog API: authentication happens at the edges ({@code gateway-api} for members,
+ * {@code gateway-admin} for staff), which inject the caller as {@code X-User-Id} / {@code X-User-Type} and sign
+ * every proxied request with {@code X-Service-Token}. The framework's {@code ServiceTokenWebFilter}
+ * ({@code announce.service-token.mode=enforce}) answers 401 to a request without a valid token before this chain
+ * runs, so the identity headers can be trusted. This chain therefore has no login of its own and disables CSRF
+ * for the stateless JSON API.
  */
 @Configuration
 @EnableWebFluxSecurity

@@ -1,7 +1,7 @@
 # cqrs-reactive: the framework every announce service is built on
 
 `cqrs-reactive` is one Maven module (`org.joviste:cqrs-reactive`) with five packages under
-`org.linlinjava.announce.cqrs`, plus the sibling test kit `cqrs-reactive-test`. It follows the
+`org.linlinjava.announce.cqrs` (and the small `security` package of §5a), plus the sibling test kit `cqrs-reactive-test`. It follows the
 [Lagom](https://github.com/lagom/lagom) way of building a service, translated to Spring Boot 3.5 / WebFlux,
 OpenCQRS 1.0.0 on EventSourcingDB, R2DBC MySQL and Spring Cloud Stream on Kafka.
 
@@ -266,7 +266,8 @@ and Eureka), wrapped in a Resilience4j circuit breaker and time limiter named af
 (`resilience4j.circuitbreaker.instances.announce-management.*`), and traced through the auto-configured
 `WebClient.Builder`. Connection failures, timeouts and 5xx answers count as breaker failures, 4xx answers do
 not. `cqrs.api.clients.<serviceId>.base-url` pins a fixed URL for services outside the registry (the OCS
-tier) and for tests.
+tier) and for tests. `cqrs.api.clients.<serviceId>.service-token: true` makes the client sign its calls
+(§5a); set it for clients of our own services only.
 
 ## 5. `observability`: correlation, causation, tracing
 
@@ -280,6 +281,33 @@ tier) and for tests.
   (`traceparent`) and the subscriber continues the trace.
 - Everything degrades to no-ops without a Micrometer `Tracer`; add a tracing bridge
   (`micrometer-tracing-bridge-otel` or `-brave`) to a service to get real spans.
+
+## 5a. `security`: only requests that passed an edge
+
+The edges authenticate people and forward the identity as headers (`X-User-Id`, `X-User-Type`, ...). A service
+may trust those headers only if the request really came through an edge, which the edge proves with
+`X-Service-Token = v1.<service>.<epochSeconds>.<hex hmacSha256(secret, service:epochSeconds)>` (`ServiceTokens`).
+
+```yaml
+announce:
+  service-token:
+    mode: enforce                       # off (default) | log | enforce
+    secret: ${ANNOUNCE_SERVICE_SECRET:dev-service-secret-change-me}
+    # max-skew: 60s                     # how old (or how far ahead) a token may be
+    # open-paths: /actuator/**          # served without a token
+```
+
+- `ServiceTokenWebFilter` (auto-configured, right after the correlation filter) answers 401
+  `application/problem+json` to a request, or WebSocket handshake, whose token is missing, stale or forged.
+  `log` only warns. The verified caller's name is the exchange attribute `ServiceTokenWebFilter.CALLER_ATTRIBUTE`.
+  A checking mode without a secret fails at start-up. Quote `"off"` in YAML or leave the property out: an
+  unquoted `off` is the boolean false (accepted, it means off).
+- A service that calls another one opts the client in (`cqrs.api.clients.<serviceId>.service-token: true`);
+  `ServiceTokenMinter` then signs each call under `spring.application.name`.
+- A new service: set the block above in `config/application.yml`, `mode: "off"` in the `test` profile, and let
+  the end-to-end suite run with `enforce` through `EdgeRequests` (§6). Read the caller from the headers in one
+  place (announce-management: `interfaces.rest.Callers`), checking `X-User-Type` as well as the id.
+- Design and rollout: `doc/frontend-edges.md` §10.
 
 ## 6. `cqrs-reactive-test`: the test kit
 
@@ -297,6 +325,12 @@ with a capturing publisher and exposes events, result, error and resulting state
 
 `ProjectionHarness.of(projection).prepare().feed("/announce/1", event)` runs events through the real
 adapter without a processor.
+
+`EdgeRequests` lets a suite run with the service-token check on: put `EdgeRequests.ENFORCE` and
+`EdgeRequests.SECRET_PROPERTY` in `@SpringBootTest(properties = ...)` and register
+`EdgeRequests.signedWebTestClient()` as a `WebTestClientBuilderCustomizer` bean, and the autowired
+`WebTestClient` signs every request like an edge; `EdgeRequests.token()` signs a WebSocket handshake built by
+hand; a client from `WebTestClient.bindToServer()` is the caller that bypassed the edges.
 
 Container-backed tests use `CqrsContainers`:
 

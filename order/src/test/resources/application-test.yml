@@ -31,6 +31,10 @@ cqrs:
   readside:
     handler-timeout: 15s
 
+announce:
+  service-token:
+    mode: "off"         # suites call the controllers directly; the end-to-end test turns enforce on
+
 order:
   jobs:
     enabled: false      # the tests drive the jobs by hand with an advanced clock

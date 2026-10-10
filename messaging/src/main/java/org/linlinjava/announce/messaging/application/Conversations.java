@@ -1,5 +1,8 @@
 package org.linlinjava.announce.messaging.application;
 
+import com.opencqrs.framework.client.ConcurrencyException;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.linlinjava.announce.cqrs.command.CommandRejectedException;
 import org.linlinjava.announce.cqrs.command.ReactiveCommandRouter;
 import org.linlinjava.announce.cqrs.observability.MetaDataKeys;
@@ -18,9 +21,11 @@ import org.linlinjava.announce.messaging.domain.conversation.ConversationIds;
 import org.linlinjava.announce.messaging.domain.conversation.ParticipantType;
 import org.linlinjava.announce.messaging.domain.conversation.PostResult;
 import org.linlinjava.announce.messaging.domain.conversation.Sender;
+import org.linlinjava.announce.messaging.infrastructure.metrics.MessagingMeters;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -32,6 +37,14 @@ import java.util.Map;
  * dispatch idempotent; the client message id of a post is idempotent on its own.
  *
  * <p>Reading positions are not domain facts: {@link #markRead} writes the read model directly.
+ *
+ * <p>Two commands racing on one conversation: the event store refuses the later write with a
+ * {@link ConcurrencyException} and writes nothing, so the refused command is dispatched again on the new state,
+ * at most {@code messaging.command-retry.max-retries} times with a short jittered back-off. Each re-dispatch counts
+ * in {@code messaging.command.retries}. A command that still loses after the last attempt fails with the
+ * {@code ConcurrencyException} (409 {@code concurrent-modification} for the client, who may send it again).
+ *
+ * <p>Every dispatch is timed as {@code messaging.command.latency} (tags: command type, outcome), retries included.
  */
 @Service
 public class Conversations {
@@ -42,12 +55,17 @@ public class Conversations {
     private final AnnounceLookup announces;
     private final AnnounceConversationParticipantMapper participants;
     private final Clock clock;
+    private final MeterRegistry meters;
+    private final MessagingProperties.CommandRetry retry;
 
-    public Conversations(ReactiveCommandRouter router, AnnounceLookup announces, AnnounceConversationParticipantMapper participants, Clock clock) {
+    public Conversations(ReactiveCommandRouter router, AnnounceLookup announces, AnnounceConversationParticipantMapper participants, Clock clock,
+                         MeterRegistry meters, MessagingProperties properties) {
         this.router = router;
         this.announces = announces;
         this.participants = participants;
         this.clock = clock;
+        this.meters = meters;
+        this.retry = properties.getCommandRetry();
     }
 
     /** Opens, or finds, the conversation between this buyer and the seller of the announce. */
@@ -106,6 +124,30 @@ public class Conversations {
 
     private <R> Mono<R> send(com.opencqrs.framework.command.Command command, String commandId, Class<R> resultType) {
         Map<String, ?> metaData = commandId == null ? Map.of() : Map.of(MetaDataKeys.COMMAND_ID, commandId);
-        return router.send(command, metaData, resultType);
+        String name = command.getClass().getSimpleName();
+        return Mono.defer(() -> {
+            Timer.Sample sample = Timer.start(meters);
+            return retrying(router.send(command, metaData, resultType), name)
+                    .doOnSuccess(r -> sample.stop(MessagingMeters.commandLatency(meters, name, MessagingMeters.OUTCOME_OK)))
+                    .doOnError(e -> sample.stop(MessagingMeters.commandLatency(meters, name, e instanceof CommandRejectedException
+                            ? MessagingMeters.OUTCOME_REJECTED : MessagingMeters.OUTCOME_ERROR)));
+        });
+    }
+
+    /**
+     * Re-subscribes to the dispatch when the event store refused the write because the conversation changed in
+     * the meantime. Safe for every command: nothing was written, and the handler runs again on the new state
+     * (a post gets the next {@code seq}, an idempotent command finds its work done). The router releases a claimed
+     * command id on failure, so the re-dispatch claims it again.
+     */
+    private <R> Mono<R> retrying(Mono<R> dispatch, String command) {
+        if (retry.getMaxRetries() <= 0) {
+            return dispatch;
+        }
+        return dispatch.retryWhen(Retry.backoff(retry.getMaxRetries(), retry.getMinBackoff())
+                .maxBackoff(retry.getMaxBackoff())
+                .filter(ConcurrencyException.class::isInstance)
+                .doBeforeRetry(signal -> MessagingMeters.commandRetries(meters, command).increment())
+                .onRetryExhaustedThrow((spec, signal) -> signal.failure()));
     }
 }

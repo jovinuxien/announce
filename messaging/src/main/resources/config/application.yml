@@ -115,12 +115,26 @@ messaging:
   max-text-length: 4000
   # how many messages one history page returns at most
   max-page-size: 200
+  # two commands racing on one conversation: the one the event store refused is dispatched again on the new state
+  command-retry:
+    max-retries: 3
+    min-backoff: 5ms
+    max-backoff: 50ms
+  # socket handshake: a conversation the read model does not know yet is looked up again before the socket is refused
+  attach:
+    rechecks: 5
+    recheck-interval: 200ms
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      # which node a sample comes from; set ANNOUNCE_NODE when several nodes run on one host
+      node: ${ANNOUNCE_NODE:${server.port}}
+    # p50/p95/p99 of the messaging.* timers: see infrastructure.metrics.MessagingMetricsConfig
 
 logging:
   level:

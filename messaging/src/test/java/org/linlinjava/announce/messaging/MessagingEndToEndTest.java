@@ -164,6 +164,7 @@ class MessagingEndToEndTest {
     }
 
     @Autowired WebTestClient client;
+    @Autowired com.opencqrs.framework.command.CommandRouter commandRouter;
     @Autowired LiveSessions sessions;
     @Autowired StreamBridge streamBridge;
     @Autowired ObjectMapper objectMapper;
@@ -590,9 +591,22 @@ class MessagingEndToEndTest {
                 .expectBody().jsonPath("$.messageCount").isEqualTo(2 * rounds + 4).jsonPath("$.lastMessageSeq").isEqualTo(2 * rounds + 4));
     }
 
-    /** The meters of doc/messaging-architecture.md section 5 saw the traffic of the tests above. */
+    /**
+     * The command side runs with the LRU state cache (doc/messaging-architecture.md section 6, step 2): the router
+     * replays only the events after the cached state. Pinned here so a configuration slip cannot silently fall back
+     * to replaying every conversation in full. The tests above exercised it: every post after the first in a
+     * conversation went through a cached state.
+     */
     @Test
     @Order(8)
+    void theCommandRouterHoldsTheStateRebuildingCache() {
+        Object cache = org.springframework.test.util.ReflectionTestUtils.getField(commandRouter, "stateRebuildingCache");
+        assertThat(cache).isInstanceOf(com.opencqrs.framework.command.cache.LruInMemoryStateRebuildingCache.class);
+    }
+
+    /** The meters of doc/messaging-architecture.md section 5 saw the traffic of the tests above. */
+    @Test
+    @Order(9)
     void metersCoverCommandsProjectionsAndTheLiveFanOut() {
         assertThat(timer(MessagingMeters.COMMAND_LATENCY, MessagingMeters.TAG_COMMAND, "PostMessage", MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_OK).count())
                 .isGreaterThan(0);

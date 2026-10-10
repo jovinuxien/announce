@@ -93,10 +93,14 @@ model.
    statements per command). WebSocket frames never pass a command id; they rely on `clientMsgId`
    inside the aggregate instead.
 
-`opencqrs.command-handling.cache.ref` is not set, so the framework's `StateRebuildingCache` is whatever
-OpenCQRS defaults to (the metadata offers `LruInMemoryStateRebuildingCache(int)` and
-`NoStateRebuildingCache`; verify the default before relying on it). Without a cache, every post to a
-conversation with N messages replays N events from EventSourcingDB.
+Since 2026-10-10 `opencqrs.command-handling.cache.type=in_memory` (`capacity` 1000) gives the router an
+`LruInMemoryStateRebuildingCache` keyed by subject, state class and sourcing mode. An entry holds the rebuilt
+state and the id of the last event it saw; on the next command the router reads only the events after that id
+(`LowerBoundExclusive`), applies them and handles. A stale entry on one node is therefore harmless: another
+node's writes are read as the tail. Before this the default was `none`, so every post to a conversation with
+N messages replayed N events from EventSourcingDB; section 7b shows what that cost. The entry of a
+conversation grows by about 150 bytes per message (`messagesByClientId`), so the capacity bounds the memory at
+roughly 150 KB per 1,000-message conversation. `MessagingEndToEndTest` pins the cache type.
 
 ### 2.5 Read side (`cqrs-reactive.readside`)
 
@@ -198,7 +202,7 @@ Grouped by what they buy. "Knob" means it exists today; "change" means code.
 
 | Item | Kind | Effect |
 |---|---|---|
-| `opencqrs.command-handling.cache.ref` -> `LruInMemoryStateRebuildingCache(n)` | knob | replay only the events after the cached state; turns `PostMessage` from O(messages) to O(1) reads |
+| `opencqrs.command-handling.cache.type=in_memory`, `capacity` (on since 2026-10-10) | knob | replay only the events after the cached state; turns `PostMessage` from O(messages) to O(1) reads (section 7b) |
 | Bound `messagesByClientId` (keep the last K ids, or ids newer than a window) | change | caps aggregate size and JSON size of the cached state; K must exceed a client's realistic retry window |
 | Bounded-elastic size (`reactor.schedulers.defaultBoundedElasticSize`) | knob | more concurrent commands in flight; costs EventSourcingDB connections |
 | EventSourcingDB client timeouts / connection pool | knob (esdb-client) | fail fast instead of tying up a thread for a slow store |
@@ -339,7 +343,9 @@ Two defects the baseline run found, both fixed on 2026-10-01:
    posts in two runs, 1,599 acknowledged, `outcome=error` zero, 361 re-dispatches.
 1. Instrument (section 5). Done 2026-09-29; baseline in section 7.
 2. State rebuilding cache on the command side (`opencqrs.command-handling.cache.type`, `capacity`, `ref`);
-   measure `messaging.command.latency` for `PostMessage` on long conversations.
+   measure `messaging.command.latency` for `PostMessage` on long conversations. Done 2026-10-10: `in_memory`,
+   capacity 1000, in both profiles; A/B with 200-message conversations in section 7b (post latency p50 3.5 s
+   and half the posts lost without the cache, 78 ms and nothing lost with it).
 3. Leader-elected processors (lock registry) before any multi-node test, or the numbers will be
    polluted by duplicate work.
 4. Kafka producer/consumer latency settings on the live topic; measure `messaging.live.latency`.
@@ -438,3 +444,52 @@ Housekeeping for a load run: the three checkpoints in `cqrs_readside_progress` w
 store's last `/conversation` event id before the node started (they held ids of the test's container, see
 `doc/messaging-context.md` section 7), and the 40 `load %` conversations with their participants and
 messages were deleted from the read model afterwards.
+
+## 7b. State cache A/B on long conversations, 2026-10-10
+
+The baseline and the rerun post into new conversations, so the replay cost of a long history was invisible.
+`ChatLoadDriver` now takes `-Dload.prefill=N`: before the sockets start it posts N messages into every
+conversation over REST (conversations in parallel, each one sequentially). Two runs back to back on the same
+host, same node, 20 conversations, 40 sockets, 60 s, one post per socket every 3 s, prefill 200, so every post
+of the run works on a history of 200 to 240 events. Run A started the node with
+`--opencqrs.command-handling.cache.type=none`, run B with the new default (`in_memory`, capacity 1000). The
+host had just been rebooted; the prefill itself is the main load (load average 7 to 9 during both runs).
+
+| | A: cache off | B: cache on |
+|---|---|---|
+| prefill of 4,000 messages | 323 s | 211 s |
+| posts sent / acknowledged within the run | 798 / 369 | 800 / 800 |
+| `error` frames | 79 | 0 |
+| `messaging.command.retries{command=PostMessage}` | 271 | 37 |
+| ack latency p50 / p95 / p99 / max | 8.7 / 15.8 / 21.8 / 23.4 s | 74 / 295 / 378 / 554 ms |
+| `messaging.command.latency{PostMessage,ok}` p50 / p95 | 3.5 / 5.0 s | 78 / 333 ms |
+| `messaging.command.latency{PostMessage,error}` p50 | 14.0 s | none |
+| `messaging.live.latency{record=message}` p50 / p95 | 3.4 / 4.7 s | 57 / 208 ms |
+| `messaging.projection.handler{conversation-read-model}` p50 | 82 ms | 45 ms |
+| `messaging.projection.delay{conversation-read-model}` p50 | 0.15 s | 54 s (see below) |
+| heap, old generation, after the run | 187 MB | 177 MB |
+
+What the A/B says:
+
+- **Without the cache a 200-message conversation is unusable at this load.** Each post replayed about 220
+  events (3.5 s median on this host, with 40 sockets competing for the bounded-elastic threads and the
+  event store's HTTP connections). Half the posts were still unanswered when the run ended, and 79 posts
+  failed outright: a command that takes 3.5 s overlaps the other socket's next post almost always, the four
+  attempts add up to the 14 s seen on the `error` timer, and the retry bound is reached. The retry of
+  section 7a cannot rescue a command path this slow; it was never meant to.
+- **With the cache the long history costs nothing.** 78 ms median per post is the figure of a fresh
+  conversation (section 7a, run 2: 142 ms on a busier host; baseline 65 ms), every post acknowledged, 37
+  collisions absorbed. The cache does not change the memory picture: the old generation ended 10 MB lower
+  than in run A, with 20 cached conversations of 240 events each.
+- **The prefill shows the same thing from the REST side**: 4,000 posts in 211 s instead of 323 s, with the
+  remaining time spent in the event store writes and the read-model handler, not in replay.
+- **The read-model group is the next limit.** In run B the handler was back at 45 ms per event (82 ms in run
+  A, where the replaying commands competed for the same MySQL connections and CPU), but 4,800 events arrived
+  in about four and a half minutes against a capacity of about 22 events/s per partition, and the lag reached
+  54 s before clearing after the run. That is steps 3 and 6 of section 6 (one processor set per group across
+  nodes, more partitions and a larger pool); the command side is no longer the bottleneck.
+
+Housekeeping as in section 7a: checkpoints set to the store's head before the first node started (they held
+ids of the test container after the suite ran), the node restarted between the runs, the 40 `load %`
+conversations and their 9,209 messages deleted from the read model afterwards.
+

@@ -68,8 +68,16 @@ esdb:
     uri: ${ANNOUNCE_ESDB_URI:http://localhost:3000}
     api-token: ${ANNOUNCE_ESDB_TOKEN:secret}
 
+# Command side: the state of a conversation is kept in an LRU cache keyed by subject, so a command replays only
+# the events written after the cached state instead of the whole conversation (the cache stores the id of the
+# last event it saw and the router always reads what came after it from EventSourcingDB, so a stale entry on one
+# node is harmless). Capacity = conversations kept per node; one entry grows by about 150 bytes per message.
 # Read side: the projection groups of this service (checkpoints in cqrs_readside_progress, same database)
 opencqrs:
+  command-handling:
+    cache:
+      type: in_memory
+      capacity: 1000
   event-handling:
     standard:
       fetch:

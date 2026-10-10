@@ -151,6 +151,12 @@ from Testcontainers, the read model in the live `announce_reactive_db`; the clas
 and clears the three groups' checkpoints before it starts). Several worktrees share `~/.m2`, so build
 with `-am` when another session may have installed an older `db-reactive`.
 
+The command side keeps the state of recently used conversations in an in-memory LRU cache
+(`opencqrs.command-handling.cache.type=in_memory`, `capacity` 1000 conversations per node, set in both
+profiles). A command replays only the events written after the cached state, so a long conversation costs
+the same as a new one; a stale entry on another node is read forward from the store, never served as is.
+`doc/messaging-architecture.md` section 7b has the measurement.
+
 After a test run the three checkpoints in `cqrs_readside_progress` hold event ids of the test's
 EventSourcingDB container. Before starting a node against the local `docker/cqrs` store, set them to that
 store's latest `/conversation` event id (or delete them for a full rebuild); otherwise the node resumes from

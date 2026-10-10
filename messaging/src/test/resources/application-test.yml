@@ -32,6 +32,10 @@ management:
       enabled: false
 
 opencqrs:
+  command-handling:
+    cache:
+      type: in_memory     # as in production; MessagingEndToEndTest asserts the router holds the LRU cache
+      capacity: 1000
   event-handling:
     standard:
       retry:

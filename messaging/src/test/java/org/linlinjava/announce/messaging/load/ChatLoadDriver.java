@@ -9,6 +9,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
 import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
@@ -42,6 +43,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *     -Dexec.mainClass=org.linlinjava.announce.messaging.load.ChatLoadDriver \
  *     -Dload.base=http://localhost:8086 -Dload.conversations=20 -Dload.seconds=60 -Dload.intervalMs=3000
  * </pre>
+ * {@code -Dload.prefill=200} first posts 200 messages into every conversation over REST, so each post of the run
+ * works on a long history (the state cache experiment of section 6, step 2).
  */
 public final class ChatLoadDriver {
 
@@ -55,6 +58,7 @@ public final class ChatLoadDriver {
     final int conversations;
     final Duration duration;
     final long intervalMs;
+    final int prefill;
     final WebClient http;
     final List<Long> ackNanos = new ArrayList<>();
     final List<Long> fanOutNanos = new ArrayList<>();
@@ -63,11 +67,12 @@ public final class ChatLoadDriver {
     final List<Socket> sockets = new ArrayList<>();
     volatile boolean closing;
 
-    ChatLoadDriver(String base, int conversations, Duration duration, long intervalMs) {
+    ChatLoadDriver(String base, int conversations, Duration duration, long intervalMs, int prefill) {
         this.base = base;
         this.conversations = conversations;
         this.duration = duration;
         this.intervalMs = intervalMs;
+        this.prefill = prefill;
         this.http = WebClient.builder().baseUrl(base).build();
     }
 
@@ -76,14 +81,16 @@ public final class ChatLoadDriver {
                 System.getProperty("load.base", "http://localhost:8086"),
                 Integer.getInteger("load.conversations", 20),
                 Duration.ofSeconds(Integer.getInteger("load.seconds", 60)),
-                Long.getLong("load.intervalMs", 3000L));
+                Long.getLong("load.intervalMs", 3000L),
+                Integer.getInteger("load.prefill", 0));
         driver.run();
         System.exit(0);
     }
 
     void run() throws Exception {
-        System.out.printf("base=%s conversations=%d duration=%s interval=%dms%n", base, conversations, duration, intervalMs);
+        System.out.printf("base=%s conversations=%d duration=%s interval=%dms prefill=%d%n", base, conversations, duration, intervalMs, prefill);
         List<String> ids = new ArrayList<>();
+        List<Integer> members = new ArrayList<>();
         for (int i = 0; i < conversations; i++) {
             int member = 100_000 + i;
             int staff = 9_000 + (i % 5);
@@ -96,6 +103,13 @@ public final class ChatLoadDriver {
                     .retrieve().toBodilessEntity().block(Duration.ofSeconds(30));
             awaitOpen(id, member);
             ids.add(id);
+            members.add(member);
+        }
+        prefill(ids, members);
+        for (int i = 0; i < conversations; i++) {
+            String id = ids.get(i);
+            int member = members.get(i);
+            int staff = 9_000 + (i % 5);
             Map<String, Long> pending = new ConcurrentHashMap<>();
             sockets.add(new Socket(id, "X-User-Id", member, pending).connect());
             sockets.add(new Socket(id, "X-Staff-Id", staff, pending).connect());
@@ -141,6 +155,26 @@ public final class ChatLoadDriver {
                         || l.startsWith("jvm_memory_used_bytes{area=\"heap\"") || l.startsWith("jvm_threads_live"))
                 .filter(l -> !l.contains("_bucket{"))
                 .forEach(System.out::println);
+    }
+
+    /**
+     * Makes every conversation {@code prefill} messages long before the sockets start, so the command path replays
+     * (or, with the state cache, skips) a realistic history on each post. Conversations are filled in parallel,
+     * each one sequentially so the posts of one conversation never race each other.
+     */
+    void prefill(List<String> ids, List<Integer> members) {
+        if (prefill <= 0) {
+            return;
+        }
+        long started = System.nanoTime();
+        Flux.range(0, ids.size())
+                .flatMap(i -> Flux.range(1, prefill).concatMap(n -> http.post().uri("/api/conversations/" + ids.get(i) + "/messages")
+                        .header("X-User-Id", String.valueOf(members.get(i))).contentType(MediaType.APPLICATION_JSON)
+                        .bodyValue(Map.of("clientMsgId", UUID.randomUUID().toString(), "content", "prefill " + n))
+                        .retrieve().toBodilessEntity()), ids.size())
+                .then().block(Duration.ofMinutes(30));
+        System.out.printf("prefilled %d messages into each of %d conversations in %d s%n", prefill, ids.size(),
+                TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - started));
     }
 
     /**

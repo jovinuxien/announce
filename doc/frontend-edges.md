@@ -481,7 +481,53 @@ MySQL, and a second node would have joined its consumer groups. While that insta
 suite had reset; it passed as soon as the instance stopped. Run the suite when no messaging instance uses
 `announce_reactive_db`.
 
-**Still open.** The admin SPA's phase-2 screens run on mocks that call list endpoints the order backend does not
-have (`GET /api/admin/auctions`, `GET /api/admin/orders`, `GET /api/admin/payouts`); wiring those screens to the
-real backends is separate work. Roles are forwarded but not checked inside the backends (the edge enforces
-`ROLE_ADMIN`, and `ROLE_SUPER` on its own admin, role and permission routes).
+**Still open.** Roles are forwarded but not checked inside the backends (the edge enforces `ROLE_ADMIN`, and
+`ROLE_SUPER` on its own admin, role and permission routes). The list endpoints the admin SPA's mocks call exist
+since §12; wiring the screens to them is separate work.
+
+## 12. Admin lists in the order module (2026-10-10)
+
+The admin SPA's trade screens (auctions, orders, payouts) ran on mocks because the order module had no list
+endpoints. It has them now, "according to the backend": each context serves its own read-model rows, as the
+member endpoints return them, in the admin envelope `{items, page, size, total}` (1-based `page`, `size` capped
+at 100), newest first. Staff identity as in §11; a member gets 403.
+
+| Endpoint | Context | Filters | Answer |
+|---|---|---|---|
+| `GET /api/admin/auctions` | auction | `status`, `seller`, `q` (title) | page of `announce_auction` rows |
+| `GET /api/admin/auctions/{announceId}` | auction | | `{auction, bids}` with every bid, cancelled and retracted included |
+| `GET /api/admin/orders` | order | `status`, `seller`, `buyer`, `q` (title) | page of `announce_order` rows |
+| `GET /api/admin/orders/{id}` | order | | the row (existed) |
+| `GET /api/admin/orders/{id}/payment` | payment | | the `announce_payment` row |
+| `GET /api/admin/orders/{id}/shipment` | shipping | | the `announce_shipment` row |
+| `GET /api/admin/payouts` | order | `status` (payout status), `seller` | `{totals, page}` |
+
+**Payouts.** There is no payout table. The order row holds the money for the seller (`payout_amount`), the fee,
+the dispute state and every timestamp, and the order context has its own copy of the seller gate
+(`announce_order_seller`). `Payouts` derives one line per order that holds or held money:
+
+| Payout status | Order statuses | `releaseDueAt` |
+|---|---|---|
+| `PENDING_RELEASE` | PAID, SHIPPED, DELIVERED | delivered + delivery grace; shipped + dispatch grace (or + delivery grace when releasing on dispatch); none while only paid |
+| `BLOCKED_DISPUTE` | DISPUTED | none |
+| `RELEASING` | RELEASING | none |
+| `SENT` | SETTLED | none |
+| `REFUNDED` | REFUNDING, REFUNDED | none |
+
+Each line carries the amounts, `sellerAccountStatus` and `payoutsEnabled` from the gate, the order status, and
+the paid / released / settled / dispute timestamps. The totals cover every live order, not the page: pending,
+blocked, releasing, sent and refunded amounts with their counts, `feesCollected` (settled deals) and
+`feesPending`, from one hand-written aggregate query (`AnnounceOrderMapper.sumByStatus`, db-reactive). The
+provider's `payout_ref` is the payment context's and comes with the payment endpoint.
+
+**For the SPA wiring (not done here).** The mock types in `app/shared/api/{auctionsApi,ordersApi,payoutsApi}.ts`
+differ from the real rows: amounts are decimals (`agreedPrice: 95.00`), not cents; the auction row says `title`,
+`bidIncrement`, `autoExtendSec`, `startTime` / `endTime`, `closedTime` and the closed-by-buy-now status is
+`CLOSED_SNAGGED`; the order row says `title` and has no `payment` / `shipment` / `timeline` (two more calls, no
+timeline); the payouts answer is `{totals, page}` with the fields above (`feesCollected` means settled deals, the
+mock summed every row). Bid rows say `bidTime` and `cancelledBy`.
+
+**Tests.** `PayoutsTest` (derivation and totals), `AnnounceOrderTotalsTest` (the aggregate query, live MySQL),
+and `OrderModuleEndToEndTest` lists the auctions, orders and payouts the scenarios produced, with the filters,
+the paging guard, the payment and shipment details and the 403 for a member.
+

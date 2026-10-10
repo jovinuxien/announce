@@ -55,6 +55,14 @@ public class PaymentController {
                 .switchIfEmpty(Mono.error(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No payment for order " + id)));
     }
 
+    /** Staff: a deal's payment as the provider sees it (no client secret is needed, the row is returned as is). */
+    @GetMapping("/api/admin/orders/{id}/payment")
+    public Mono<AnnouncePayment> adminPayment(@PathVariable String id, @RequestHeader HttpHeaders headers) {
+        Callers.staff(headers);
+        return payments.findPayment(id)
+                .switchIfEmpty(Mono.error(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No payment for order " + id)));
+    }
+
     @PostMapping("/api/sellers/me/account")
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<SellerAccount> onboard(@RequestHeader HttpHeaders headers, @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId) {

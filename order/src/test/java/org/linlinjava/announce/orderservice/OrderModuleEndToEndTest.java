@@ -442,4 +442,60 @@ class OrderModuleEndToEndTest {
                 .expectBody().jsonPath("$.status").isEqualTo("CANCELLED"));
         assertThat(now()).isAfter(LocalDateTime.ofInstant(START, ZoneId.systemDefault()).truncatedTo(ChronoUnit.DAYS));
     }
+
+    @Test
+    @Order(6)
+    void staffListAuctionsOrdersAndPayoutsWithTheirFiltersAndDetails() {
+        // auctions: every status, the status filter, the title search, and the detail with every bid
+        staff("GET", "/api/admin/auctions?size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page").isEqualTo(1).jsonPath("$.size").isEqualTo(100)
+                .jsonPath("$.items[?(@.announceId == '" + auctionAnnounce + "')].status").isEqualTo("CLOSED_WON");
+        staff("GET", "/api/admin/auctions?status=closed_won&seller=" + SELLER + "&q=" + auctionAnnounce, null).expectStatus().isOk()
+                .expectBody().jsonPath("$.total").isEqualTo(1).jsonPath("$.items[0].announceId").isEqualTo(auctionAnnounce)
+                .jsonPath("$.items[0].winnerId").isEqualTo(BOB).jsonPath("$.items[0].bidCount").isEqualTo(2);
+        staff("GET", "/api/admin/auctions?status=OPEN&q=" + auctionAnnounce, null).expectStatus().isOk().expectBody().jsonPath("$.total").isEqualTo(0);
+        staff("GET", "/api/admin/auctions/" + auctionAnnounce, null).expectStatus().isOk()
+                .expectBody().jsonPath("$.auction.status").isEqualTo("CLOSED_WON").jsonPath("$.bids.length()").isEqualTo(2)
+                .jsonPath("$.bids[0].status").isEqualTo("WON").jsonPath("$.bids[1].status").isEqualTo("OUTBID");
+        staff("GET", "/api/admin/auctions/nope", null).expectStatus().isNotFound();
+
+        // orders: both settled deals, the filters, and the payment and shipment of one of them
+        staff("GET", "/api/admin/orders?status=SETTLED&size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.items[?(@.id == '" + auctionOrderId + "')].door").isEqualTo("AUCTION")
+                .jsonPath("$.items[?(@.id == '" + fixedOrderId + "')].door").isEqualTo("FIXED_PRICE");
+        staff("GET", "/api/admin/orders?buyer=" + BOB + "&seller=" + SELLER + "&q=" + auctionAnnounce, null).expectStatus().isOk()
+                .expectBody().jsonPath("$.total").isEqualTo(1).jsonPath("$.items[0].id").isEqualTo(auctionOrderId);
+        staff("GET", "/api/admin/orders?page=0&size=1000", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page").isEqualTo(1).jsonPath("$.size").isEqualTo(100);
+        staff("GET", "/api/admin/orders/" + fixedOrderId + "/payment", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.status").isEqualTo("PAID_OUT").jsonPath("$.payoutRef").isNotEmpty();
+        staff("GET", "/api/admin/orders/" + fixedOrderId + "/shipment", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.status").isEqualTo("DELIVERED");
+        staff("GET", "/api/admin/orders/nope/payment", null).expectStatus().isNotFound();
+
+        // payouts: the two settled deals were sent, the late deal was refunded, and the totals cover all of them
+        staff("GET", "/api/admin/payouts?status=SENT&size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page.items[?(@.orderId == '" + auctionOrderId + "')].status").isEqualTo("SENT")
+                .jsonPath("$.page.items[?(@.orderId == '" + auctionOrderId + "')].sellerAccountStatus").isEqualTo("VERIFIED")
+                .jsonPath("$.page.items[?(@.orderId == '" + auctionOrderId + "')].payoutsEnabled").isEqualTo(true)
+                .jsonPath("$.page.items[?(@.orderId == '" + fixedOrderId + "')].releasedAt").isNotEmpty()
+                .jsonPath("$.totals.currency").isEqualTo("DKK")
+                .jsonPath("$.totals.sentOrders").value(n -> assertThat(((Number) n).longValue()).isGreaterThanOrEqualTo(2L))
+                .jsonPath("$.totals.sentAmount").value(n -> assertThat(new java.math.BigDecimal(String.valueOf(n))).isGreaterThan(java.math.BigDecimal.ZERO))
+                .jsonPath("$.totals.feesCollected").value(n -> assertThat(new java.math.BigDecimal(String.valueOf(n))).isGreaterThan(java.math.BigDecimal.ZERO));
+        staff("GET", "/api/admin/payouts?status=REFUNDED&size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page.items[?(@.announceId == '" + lateAnnounce + "')].status").isEqualTo("REFUNDED")
+                .jsonPath("$.totals.refundedOrders").value(n -> assertThat(((Number) n).longValue()).isGreaterThanOrEqualTo(1L));
+        staff("GET", "/api/admin/payouts?size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page.items[?(@.orderId == '" + auctionOrderId + "')]").exists()
+                .jsonPath("$.page.items[?(@.status == 'PENDING_RELEASE' || @.status == 'SENT' || @.status == 'REFUNDED' || @.status == 'BLOCKED_DISPUTE' || @.status == 'RELEASING')]").exists();
+        staff("GET", "/api/admin/payouts?status=nonsense", null).expectStatus().isBadRequest();
+
+        // members get none of this
+        as(ALICE, "GET", "/api/admin/auctions", null).expectStatus().isForbidden();
+        as(ALICE, "GET", "/api/admin/orders", null).expectStatus().isForbidden();
+        as(ALICE, "GET", "/api/admin/payouts", null).expectStatus().isForbidden();
+        as(ALICE, "GET", "/api/admin/orders/" + fixedOrderId + "/payment", null).expectStatus().isForbidden();
+        as(ALICE, "GET", "/api/admin/orders/" + fixedOrderId + "/shipment", null).expectStatus().isForbidden();
+    }
 }

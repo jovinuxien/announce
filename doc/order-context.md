@@ -250,6 +250,13 @@ module). Step 0 of `order-reactive` adds them. Public contracts (`*V1` records,
 - `POST /api/payments/webhook/{provider}`, `POST /api/shipping/webhook/{carrier}`
 - `POST /api/sellers/me/account` (onboarding link), `GET /api/sellers/me/account`
 - Admin: `POST /api/admin/orders/{id}/resolve-dispute`, `POST /api/admin/bids/{id}/cancel`
+- Admin reads (2026-10-10, each context serves its own rows, envelope `{items, page, size, total}` with a
+  1-based `page` and `size` capped at 100): `GET /api/admin/auctions?status&seller&q&page&size`,
+  `GET /api/admin/auctions/{announceId}` (auction + every bid), `GET /api/admin/orders?status&seller&buyer&q&page&size`,
+  `GET /api/admin/orders/{id}`, `GET /api/admin/orders/{id}/payment`, `GET /api/admin/orders/{id}/shipment`,
+  `GET /api/admin/payouts?status&seller&page&size` (`{totals, page}`; `status` is a payout status:
+  PENDING_RELEASE, BLOCKED_DISPUTE, RELEASING, SENT, REFUNDED). The rows are the read-model rows as the member
+  endpoints return them (decimal amounts, `title`, `bid_increment`...).
 - Errors map to WebFlux problem details through the framework's error mapping.
 
 ## 9. Messaging module (worktree `messaging`)
@@ -333,6 +340,7 @@ under the `order` prefix that every root may import.
 | `PayoutReleaseRequested` on delivery grace | the release rule in `OrderRules.checkRelease`: DISPUTED blocks (`dispute-open`); DELIVERED releases after `delivery-grace` or on `ConfirmReceipt`; SHIPPED with `release.on=DELIVERY` is refused (`not-delivered`) until `dispatch-grace` elapses; SHIPPED with `release.on=DISPATCH` releases after `delivery-grace` counted from dispatch or on `ConfirmReceipt` | matches §3; the graces are validated against the allowed ranges at start-up |
 | `ShipmentFailed` -> staff dispute path | the shipping fact opens a SYSTEM dispute on the order (`carrier: <reason>`); staff resolve it as RELEASE or REFUND | keeps the payout blocked without a new state |
 | ids | orders from the auction door are `UUID.nameUUIDFromBytes("auction:" + announceId)`, from the offer door `"offer:" + conversationId`; a redelivered closing or offer event maps to the same subject and is skipped | idempotent doors without a dedup table |
+| payouts overview (admin SPA) | no payout table: `Payouts` (order context) derives a line per order that holds or held money from `announce_order` + the seller gate `announce_order_seller`; status PAID/SHIPPED/DELIVERED -> PENDING_RELEASE, DISPUTED -> BLOCKED_DISPUTE, RELEASING, SETTLED -> SENT, REFUNDING/REFUNDED -> REFUNDED; `releaseDueAt` from the timestamps and `order.release.*`; the totals come from one hand-written `AnnounceOrderMapper.sumByStatus` (fees collected = settled deals only) | the money and its state already live on the order row; payment's `payout_ref` stays in the payment context (`GET /api/admin/orders/{id}/payment`) |
 | webhooks | `POST /api/payments/webhook/fake` and `POST /api/shipping/webhook/fake`, HMAC-SHA256 hex of the raw body in `X-Fake-Signature` with `payment.fake.secret` / `shipping.fake.secret`; a provider event id already applied is acknowledged and ignored; the `stripe` and `postnord` hooks answer 501 | the real adapters are stubs behind the ports (`StripeConnectPaymentProvider`, `PostNordCarrier`) |
 | `announce_order_snapshot` | keyed by announce id, fed by `announce.v1` (`orderAnnounceEvents`); `RequestPurchase` needs it PUBLISHED, GOODS and not AUCTION | the ACL of §5 |
 | `OfferAcceptedV1` | the record of `messaging-api` (type `messaging.offer-accepted` v1, fields as in §9); `order` depends on `messaging-api` | one contract, published by messaging and consumed by order |

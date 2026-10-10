@@ -40,6 +40,14 @@ public class ShipmentController {
         return shipping.request(id, user, body.service(), body.parcelSize(), body.fromAddress(), body.toAddress(), commandId);
     }
 
+    /** Staff: a deal's shipment as the carrier reports it. */
+    @GetMapping("/api/admin/orders/{id}/shipment")
+    public Mono<AnnounceShipment> adminGet(@PathVariable String id, @RequestHeader HttpHeaders headers) {
+        Callers.staff(headers);
+        return shipping.find(id)
+                .switchIfEmpty(Mono.error(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No shipment for order " + id)));
+    }
+
     @GetMapping("/api/orders/{id}/shipment")
     public Mono<AnnounceShipment> get(@PathVariable String id, @RequestHeader HttpHeaders headers) {
         Integer user = Callers.member(headers);

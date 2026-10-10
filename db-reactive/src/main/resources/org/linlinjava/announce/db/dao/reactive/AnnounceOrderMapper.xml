@@ -760,4 +760,11 @@
     </if>
     limit #{limit} offset #{offset}
   </select>
+  <!-- hand-written: the payouts overview of the order module -->
+  <select id="sumByStatus" resultType="org.linlinjava.announce.db.domain.AnnounceOrderStatusTotal">
+    select status, count(*) as orders, coalesce(sum(fee_amount), 0) as fee_amount, coalesce(sum(payout_amount), 0) as payout_amount
+    from announce_order
+    where deleted = 0
+    group by status
+  </select>
 </mapper>

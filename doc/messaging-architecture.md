@@ -335,8 +335,8 @@ Two defects the baseline run found, both fixed on 2026-10-01:
    `seq`, `outcome=error` at zero, and `messaging.command.retries` above zero (15 re-dispatches in the run of
    2026-10-01); with
    `max-retries=0` the first round already loses a post, and with `attach.rechecks=0` the socket opened right
-   after the conversation is refused. Not yet measured: the `outcome=error` count under the baseline load of
-   section 7 (`ChatLoadDriver`); take it together with the next load run.
+   after the conversation is refused. Measured under the baseline load on 2026-10-10 (section 7, rerun): 1,599
+   posts in two runs, 1,599 acknowledged, `outcome=error` zero, 361 re-dispatches.
 1. Instrument (section 5). Done 2026-09-29; baseline in section 7.
 2. State rebuilding cache on the command side (`opencqrs.command-handling.cache.type`, `capacity`, `ref`);
    measure `messaging.command.latency` for `PostMessage` on long conversations.
@@ -396,3 +396,45 @@ What the numbers say:
 - Ack p95 (131 ms) is twice the median: the contention is on EventSourcingDB and MySQL, both shared with the
   three processors on the same node; step 3 (one processor set per group across nodes) matters even for one
   node once a second one joins.
+
+## 7a. Rerun with the race fixes, 2026-10-10
+
+Same node, stack and driver settings as the baseline, one node started with
+`--announce.service-token.mode=off` (the edges' token check is on by default since 2026-10-02). Two runs, 60 s
+each, 20 conversations, 40 sockets. The host was not idle: a video call held about two cores throughout, and
+during the first run three test suites of another worktree were running as well (load average 13 on 8 cores).
+The numbers are therefore an upper bound, not a new baseline; the baseline's host condition was not recorded.
+
+| | baseline 2026-09-29 | run 1 (loaded host) | run 2 (video call only) |
+|---|---|---|---|
+| posts sent / acknowledged | 800 / 788 | 799 / 799 | 800 / 800 |
+| `error` frames | 12 (1.5 %) | 0 | 0 |
+| `messaging.command.retries{command=PostMessage}` | n/a | 316 | 45 |
+| ack latency p50 / p95 / p99 | 66 / 131 / 160 ms | 1144 / 4152 / 5313 ms | 142 / 350 / 518 ms |
+| `messaging.live.latency{record=message}` p50 / p95 | 48 / 103 ms | 703 / 1743 ms | 111 / 300 ms |
+| `messaging.projection.handler{group=conversation-read-model}` p50 | 41 ms | 103 ms | 73 ms |
+| `messaging.projection.delay{group=conversation-read-model}` p50 / max | 84 / 155 ms | 23.1 / 35.8 s | 6.8 / 8.7 s |
+| R2DBC pool max allocated / pending | 6 / 0 | 5 / 0 | 5 / 0 |
+
+What the rerun says:
+
+- **The defect is closed.** No post was lost in either run, and the read model holds every one of the 1,599
+  messages. Under the loaded host 316 of 799 posts collided at least once, because a command that takes a
+  second overlaps the other socket's next post far more often; all of them were absorbed by the retries.
+  Nothing hit the retry bound.
+- **The retry count is a load signal.** 45 collisions in run 2 against 12 at the baseline, with the same post
+  rate, is the longer command path (142 ms median instead of 66 ms) widening the window in which two posts
+  read the same state. Watch `messaging.command.retries` together with `messaging.command.latency`.
+- **The read-model group runs at its limit on this host.** The handler costs 73 ms per event here (41 ms at
+  the baseline), so one partition absorbs about 14 events/s and the load is 13 posts/s plus the conversation
+  events: the lag grows to about 7 s during the run and clears within seconds after it. This is the
+  capacity ceiling section 4.2 describes, reached earlier because the host is slower, not a change in the
+  code; steps 3 and 6 of section 6 are the remedy. Re-measure on an idle host before reading it as a
+  regression.
+- **Fan-out is unaffected by the fixes.** The live relay still handles an event in under a millisecond and
+  the socket push follows the ack by a few milliseconds, as at the baseline.
+
+Housekeeping for a load run: the three checkpoints in `cqrs_readside_progress` were set to the local
+store's last `/conversation` event id before the node started (they held ids of the test's container, see
+`doc/messaging-context.md` section 7), and the 40 `load %` conversations with their participants and
+messages were deleted from the read model afterwards.

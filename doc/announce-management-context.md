@@ -87,7 +87,8 @@ Who consumes the events: search (re-index), auction (an auction is opened when a
 | `announce_comment` (`value_id`, `type`) | member / reputation | a review left by a member about a goods or a topic |
 | `announce_collect` | member | a watch-list entry: goods id only |
 | `announce_footprint` | member | a browsing-history entry: goods id only |
-| `announce_topic`, `announce_ad`, `announce_featured_item` | marketing | editorial placements holding goods ids |
+| `announce_topic`, `announce_ad` | marketing | editorial placements holding goods ids |
+| `announce_featured_item` (`announce_id`) | marketing | a spotlight window on an announce of any kind, by announce id (`varchar(36)` since 2026-10-01; was `goods_id int`) |
 | `announce_keyword`, `announce_search_history`, `LitemallElasticMapper` join | search | index documents and query terms; the join is a read model built from goods, category and brand |
 | `announce_conversation` (`goods_id`) | messaging | the announce a chat is about, by id |
 | `announce_trade_rating` | member / reputation | rating of the counterparty per order |
@@ -234,8 +235,9 @@ Writes answer with the state the command produced (201 on post); reads come from
 `AnnounceTest` drives the aggregate through `CommandFixture`; `AnnounceKindsEndToEndTest` boots the service with
 Testcontainers only (EventSourcingDB, MySQL loaded with the schema and the migrated seed), posts and publishes one
 announce of each kind, reads the kind-specific fields back from the projection, checks the invariants over HTTP and
-the recording indexer of `announce.search.mode=noop`. `mvn -pl announce-management -P '!webapp' test` runs them; `MyBatisRepositoriesIT` (category
-and brand against the live database) runs with `-Dtest=MyBatisRepositoriesIT`.
+the recording indexer of `announce.search.mode=noop`. `mvn -pl announce-management -P '!webapp' test` runs them; `MyBatisRepositoriesTest` (category
+and brand against the live database, rows prefixed `it-` and removed afterwards) is part of that run since 2026-10-01;
+it was named `MyBatisRepositoriesIT` before, which the surefire include pattern skipped.
 
 ## 9. Crawled listings as a second search source (2026-09-26)
 

@@ -7,11 +7,13 @@ import org.linlinjava.announce.goods.domain.announce.AnnounceStatus;
 import org.linlinjava.announce.goods.domain.announce.Kind;
 import org.linlinjava.announce.goods.domain.announce.SaleType;
 import org.linlinjava.announce.goods.domain.announce.SellerId;
+import org.linlinjava.announce.goods.interfaces.rest.Callers;
 import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceDtos.AnnounceRequest;
 import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceDtos.AnnounceResponse;
 import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceDtos.AnnounceSummaryResponse;
 import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceDtos.PageResponse;
 import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceDtos.PublishRequest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,15 +32,15 @@ import java.util.List;
 
 /**
  * Announce API for goods, jobs and events. Writes are commands on the aggregate and answer with the state the
- * command produced; reads come from the read model, which follows a moment later. Until the gateway propagates the
- * authenticated member, the seller is taken from the {@code X-Seller-Id} header: required on every write, optional
- * on reads (owners see their own drafts). An optional {@code X-Command-Id} header makes a write idempotent.
+ * command produced; reads come from the read model, which follows a moment later. The seller is the authenticated
+ * member the customer edge forwards as {@code X-User-Id} with {@code X-User-Type=MEMBER} (see {@link Callers}):
+ * required on every write, optional on reads (owners see their own drafts). An optional {@code X-Command-Id}
+ * header makes a write idempotent.
  */
 @RestController
 @RequestMapping("/api/announces")
 public class AnnounceController {
 
-    public static final String SELLER_HEADER = "X-Seller-Id";
     public static final String COMMAND_ID_HEADER = "X-Command-Id";
 
     private final AnnouncePublishing publishing;
@@ -61,9 +63,10 @@ public class AnnounceController {
                                                               @RequestParam(defaultValue = "1") int page,
                                                               @RequestParam(defaultValue = "20") int size,
                                                               @RequestParam(defaultValue = "newest") String sort,
-                                                              @RequestHeader(value = SELLER_HEADER, required = false) Integer viewer) {
+                                                              @RequestHeader HttpHeaders headers) {
         // only a seller looking at their own announces may filter on another status than PUBLISHED
-        boolean ownListing = viewer != null && viewer.equals(seller);
+        SellerId viewer = Callers.viewer(headers);
+        boolean ownListing = viewer != null && viewer.value().equals(seller);
         AnnounceStatus effectiveStatus = ownListing ? status : AnnounceStatus.PUBLISHED;
         AnnounceQuery query = new AnnounceQuery(kind, category, brand, seller, region, q, saleType, effectiveStatus, page, size, sort);
         return browsing.count(query).flatMap(total -> browsing.browse(query).map(AnnounceSummaryResponse::of).collectList()
@@ -71,42 +74,42 @@ public class AnnounceController {
     }
 
     @GetMapping("/{id}")
-    public Mono<AnnounceResponse> view(@PathVariable String id, @RequestHeader(value = SELLER_HEADER, required = false) Integer viewer) {
-        return browsing.view(id, viewer == null ? null : new SellerId(viewer)).map(AnnounceResponse::of);
+    public Mono<AnnounceResponse> view(@PathVariable String id, @RequestHeader HttpHeaders headers) {
+        return browsing.view(id, Callers.viewer(headers)).map(AnnounceResponse::of);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<AnnounceResponse> post(@RequestHeader(SELLER_HEADER) Integer seller,
+    public Mono<AnnounceResponse> post(@RequestHeader HttpHeaders headers,
                                        @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId,
                                        @RequestBody AnnounceRequest body) {
-        return publishing.post(new SellerId(seller), body.toContent(), body.toDetails(), commandId).map(AnnounceResponse::of);
+        return publishing.post(Callers.member(headers), body.toContent(), body.toDetails(), commandId).map(AnnounceResponse::of);
     }
 
     @PutMapping("/{id}")
-    public Mono<AnnounceResponse> edit(@PathVariable String id, @RequestHeader(SELLER_HEADER) Integer seller,
+    public Mono<AnnounceResponse> edit(@PathVariable String id, @RequestHeader HttpHeaders headers,
                                        @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId,
                                        @RequestBody AnnounceRequest body) {
-        return publishing.edit(id, new SellerId(seller), body.toContent(), body.toDetails(), commandId).map(AnnounceResponse::of);
+        return publishing.edit(id, Callers.member(headers), body.toContent(), body.toDetails(), commandId).map(AnnounceResponse::of);
     }
 
     @PostMapping("/{id}/publish")
-    public Mono<AnnounceResponse> publish(@PathVariable String id, @RequestHeader(SELLER_HEADER) Integer seller,
+    public Mono<AnnounceResponse> publish(@PathVariable String id, @RequestHeader HttpHeaders headers,
                                           @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId,
                                           @RequestBody(required = false) PublishRequest body) {
         Duration validity = body == null || body.validityDays() == null ? null : Duration.ofDays(body.validityDays());
-        return publishing.publish(id, new SellerId(seller), validity, commandId).map(AnnounceResponse::of);
+        return publishing.publish(id, Callers.member(headers), validity, commandId).map(AnnounceResponse::of);
     }
 
     @PostMapping("/{id}/withdraw")
-    public Mono<AnnounceResponse> withdraw(@PathVariable String id, @RequestHeader(SELLER_HEADER) Integer seller,
+    public Mono<AnnounceResponse> withdraw(@PathVariable String id, @RequestHeader HttpHeaders headers,
                                            @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId) {
-        return publishing.withdraw(id, new SellerId(seller), commandId).map(AnnounceResponse::of);
+        return publishing.withdraw(id, Callers.member(headers), commandId).map(AnnounceResponse::of);
     }
 
     @PostMapping("/{id}/sold")
-    public Mono<AnnounceResponse> markSold(@PathVariable String id, @RequestHeader(SELLER_HEADER) Integer seller,
+    public Mono<AnnounceResponse> markSold(@PathVariable String id, @RequestHeader HttpHeaders headers,
                                            @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId) {
-        return publishing.markSold(id, new SellerId(seller), commandId).map(AnnounceResponse::of);
+        return publishing.markSold(id, Callers.member(headers), commandId).map(AnnounceResponse::of);
     }
 }

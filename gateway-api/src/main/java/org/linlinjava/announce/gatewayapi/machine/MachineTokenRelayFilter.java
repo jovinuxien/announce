@@ -13,8 +13,9 @@ import java.time.Clock;
 
 /**
  * Adds {@code X-Service-Token} on every route whose metadata says {@code serviceToken: true} (the {@code lb://}
- * routes to our own services; the OCS routes do not carry it) so backends can later refuse traffic that did not
- * pass an edge. Order 10100: after route resolution, before the load balancer and the Netty routing filter.
+ * routes to our own services; the OCS routes do not carry it): the backends refuse traffic that did not pass an
+ * edge ({@code announce.service-token.mode=enforce}). Order 10100: after route resolution, before the load
+ * balancer and the Netty routing filter.
  */
 @Component
 public class MachineTokenRelayFilter implements GlobalFilter, Ordered {

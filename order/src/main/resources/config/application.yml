@@ -126,6 +126,14 @@ cqrs:
     idempotency:
       enabled: true
 
+# Only requests that passed an edge are served: gateway-api and gateway-admin sign each proxied request with
+# X-Service-Token (HMAC over this shared secret); anything else gets 401, so the identity headers can be trusted.
+# To call this service directly during development, start it with --announce.service-token.mode=off (or log).
+announce:
+  service-token:
+    mode: enforce
+    secret: ${ANNOUNCE_SERVICE_SECRET:dev-service-secret-change-me}
+
 # ---- the contexts' own settings (doc/order-context.md §3) ----
 order:
   currency: DKK

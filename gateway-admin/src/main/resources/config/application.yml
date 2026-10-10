@@ -96,7 +96,8 @@ announce:
     cookie-name: announce_admin_refresh
     cookie-secure: ${ANNOUNCE_COOKIE_SECURE:false}
   machine:
-    # Shared with the backends (X-Service-Token = <epoch-seconds>.<hmac-sha256>); they verify it in a later step.
+    # Shared with gateway-api and the backends' announce.service-token.secret:
+    # X-Service-Token = v1.<issuer>.<epochSeconds>.<hmacSha256(issuer:epochSeconds)>; a backend answers 401 when it does not verify.
     secret: ${ANNOUNCE_SERVICE_SECRET:dev-service-secret-change-me}
     issuer: gateway-admin
 

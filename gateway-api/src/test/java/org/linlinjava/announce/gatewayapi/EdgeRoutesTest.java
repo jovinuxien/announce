@@ -138,29 +138,50 @@ class EdgeRoutesTest {
     }
 
     @Test
-    void validTokenYieldsTrustedIdentityAndSellerHeaderDownstream() throws Exception {
+    void validTokenYieldsTrustedIdentityAndAVerifiableServiceTokenDownstream() throws Exception {
         client.post().uri("/api/announces").header(HttpHeaders.AUTHORIZATION, "Bearer " + memberToken())
                 .header("X-User-Id", "999").header("X-User-Type", "ADMIN").header("X-Seller-Id", "999")
+                .header(MachineTokens.HEADER, "v1.gateway-api.1.forged")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"title\":\"x\"}")
                 .exchange().expectStatus().isOk();
         RecordedRequest r = downstream();
         assertEquals("1", r.getHeader("X-User-Id"));
         assertEquals("MEMBER", r.getHeader("X-User-Type"));
-        assertEquals("1", r.getHeader("X-Seller-Id"));
+        assertNull(r.getHeader("X-Seller-Id"), "announce-management reads the owner from X-User-Id");
         assertEquals(1, r.getHeaders().values("X-User-Id").size(), "exactly one trusted X-User-Id");
+        assertEquals(1, r.getHeaders().values(MachineTokens.HEADER).size(), "the client's own service token is replaced");
         assertTrue(MachineTokens.verify(machine, r.getHeader(MachineTokens.HEADER), Instant.now().getEpochSecond(), 60));
         assertEquals("{\"title\":\"x\"}", r.getBody().readUtf8());
     }
 
     @Test
-    void orderAndMessagingRoutesNeedAMemberAndGetNoSellerHeader() throws Exception {
+    void orderAndMessagingRoutesNeedAMember() throws Exception {
         client.get().uri("/api/orders?role=buyer").exchange().expectStatus().isUnauthorized();
         client.get().uri("/api/conversations").exchange().expectStatus().isUnauthorized();
         client.get().uri("/api/orders?role=buyer").header(HttpHeaders.AUTHORIZATION, "Bearer " + memberToken())
                 .exchange().expectStatus().isOk();
         RecordedRequest r = downstream();
         assertEquals("1", r.getHeader("X-User-Id"));
-        assertNull(r.getHeader("X-Seller-Id"), "SellerHeader applies to announce-management only");
+    }
+
+    @Test
+    void aMemberCannotPoseAsStaffThroughTheCustomerEdge() throws Exception {
+        client.get().uri("/api/conversations").header(HttpHeaders.AUTHORIZATION, "Bearer " + memberToken())
+                .header("X-Staff-Id", "1").header("x-admin-id", "1").header("X-User-Roles", "SUPER")
+                .exchange().expectStatus().isOk();
+        RecordedRequest r = downstream();
+        assertEquals("1", r.getHeader("X-User-Id"));
+        assertEquals("MEMBER", r.getHeader("X-User-Type"));
+        assertNull(r.getHeader("X-Staff-Id"), "messaging treats X-Staff-Id as staff: a client must not be able to send it");
+        assertNull(r.getHeader("X-Admin-Id"), "order treats X-Admin-Id as staff: a client must not be able to send it");
+        assertNull(r.getHeader("X-User-Roles"));
+    }
+
+    @Test
+    void aClientSuppliedServiceTokenNeverReachesARouteWithoutOne() throws Exception {
+        client.get().uri("/api/search?q=x").header(MachineTokens.HEADER, "v1.gateway-api.1.forged")
+                .exchange().expectStatus().isOk();
+        assertNull(downstream().getHeader(MachineTokens.HEADER));
     }
 
     @Test
@@ -215,7 +236,8 @@ class EdgeRoutesTest {
         assertEquals("websocket", r.getHeader("Upgrade").toLowerCase());
         assertEquals("1", r.getHeader("X-User-Id"));
         assertEquals("MEMBER", r.getHeader("X-User-Type"));
-        assertNotNull(r.getHeader(MachineTokens.HEADER));
+        assertTrue(MachineTokens.verify(machine, r.getHeader(MachineTokens.HEADER), Instant.now().getEpochSecond(), 60),
+                "messaging refuses a handshake whose service token does not verify");
     }
 
     @Test

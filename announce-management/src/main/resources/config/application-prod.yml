@@ -1,0 +1,5 @@
+announce:
+  service-token:
+    # Production refuses to start on the development secret: ANNOUNCE_SERVICE_SECRET must be set (same value as
+    # the edges).
+    secret: ${ANNOUNCE_SERVICE_SECRET}

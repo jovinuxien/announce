@@ -126,6 +126,14 @@ cqrs:
         base-url: ${ANNOUNCE_OCS_INDEXER_URL:http://localhost:8535}
 
 announce:
+  # Only requests that passed an edge are served: gateway-api and gateway-admin sign each proxied request with
+  # X-Service-Token (HMAC over this shared secret) and messaging does the same for its announce lookup. Anything
+  # else gets 401, so X-User-Id / X-User-Type can be trusted. To call this service directly during development,
+  # start it with --announce.service-token.mode=off (or log, which only warns).
+  service-token:
+    mode: enforce
+    secret: ${ANNOUNCE_SERVICE_SECRET:dev-service-secret-change-me}
+    open-paths: /actuator/**, /v3/api-docs/**, /swagger-ui/**, /swagger-ui.html, /webjars/**
   # The site trades in one currency; public events carry it next to prices in minor units
   currency: DKK
   # Announces expire automatically (see AnnounceExpiryJob)

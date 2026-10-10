@@ -17,7 +17,7 @@ A reader's version of this note, with a component diagram and the life of one me
 |                                                                        |
 |  interfaces   ConversationController  AdminMessagingController         |
 |               ConversationWebSocketHandler  StaffWebSocketHandler      |
-|               Principals (X-User-Id / X-Staff-Id / X-Command-Id)       |
+|               Principals (X-User-Id + X-User-Type / X-Command-Id)    |
 |                     |  commands                 |  queries              |
 |  application  Conversations  Bulletins   ConversationQueries           |
 |               AnnounceLookup (port) ----> announce-management HTTP      |

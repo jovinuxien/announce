@@ -295,7 +295,7 @@ Status: implemented 2026-09-26 in modules `messaging` and `messaging-api` (detai
   `status`) and `/ws/staff?clientType=` (pushes `bulletin`). Fan-out across nodes is a
   second relay group `messaging-live` on topic `messaging.live` keyed by the conversation
   subject; every node consumes it with its own consumer group. Handshake auth by
-  `X-User-Id` / `X-Staff-Id` (4401 without, 4403 when not a participant).
+  `X-User-Id` + `X-User-Type` (MEMBER / ADMIN; 4401 without, 4403 when not a participant).
 - **Added 2026-10-01: two races closed.** Commands handled at the same moment on one
   conversation used to lose one of them (EventSourcingDB refuses the later write); the
   command facade now dispatches the refused command again, up to
@@ -341,7 +341,9 @@ Jobs (`@Scheduled`, `*.jobs.enabled`, one `runOnce()` each for tests and operato
 `OrderPayWindowJob`, `OrderShipWindowJob`, `OrderReleaseJob`, `ShipmentTrackingJob`. Admin endpoints:
 `POST /api/admin/orders/{id}/resolve-dispute`, `POST /api/admin/orders/{id}/release`,
 `POST /api/admin/bids/{id}/cancel`, `POST /api/admin/auctions/{announceId}/cancel`,
-`POST /api/admin/auctions/close-due`. Staff come from `X-Admin-Id`, members from `X-User-Id`.
+`POST /api/admin/auctions/close-due`. Every caller comes from `X-User-Id` + `X-User-Type`: members with
+`MEMBER` (customer edge), staff with `ADMIN` (admin edge), read through the framework's `Callers`
+(`X-Admin-Id` was dropped on 2026-10-10, `doc/frontend-edges.md` §11).
 
 Tests: `AuctionTest`, `OrderTest`, `PaymentTest`, `ShipmentTest` (CommandFixture), `ContextBoundariesTest`
 (ArchUnit) and `OrderModuleEndToEndTest` (EventSourcingDB, Kafka and MySQL containers, the fakes, a mutable clock,

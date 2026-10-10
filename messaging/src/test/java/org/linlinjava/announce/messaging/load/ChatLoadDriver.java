@@ -87,18 +87,18 @@ public final class ChatLoadDriver {
         for (int i = 0; i < conversations; i++) {
             int member = 100_000 + i;
             int staff = 9_000 + (i % 5);
-            Map<String, Object> opened = http.post().uri("/api/conversations").header("X-User-Id", String.valueOf(member))
+            Map<String, Object> opened = http.post().uri("/api/conversations").headers(h -> { h.set("X-User-Id", String.valueOf(member)); h.set("X-User-Type", "MEMBER"); })
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(Map.of("type", "SUPPORT", "subject", "load " + i + " " + UUID.randomUUID().toString().substring(0, 8)))
                     .retrieve().bodyToMono(BODY).block(Duration.ofSeconds(30));
             String id = String.valueOf(opened.get("id"));
-            http.post().uri("/api/admin/conversations/" + id + "/join").header("X-Staff-Id", String.valueOf(staff))
+            http.post().uri("/api/admin/conversations/" + id + "/join").headers(h -> { h.set("X-User-Id", String.valueOf(staff)); h.set("X-User-Type", "ADMIN"); })
                     .retrieve().toBodilessEntity().block(Duration.ofSeconds(30));
             awaitOpen(id, member);
             ids.add(id);
             Map<String, Long> pending = new ConcurrentHashMap<>();
-            sockets.add(new Socket(id, "X-User-Id", member, pending).connect());
-            sockets.add(new Socket(id, "X-Staff-Id", staff, pending).connect());
+            sockets.add(new Socket(id, "MEMBER", member, pending).connect());
+            sockets.add(new Socket(id, "ADMIN", staff, pending).connect());
         }
         System.out.printf("%d conversations opened and joined, %d sockets connected%n", ids.size(), sockets.size());
         Thread.sleep(2_000);
@@ -151,7 +151,7 @@ public final class ChatLoadDriver {
     void awaitOpen(String id, int member) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
         while (System.nanoTime() < deadline) {
-            Map<String, Object> view = http.get().uri("/api/conversations/" + id).header("X-User-Id", String.valueOf(member))
+            Map<String, Object> view = http.get().uri("/api/conversations/" + id).headers(h -> { h.set("X-User-Id", String.valueOf(member)); h.set("X-User-Type", "MEMBER"); })
                     .retrieve().bodyToMono(BODY).onErrorResume(e -> Mono.empty()).block(Duration.ofSeconds(30));
             if (view != null && "OPEN".equals(view.get("status"))) {
                 return;
@@ -203,7 +203,8 @@ public final class ChatLoadDriver {
 
         Socket connect() throws InterruptedException {
             HttpHeaders headers = new HttpHeaders();
-            headers.add(header, String.valueOf(principal));
+            headers.add("X-User-Id", String.valueOf(principal));
+            headers.add("X-User-Type", header);   // MEMBER or ADMIN
             String ws = base.replaceFirst("^http", "ws") + "/ws/conversations/" + conversationId;
             connection = new ReactorNettyWebSocketClient().execute(URI.create(ws), headers, session -> {
                 open.countDown();

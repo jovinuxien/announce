@@ -1,9 +1,11 @@
 package org.linlinjava.announce.payment.interfaces.rest;
 
+import org.linlinjava.announce.cqrs.security.Callers;
 import org.linlinjava.announce.db.domain.AnnouncePayment;
 import org.linlinjava.announce.db.domain.AnnounceSellerAccount;
 import org.linlinjava.announce.payment.application.PaymentService;
 import org.linlinjava.announce.payment.domain.SellerAccount;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,7 +24,7 @@ import reactor.core.publisher.Mono;
 @RestController
 public class PaymentController {
 
-    public static final String USER_HEADER = "X-User-Id";
+    public static final String USER_HEADER = Callers.USER_HEADER;
     public static final String COMMAND_ID_HEADER = "X-Command-Id";
     public static final String FAKE_SIGNATURE_HEADER = "X-Fake-Signature";
 
@@ -46,7 +48,8 @@ public class PaymentController {
 
     /** The buyer's (or seller's) view of a deal's payment, including the client secret the buyer needs to pay. */
     @GetMapping("/api/orders/{id}/payment")
-    public Mono<AnnouncePayment> payment(@PathVariable String id, @RequestHeader(USER_HEADER) Integer user) {
+    public Mono<AnnouncePayment> payment(@PathVariable String id, @RequestHeader HttpHeaders headers) {
+        Integer user = Callers.member(headers);
         return payments.findPayment(id)
                 .filter(p -> user.equals(p.getBuyerId()) || user.equals(p.getSellerId()))
                 .switchIfEmpty(Mono.error(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No payment for order " + id)));
@@ -54,12 +57,14 @@ public class PaymentController {
 
     @PostMapping("/api/sellers/me/account")
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<SellerAccount> onboard(@RequestHeader(USER_HEADER) Integer user, @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId) {
+    public Mono<SellerAccount> onboard(@RequestHeader HttpHeaders headers, @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId) {
+        Integer user = Callers.member(headers);
         return payments.onboard(user, commandId);
     }
 
     @GetMapping("/api/sellers/me/account")
-    public Mono<AnnounceSellerAccount> account(@RequestHeader(USER_HEADER) Integer user) {
+    public Mono<AnnounceSellerAccount> account(@RequestHeader HttpHeaders headers) {
+        Integer user = Callers.member(headers);
         return payments.findAccount(user)
                 .switchIfEmpty(Mono.error(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Seller " + user + " has no payout account yet")));
     }

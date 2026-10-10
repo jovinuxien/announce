@@ -24,6 +24,9 @@ Build facts:
   valid `X-Service-Token` (`announce.service-token.mode=enforce`): call them
   through an edge, or start them with `--announce.service-token.mode=off`.
   Their `test` profiles set it off. See `doc/frontend-edges.md` §10.
+- Every backend reads its caller from `X-User-Id` + `X-User-Type` (`MEMBER`
+  or `ADMIN`) through `cqrs-reactive`'s `Callers`; `X-Seller-Id`,
+  `X-Staff-Id` and `X-Admin-Id` no longer exist (`doc/frontend-edges.md` §11).
 - Design notes: `doc/announce-management-context.md`, `doc/auction-chat-schema.md`.
 
 Process rule: in a worktree session, write a plan and get approval before

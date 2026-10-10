@@ -202,11 +202,11 @@ class MessagingEndToEndTest {
         final Sinks.One<CloseStatus> closed = Sinks.one();
         Disposable connection;
 
-        WsClient connect(String path, String header, int id) {
+        WsClient connect(String path, String type, int id) {
             HttpHeaders headers = new HttpHeaders();
             headers.add(ServiceTokens.HEADER, EdgeRequests.token());   // the handshake comes through an edge
-            if (header != null) {
-                headers.add(header, String.valueOf(id));
+            if (type != null) {
+                identity(headers, type, id);
             }
             connection = new ReactorNettyWebSocketClient().execute(URI.create("ws://localhost:" + port + path), headers, session -> {
                 session.closeStatus().subscribe(closed::tryEmitValue);
@@ -259,12 +259,21 @@ class MessagingEndToEndTest {
     }
 
     WebTestClient.ResponseSpec open(int user, String body) {
-        return client.post().uri("/api/conversations").header(Principals.USER_HEADER, String.valueOf(user))
+        return client.post().uri("/api/conversations").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(user))); h.set(Principals.TYPE_HEADER, "MEMBER"); })
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(body).exchange();
     }
 
-    WebTestClient.ResponseSpec get(String uri, String header, int id) {
-        return client.get().uri(uri).header(header, String.valueOf(id)).exchange();
+    /** {@code type} is {@link #AS_MEMBER} or {@link #AS_STAFF}: what the customer or the admin edge forwards. */
+    WebTestClient.ResponseSpec get(String uri, String type, int id) {
+        return client.get().uri(uri).headers(h -> identity(h, type, id)).exchange();
+    }
+
+    static final String AS_MEMBER = "MEMBER";
+    static final String AS_STAFF = "ADMIN";
+
+    static void identity(HttpHeaders headers, String type, int id) {
+        headers.set(Principals.USER_HEADER, String.valueOf(id));
+        headers.set(Principals.TYPE_HEADER, type);
     }
 
     void publishOrderEvent(Object event, String eventId) {
@@ -313,25 +322,25 @@ class MessagingEndToEndTest {
     void onlyRequestsAndHandshakesThatPassedAnEdgeAreServed() {
         WebTestClient direct = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
         // identity headers alone are worth nothing: without the edge's token a member, and "staff", are refused
-        direct.get().uri("/api/conversations").header(Principals.USER_HEADER, String.valueOf(BUYER)).exchange()
+        direct.get().uri("/api/conversations").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(BUYER))); h.set(Principals.TYPE_HEADER, "MEMBER"); }).exchange()
                 .expectStatus().isUnauthorized()
                 .expectBody().jsonPath("$.type").isEqualTo(ServiceTokenWebFilter.PROBLEM_TYPE_MISSING);
-        direct.get().uri("/api/admin/conversations?status=WAITING").header(Principals.STAFF_HEADER, String.valueOf(STAFF)).exchange()
+        direct.get().uri("/api/admin/conversations?status=WAITING").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(STAFF))); h.set(Principals.TYPE_HEADER, "ADMIN"); }).exchange()
                 .expectStatus().isUnauthorized();
-        direct.get().uri("/api/conversations").header(Principals.STAFF_HEADER, String.valueOf(STAFF))
+        direct.get().uri("/api/conversations").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(STAFF))); h.set(Principals.TYPE_HEADER, "ADMIN"); })
                 .header(ServiceTokens.HEADER, ServiceTokens.mint("gateway-api", "guessed", java.time.Instant.now().getEpochSecond())).exchange()
                 .expectStatus().isUnauthorized()
                 .expectBody().jsonPath("$.type").isEqualTo(ServiceTokenWebFilter.PROBLEM_TYPE_INVALID);
         // the WebSocket handshake is an HTTP request like any other
         HttpHeaders unsigned = new HttpHeaders();
-        unsigned.add(Principals.STAFF_HEADER, String.valueOf(STAFF));
+        identity(unsigned, AS_STAFF, STAFF);
         assertThatThrownBy(() -> new ReactorNettyWebSocketClient()
                 .execute(URI.create("ws://localhost:" + port + "/ws/staff?clientType=desktop"), unsigned, session -> Mono.empty())
                 .block(WAIT)).hasStackTraceContaining("401");
         // health checks reach the service directly
         direct.get().uri("/actuator/health").exchange().expectStatus().value(status -> assertThat(status).isNotEqualTo(401));
 
-        get("/api/conversations", Principals.USER_HEADER, BUYER).expectStatus().isOk();
+        get("/api/conversations", AS_MEMBER, BUYER).expectStatus().isOk();
     }
 
     @Test
@@ -350,22 +359,22 @@ class MessagingEndToEndTest {
         open(BUYER, "{\"type\":\"LISTING\",\"announceId\":\"missing\"}").expectStatus().isNotFound()
                 .expectBody().jsonPath("$.code").isEqualTo("announce-not-found");
 
-        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION, Principals.USER_HEADER, BUYER).expectStatus().isOk()
+        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION, AS_MEMBER, BUYER).expectStatus().isOk()
                 .expectBody().jsonPath("$.type").isEqualTo("LISTING").jsonPath("$.announceId").isEqualTo(ANNOUNCE)
                 .jsonPath("$.participants.length()").isEqualTo(2).jsonPath("$.unread").isEqualTo(0));
-        get("/api/conversations/" + CONVERSATION, Principals.USER_HEADER, STRANGER).expectStatus().isForbidden()
+        get("/api/conversations/" + CONVERSATION, AS_MEMBER, STRANGER).expectStatus().isForbidden()
                 .expectBody().jsonPath("$.code").isEqualTo("not-participant");
-        get("/api/conversations/" + CONVERSATION, Principals.STAFF_HEADER, STAFF).expectStatus().isOk();
+        get("/api/conversations/" + CONVERSATION, AS_STAFF, STAFF).expectStatus().isOk();
         client.get().uri("/api/conversations/" + CONVERSATION).exchange().expectStatus().isUnauthorized();
-        get("/api/conversations", Principals.USER_HEADER, SELLER).expectStatus().isOk()
+        get("/api/conversations", AS_MEMBER, SELLER).expectStatus().isOk()
                 .expectBody().jsonPath("$.items[?(@.id == '" + CONVERSATION + "')]").exists();
     }
 
     @Test
     @Order(2)
     void twoWebSocketClientsExchangeMessagesAndAnOfferIsAcceptedOntoThePublicTopic() {
-        WsClient buyer = new WsClient().connect("/ws/conversations/" + CONVERSATION, Principals.USER_HEADER, BUYER);
-        WsClient seller = new WsClient().connect("/ws/conversations/" + CONVERSATION, Principals.USER_HEADER, SELLER);
+        WsClient buyer = new WsClient().connect("/ws/conversations/" + CONVERSATION, AS_MEMBER, BUYER);
+        WsClient seller = new WsClient().connect("/ws/conversations/" + CONVERSATION, AS_MEMBER, SELLER);
         await().atMost(WAIT).until(() -> sessions.sessions(CONVERSATION) == 2);
         try {
             buyer.send(Map.of("type", "post", "clientMsgId", "c1", "content", "Is it still available?"));
@@ -381,7 +390,7 @@ class MessagingEndToEndTest {
             buyer.send(Map.of("type", "post", "clientMsgId", "c1", "content", "Is it still available?"));
             Map<String, Object> duplicate = buyer.awaitFrame("ack", f -> "c1".equals(f.get("clientMsgId")) && Boolean.TRUE.equals(f.get("duplicate")));
             assertThat(duplicate).containsEntry("seq", 1);
-            await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION + "/messages", Principals.USER_HEADER, BUYER)
+            await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION + "/messages", AS_MEMBER, BUYER)
                     .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(2).jsonPath("$[1].content").isEqualTo("Yes, it is."));
 
             // only the buyer makes offers; the seller's attempt is refused on the socket
@@ -408,14 +417,14 @@ class MessagingEndToEndTest {
             assertThat(Stubs.publishedHeaders.stream().filter(h -> "messaging.conversation-opened".equals(h.get(PublicEventHeaders.EVENT_TYPE))).count()).isGreaterThanOrEqualTo(1);
 
             // the read model: accepted offer, offer message status, unread counts and read markers
-            await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION, Principals.USER_HEADER, SELLER).expectStatus().isOk()
+            await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION, AS_MEMBER, SELLER).expectStatus().isOk()
                     .expectBody().jsonPath("$.acceptedOffer.amount").isEqualTo(900.0).jsonPath("$.acceptedOffer.currency").isEqualTo("SEK")
                     .jsonPath("$.openOffer").doesNotExist().jsonPath("$.messageCount").isEqualTo(3).jsonPath("$.unread").isEqualTo(3));
-            get("/api/conversations/" + CONVERSATION + "/messages?after=2", Principals.USER_HEADER, SELLER).expectStatus().isOk()
+            get("/api/conversations/" + CONVERSATION + "/messages?after=2", AS_MEMBER, SELLER).expectStatus().isOk()
                     .expectBody().jsonPath("$.length()").isEqualTo(1).jsonPath("$[0].offerStatus").isEqualTo("ACCEPTED").jsonPath("$[0].offerAmount").isEqualTo(900.0);
             seller.send(Map.of("type", "read", "seq", 3));
             seller.awaitFrame("ack", f -> "read".equals(f.get("action")));
-            await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION, Principals.USER_HEADER, SELLER).expectStatus().isOk()
+            await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION, AS_MEMBER, SELLER).expectStatus().isOk()
                     .expectBody().jsonPath("$.unread").isEqualTo(0));
 
             buyer.send(Map.of("type", "nonsense"));
@@ -427,7 +436,7 @@ class MessagingEndToEndTest {
         await().atMost(WAIT).until(() -> sessions.sessions(CONVERSATION) == 0);
 
         // a stranger cannot attach, and nobody can without a principal
-        assertThat(new WsClient().connect("/ws/conversations/" + CONVERSATION, Principals.USER_HEADER, STRANGER).awaitClose().getCode())
+        assertThat(new WsClient().connect("/ws/conversations/" + CONVERSATION, AS_MEMBER, STRANGER).awaitClose().getCode())
                 .isEqualTo(ConversationWebSocketHandler.NOT_PARTICIPANT);
         assertThat(new WsClient().connect("/ws/conversations/" + CONVERSATION, null, 0).awaitClose().getCode())
                 .isEqualTo(ConversationWebSocketHandler.NOT_AUTHENTICATED);
@@ -436,14 +445,14 @@ class MessagingEndToEndTest {
     @Test
     @Order(3)
     void aSecondBuyerCannotPostAndOrderEventsBecomeSystemMessages() {
-        client.post().uri("/api/conversations/" + CONVERSATION + "/messages").header(Principals.USER_HEADER, String.valueOf(STRANGER))
+        client.post().uri("/api/conversations/" + CONVERSATION + "/messages").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(STRANGER))); h.set(Principals.TYPE_HEADER, "MEMBER"); })
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"clientMsgId\":\"x1\",\"content\":\"me too\"}")
                 .exchange().expectStatus().isForbidden().expectBody().jsonPath("$.code").isEqualTo("not-participant");
 
         LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
         String eventId = UUID.randomUUID().toString();
         publishOrderEvent(new OrderPaidV1("o-1", ANNOUNCE, BUYER, SELLER, 90000, "SEK", now), eventId);
-        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION + "/messages?after=3", Principals.USER_HEADER, BUYER)
+        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION + "/messages?after=3", AS_MEMBER, BUYER)
                 .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(1)
                 .jsonPath("$[0].senderType").isEqualTo("SYSTEM").jsonPath("$[0].contentType").isEqualTo("SYSTEM")
                 .jsonPath("$[0].content").isEqualTo("Payment of 900.00 SEK received. The seller can now ship."));
@@ -454,13 +463,13 @@ class MessagingEndToEndTest {
         String other = ConversationIds.listing(OTHER_ANNOUNCE, OTHER_BUYER);
         conversations.add(other);
         publishOrderEvent(new OrderAgreedV1("o-2", OTHER_ANNOUNCE, OTHER_BUYER, SELLER, "AUCTION", 120000, 10100, 109900, "SEK", "Bike", now), UUID.randomUUID().toString());
-        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + other + "/messages", Principals.USER_HEADER, OTHER_BUYER)
+        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + other + "/messages", AS_MEMBER, OTHER_BUYER)
                 .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(1)
                 .jsonPath("$[0].content").isEqualTo("Deal agreed at 1200.00 SEK. The buyer can now pay."));
-        get("/api/conversations/" + other, Principals.USER_HEADER, SELLER).expectStatus().isOk()
+        get("/api/conversations/" + other, AS_MEMBER, SELLER).expectStatus().isOk()
                 .expectBody().jsonPath("$.buyerId").isEqualTo(OTHER_BUYER).jsonPath("$.participants.length()").isEqualTo(2);
 
-        await().pollDelay(Duration.ofSeconds(2)).atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION + "/messages?after=3", Principals.USER_HEADER, BUYER)
+        await().pollDelay(Duration.ofSeconds(2)).atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + CONVERSATION + "/messages?after=3", AS_MEMBER, BUYER)
                 .expectStatus().isOk().expectBody().jsonPath("$.length()").isEqualTo(1));
     }
 
@@ -474,32 +483,36 @@ class MessagingEndToEndTest {
         String id = json.substring(json.indexOf("\"id\":\"") + 6, json.indexOf('"', json.indexOf("\"id\":\"") + 6));
         conversations.add(id);
 
-        await().atMost(WAIT).untilAsserted(() -> get("/api/admin/conversations?status=WAITING", Principals.STAFF_HEADER, STAFF).expectStatus().isOk()
+        await().atMost(WAIT).untilAsserted(() -> get("/api/admin/conversations?status=WAITING", AS_STAFF, STAFF).expectStatus().isOk()
                 .expectBody().jsonPath("$.items[?(@.id == '" + id + "')]").exists());
-        client.get().uri("/api/admin/conversations?status=WAITING").exchange().expectStatus().isBadRequest();
+        // the queue needs staff: nobody is 401, a member 403 (what the customer edge forwards)
+        client.get().uri("/api/admin/conversations?status=WAITING").exchange().expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.code").isEqualTo(Principals.NO_PRINCIPAL);
+        get("/api/admin/conversations?status=WAITING", AS_MEMBER, BUYER).expectStatus().isForbidden()
+                .expectBody().jsonPath("$.code").isEqualTo(Principals.NOT_STAFF);
 
-        client.post().uri("/api/admin/conversations/" + id + "/join").header(Principals.STAFF_HEADER, String.valueOf(STAFF)).exchange()
+        client.post().uri("/api/admin/conversations/" + id + "/join").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(STAFF))); h.set(Principals.TYPE_HEADER, "ADMIN"); }).exchange()
                 .expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("OPEN")
                 .jsonPath("$.participants[?(@.type == 'ADMIN' && @.id == " + STAFF + ")]").exists();
-        await().atMost(WAIT).untilAsserted(() -> get("/api/admin/conversations?status=WAITING", Principals.STAFF_HEADER, STAFF).expectStatus().isOk()
+        await().atMost(WAIT).untilAsserted(() -> get("/api/admin/conversations?status=WAITING", AS_STAFF, STAFF).expectStatus().isOk()
                 .expectBody().jsonPath("$.items[?(@.id == '" + id + "')]").doesNotExist());
-        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + id, Principals.STAFF_HEADER, STAFF).expectStatus().isOk()
+        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + id, AS_STAFF, STAFF).expectStatus().isOk()
                 .expectBody().jsonPath("$.status").isEqualTo("OPEN").jsonPath("$.participants.length()").isEqualTo(2));
-        client.post().uri("/api/conversations/" + id + "/messages").header(Principals.STAFF_HEADER, String.valueOf(STAFF))
+        client.post().uri("/api/conversations/" + id + "/messages").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(STAFF))); h.set(Principals.TYPE_HEADER, "ADMIN"); })
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"clientMsgId\":\"st1\",\"content\":\"How can I help?\"}")
                 .exchange().expectStatus().isCreated().expectBody().jsonPath("$.seq").isEqualTo(1);
-        client.post().uri("/api/admin/conversations/" + id + "/close").header(Principals.STAFF_HEADER, String.valueOf(STAFF)).exchange()
+        client.post().uri("/api/admin/conversations/" + id + "/close").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(STAFF))); h.set(Principals.TYPE_HEADER, "ADMIN"); }).exchange()
                 .expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("CLOSED");
     }
 
     @Test
     @Order(5)
     void bulletinsReachTheStaffSocketsOfTheirClientType() {
-        WsClient desktop = new WsClient().connect("/ws/staff?clientType=desktop", Principals.STAFF_HEADER, STAFF);
-        WsClient mobile = new WsClient().connect("/ws/staff?clientType=mobile-web", Principals.STAFF_HEADER, OTHER_STAFF);
+        WsClient desktop = new WsClient().connect("/ws/staff?clientType=desktop", AS_STAFF, STAFF);
+        WsClient mobile = new WsClient().connect("/ws/staff?clientType=mobile-web", AS_STAFF, OTHER_STAFF);
         await().atMost(WAIT).until(() -> sessions.staffSessions() == 2);
         try {
-            byte[] body = client.post().uri("/api/admin/bulletins").header(Principals.STAFF_HEADER, String.valueOf(STAFF))
+            byte[] body = client.post().uri("/api/admin/bulletins").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(STAFF))); h.set(Principals.TYPE_HEADER, "ADMIN"); })
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue("{\"audience\":\"STAFF\",\"clientType\":\"desktop\",\"content\":\"e2e Queue is long, please pick up\"}")
                     .exchange().expectStatus().isCreated().expectBody().jsonPath("$.id").isNumber().returnResult().getResponseBody();
@@ -507,14 +520,14 @@ class MessagingEndToEndTest {
             assertThat(desktop.awaitFrame("bulletin", f -> "e2e Queue is long, please pick up".equals(f.get("content")))).containsEntry("clientType", "desktop");
             assertThat(mobile.received).noneMatch(f -> "bulletin".equals(f.get("type")));
 
-            body = client.post().uri("/api/admin/bulletins").header(Principals.STAFF_HEADER, String.valueOf(STAFF))
+            body = client.post().uri("/api/admin/bulletins").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(STAFF))); h.set(Principals.TYPE_HEADER, "ADMIN"); })
                     .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"content\":\"e2e All hands\"}")
                     .exchange().expectStatus().isCreated().expectBody().returnResult().getResponseBody();
             bulletins.add(Integer.valueOf(parse(new String(body)).get("id").toString()));
             desktop.awaitFrame("bulletin", f -> "e2e All hands".equals(f.get("content")));
             mobile.awaitFrame("bulletin", f -> "e2e All hands".equals(f.get("content")));
 
-            get("/api/admin/bulletins", Principals.STAFF_HEADER, STAFF).expectStatus().isOk()
+            get("/api/admin/bulletins", AS_STAFF, STAFF).expectStatus().isOk()
                     .expectBody().jsonPath("$[?(@.content == 'e2e All hands')]").exists();
         } finally {
             desktop.close();
@@ -533,7 +546,7 @@ class MessagingEndToEndTest {
         conversations.add(RACE);
         open(BUYER, "{\"type\":\"LISTING\",\"announceId\":\"" + RACE_ANNOUNCE + "\"}").expectStatus().isCreated()
                 .expectBody().jsonPath("$.id").isEqualTo(RACE);
-        WsClient buyer = new WsClient().connect("/ws/conversations/" + RACE, Principals.USER_HEADER, BUYER);
+        WsClient buyer = new WsClient().connect("/ws/conversations/" + RACE, AS_MEMBER, BUYER);
         try {
             buyer.send(Map.of("type", "ping"));
             buyer.awaitFrame("pong", f -> true);
@@ -544,7 +557,7 @@ class MessagingEndToEndTest {
         await().atMost(WAIT).until(() -> sessions.sessions(RACE) == 0);
 
         // a conversation that never appears is still refused, once the look-ups are used up
-        assertThat(new WsClient().connect("/ws/conversations/" + UUID.randomUUID(), Principals.USER_HEADER, BUYER).awaitClose().getCode())
+        assertThat(new WsClient().connect("/ws/conversations/" + UUID.randomUUID(), AS_MEMBER, BUYER).awaitClose().getCode())
                 .isEqualTo(ConversationWebSocketHandler.NOT_PARTICIPANT);
     }
 
@@ -555,8 +568,8 @@ class MessagingEndToEndTest {
     @Test
     @Order(7)
     void postsRacingInOneConversationAreAllAcknowledged() {
-        WsClient buyer = new WsClient().connect("/ws/conversations/" + RACE, Principals.USER_HEADER, BUYER);
-        WsClient seller = new WsClient().connect("/ws/conversations/" + RACE, Principals.USER_HEADER, SELLER);
+        WsClient buyer = new WsClient().connect("/ws/conversations/" + RACE, AS_MEMBER, BUYER);
+        WsClient seller = new WsClient().connect("/ws/conversations/" + RACE, AS_MEMBER, SELLER);
         await().atMost(WAIT).until(() -> sessions.sessions(RACE) == 2);
         int rounds = 10;
         try {
@@ -581,12 +594,12 @@ class MessagingEndToEndTest {
         // four writers at once over REST: each can lose to the three others, which the three retries absorb
         WebClient http = WebClient.builder().baseUrl("http://localhost:" + port).filter(EdgeRequests.signing()).build();
         List<Integer> statuses = Flux.range(1, 4).flatMap(i -> http.post().uri("/api/conversations/" + RACE + "/messages")
-                .header(Principals.USER_HEADER, String.valueOf(i % 2 == 0 ? BUYER : SELLER)).contentType(MediaType.APPLICATION_JSON)
+                .headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(i % 2 == 0 ? BUYER : SELLER))); h.set(Principals.TYPE_HEADER, "MEMBER"); }).contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{\"clientMsgId\":\"rr" + i + "\",\"content\":\"burst " + i + "\"}")
                 .exchangeToMono(response -> response.releaseBody().thenReturn(response.statusCode().value())), 4).collectList().block(WAIT);
         assertThat(statuses).containsExactly(201, 201, 201, 201);
 
-        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + RACE, Principals.USER_HEADER, BUYER).expectStatus().isOk()
+        await().atMost(WAIT).untilAsserted(() -> get("/api/conversations/" + RACE, AS_MEMBER, BUYER).expectStatus().isOk()
                 .expectBody().jsonPath("$.messageCount").isEqualTo(2 * rounds + 4).jsonPath("$.lastMessageSeq").isEqualTo(2 * rounds + 4));
     }
 

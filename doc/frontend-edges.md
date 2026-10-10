@@ -122,6 +122,9 @@ same paths either way.
   `AnnounceAdminController` at `/api/admin/announces` (list in any status, `GET {id}`,
   `POST {id}/withdraw|expire {reason}` with the moderator from `X-User-Id`).
 - **SPA dev server** on 9001 (the customer SPA keeps 9000), proxying `/api` and `/auth` to 8081.
+- **Staff chat (2026-10-10, §11).** Routes `/api/conversations/**` and `/ws/**` to messaging, the token on a
+  handshake as `?access_token=` (`WebSocketTokenFilter`), `ROLE_ADMIN` on `/ws/**`; `X-Staff-Id` and
+  `X-Admin-Id` are stripped from clients, and every backend reads staff from `X-User-Id` + `X-User-Type=ADMIN`.
 
 ## 5. Customer SPA
 
@@ -424,12 +427,61 @@ scheduled jobs off) and the customer edge on 8090, both from this branch's class
 The check left member 26 and one DRAFT announce (`42dabea8-691b-469c-bafa-77354fc2f24d`, titled "Edge trust
 check (draft, safe to delete)") in the development database; a draft cannot be withdrawn.
 
-**Not part of this step.** The admin edge forwards staff as `X-User-Id` + `X-User-Type=ADMIN`, while the
-admin routes of order read `X-Admin-Id` and those of messaging read `X-Staff-Id`; the admin edge sets neither,
-so those routes do not work against the real backends yet (the admin SPA's phase 2 runs on mocks). Left for
-the `gateway-admin` worktree. `/api/admin/listings/**` in announce-management has no caller check of its own.
+**Not part of this step.** The admin edge forwarded staff as `X-User-Id` + `X-User-Type=ADMIN`, while the
+admin routes of order read `X-Admin-Id` and those of messaging read `X-Staff-Id`; closed in §11.
+`/api/admin/listings/**` in announce-management has no caller check of its own.
 
 Build note: `announce-management/src/main/resources/config/application-prod.yml` was an empty file and is not
 any more. A `target/` built before this change holds an empty copy, and `maven-resources-plugin` 3.3.0 then
 fails with `copy-resources failed: newPosition < 0`. Delete
 `announce-management/target/classes/config/application-prod.yml` (or run `mvn -pl announce-management clean`) once.
+
+## 11. Staff identity: one caller convention for every backend (2026-10-10)
+
+After §10 the admin edge forwarded staff as `X-User-Id` + `X-User-Type=ADMIN` + `X-User-Roles`, but the staff
+routes of order still read `X-Admin-Id` and those of messaging `X-Staff-Id`, so nothing staff did on those two
+services worked through the admin edge; and the admin edge had no route for the staff chat at all. Both are
+closed, "according to our backend": the backends keep the convention announce-management already had, and the
+admin edge is completed around it. Nothing here involves an outside party: two edges, three backends, one
+header pair.
+
+**The convention.** `cqrs-reactive` (`security` package) has a `Caller` record and a `Callers` helper
+(`doc/cqrs-reactive.md` §5a). Every service reads its callers through it:
+
+| Call | Who passes | Otherwise |
+|---|---|---|
+| `Callers.member(headers)` | `X-User-Type=MEMBER` | 401 `no-principal` without an id, 403 `not-a-member` for staff |
+| `Callers.staff(headers)` | `X-User-Type=ADMIN` | 401 `no-principal`, 403 `not-staff` for a member |
+| `Callers.any(headers)` | either | 401 `no-principal` |
+| `Callers.memberIfAny(headers)` | a member, else empty | never fails for a visitor or staff |
+
+An id with a missing or unknown type is 403 `unknown-caller-type`; a non-numeric id is 400. `X-Seller-Id`,
+`X-Staff-Id` and `X-Admin-Id` are read nowhere.
+
+**Per module.**
+
+| Module | Change |
+|---|---|
+| order | The six staff routes (`/api/admin/bids/{id}/cancel`, `/api/admin/auctions/{announceId}/cancel`, `/api/admin/auctions/close-due`, `/api/admin/orders/{id}` GET, `/resolve-dispute`, `/release`) read `Callers.staff`; the seventeen member parameters read `Callers.member`, so a staff id is no longer taken for the member with the same number. `X-Admin-Id` gone. |
+| messaging | `Principals` is a thin layer over `Callers` (viewer, member, staff); `AdminMessagingController`, `/ws/staff` and `/ws/conversations/{id}` read the same pair. `X-Staff-Id` gone. |
+| announce-management | its `Callers` delegates to the framework; behaviour unchanged. |
+| gateway-admin | routes `/api/conversations/**` (staff read, post in and close the support conversations they joined) and `/ws/**` (`/ws/staff` bulletins, `/ws/conversations/{id}`) to messaging; `WebSocketTokenFilter` turns `?access_token=` into the bearer header, as on the customer edge; `ROLE_ADMIN` on `/ws/**`; `X-Staff-Id` / `X-Admin-Id` stripped from clients; the `dev` profile points order at 8083 and the WebSocket route at `ws://localhost:8086`. |
+
+**Tests.** `CallersTest` (framework); `OrderModuleEndToEndTest` sends members and staff as the edges do and
+asserts the two 403s and that `X-Admin-Id` is not an identity; `MessagingEndToEndTest` and
+`ConversationControllerTest` the same for messaging, including the staff WebSocket handshake;
+`EdgeRoutesTest` of the admin edge proves the staff identity reaches order and messaging, that the former staff
+headers are dropped, and that the `/ws/staff` handshake with the query token is forwarded with the identity and
+without the JWT. The load driver `ChatLoadDriver` sends the pair too.
+
+**Manual run.** Not executed: the plan ended with a run through the admin edge against a local messaging
+service, but another session was running messaging on port 8086 against the shared EventSourcingDB, Kafka and
+MySQL, and a second node would have joined its consumer groups. While that instance ran, `MessagingEndToEndTest`
+(whose read model is the live database) stalled because the instance kept overwriting the checkpoint rows the
+suite had reset; it passed as soon as the instance stopped. Run the suite when no messaging instance uses
+`announce_reactive_db`.
+
+**Still open.** The admin SPA's phase-2 screens run on mocks that call list endpoints the order backend does not
+have (`GET /api/admin/auctions`, `GET /api/admin/orders`, `GET /api/admin/payouts`); wiring those screens to the
+real backends is separate work. Roles are forwarded but not checked inside the backends (the edge enforces
+`ROLE_ADMIN`, and `ROLE_SUPER` on its own admin, role and permission routes).

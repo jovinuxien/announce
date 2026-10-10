@@ -48,9 +48,10 @@ public class ConversationController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<ConversationResponse> open(@RequestHeader(Principals.USER_HEADER) Integer userId,
+    public Mono<ConversationResponse> open(@RequestHeader HttpHeaders headers,
                                            @RequestHeader(value = Principals.COMMAND_ID_HEADER, required = false) String commandId,
                                            @RequestBody OpenConversationRequest body) {
+        Integer userId = Principals.user(headers).id();
         ConversationType type = body.type() == null ? ConversationType.LISTING : ConversationType.valueOf(body.type().toUpperCase());
         Mono<org.linlinjava.announce.messaging.domain.conversation.Conversation> opened = switch (type) {
             case LISTING -> conversations.openListing(userId, body.announceId(), commandId);
@@ -92,14 +93,16 @@ public class ConversationController {
     }
 
     @PostMapping("/{id}/offers/accept")
-    public Mono<ConversationResponse> acceptOffer(@PathVariable String id, @RequestHeader(Principals.USER_HEADER) Integer userId,
+    public Mono<ConversationResponse> acceptOffer(@PathVariable String id, @RequestHeader HttpHeaders headers,
                                                   @RequestHeader(value = Principals.COMMAND_ID_HEADER, required = false) String commandId) {
+        Integer userId = Principals.user(headers).id();
         return conversations.acceptOffer(id, userId, commandId).map(ConversationResponse::of);
     }
 
     @PostMapping("/{id}/offers/decline")
-    public Mono<ConversationResponse> declineOffer(@PathVariable String id, @RequestHeader(Principals.USER_HEADER) Integer userId,
+    public Mono<ConversationResponse> declineOffer(@PathVariable String id, @RequestHeader HttpHeaders headers,
                                                    @RequestHeader(value = Principals.COMMAND_ID_HEADER, required = false) String commandId) {
+        Integer userId = Principals.user(headers).id();
         return conversations.declineOffer(id, userId, commandId).map(ConversationResponse::of);
     }
 

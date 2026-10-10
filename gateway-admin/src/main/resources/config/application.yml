@@ -38,6 +38,17 @@ spring:
               uri: ${announce.routes.messaging}
               predicates:
                 - Path=/api/admin/conversations/**,/api/admin/bulletins/**
+            # staff take part in the support conversations they joined (read, post, close) ...
+            - id: staff-conversations
+              uri: ${announce.routes.messaging}
+              predicates:
+                - Path=/api/conversations/**
+            # ... and listen on the staff channel (/ws/staff, bulletins) and on a conversation (/ws/conversations/{id});
+            # the token travels as ?access_token= (WebSocketTokenFilter)
+            - id: messaging-ws
+              uri: ${announce.routes.messaging-ws}
+              predicates:
+                - Path=/ws/**
   # Auth store and edge-hosted admin CRUD over the announce_* reactive mappers (reactive-mybatis-support keys)
   r2dbc:
     mybatis:
@@ -83,6 +94,7 @@ announce:
     announce-management: lb://announce-management
     order: lb://order
     messaging: lb://messaging
+    messaging-ws: lb:ws://messaging
   jwt:
     issuer: announce-admin
     audience: announce-admin
@@ -115,7 +127,9 @@ spring:
 announce:
   routes:
     announce-management: http://localhost:8085
+    order: http://localhost:8083
     messaging: http://localhost:8086
+    messaging-ws: ws://localhost:8086
 logging:
   level:
     org.linlinjava.announce.gatewayadmin: DEBUG

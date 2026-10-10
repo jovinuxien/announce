@@ -50,8 +50,9 @@ then `reactify_mapper.py`; the hand-written statements (`upsert`, `updateOffers`
 ## 4. REST (`interfaces.rest`)
 
 Headers: `X-User-Id` (member), `X-Staff-Id` (staff), optional `X-Command-Id` for idempotent writes.
-Until the gateway propagates the principal these headers are trusted, so the service is not exposed
-directly.
+An edge sets them after authenticating the caller; the service refuses requests and WebSocket handshakes without
+a valid `X-Service-Token` (`announce.service-token.mode=enforce`, `doc/frontend-edges.md` §10), and the customer
+edge strips a client-supplied `X-Staff-Id`.
 
 | Route | Body / params | Answer |
 |---|---|---|

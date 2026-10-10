@@ -1,6 +1,7 @@
 package org.linlinjava.announce.cqrs.api;
 
 import org.linlinjava.announce.cqrs.CqrsProperties;
+import org.linlinjava.announce.cqrs.security.ServiceTokenMinter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -29,8 +30,10 @@ public class ApiClientAutoConfiguration {
     public HttpExchangeClients httpExchangeClients(ObjectProvider<WebClient.Builder> webClientBuilder,
                                                    ObjectProvider<ReactorLoadBalancerExchangeFilterFunction> loadBalancerFilter,
                                                    ObjectProvider<ReactiveCircuitBreakerFactory<?, ?>> circuitBreakerFactory,
+                                                   ObjectProvider<ServiceTokenMinter> serviceTokens,
                                                    CqrsProperties properties) {
         return new HttpExchangeClients(webClientBuilder.getIfAvailable(WebClient::builder),
-                loadBalancerFilter.getIfAvailable(), circuitBreakerFactory.getIfAvailable(), properties.getApi());
+                loadBalancerFilter.getIfAvailable(), circuitBreakerFactory.getIfAvailable(), properties.getApi(),
+                serviceTokens.getIfAvailable());
     }
 }

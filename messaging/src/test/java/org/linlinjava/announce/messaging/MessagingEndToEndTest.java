@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.linlinjava.announce.cqrs.messaging.PublicEventHeaders;
 import org.linlinjava.announce.cqrs.messaging.PublicEventTypeRegistry;
+import org.linlinjava.announce.cqrs.security.ServiceTokenWebFilter;
+import org.linlinjava.announce.cqrs.security.ServiceTokens;
+import org.linlinjava.announce.cqrs.test.EdgeRequests;
 import org.linlinjava.announce.cqrs.test.containers.CqrsContainers;
 import org.linlinjava.announce.cqrs.test.containers.EventSourcingDbContainer;
 import org.linlinjava.announce.messaging.application.AnnounceLookup;
@@ -69,6 +72,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.linlinjava.announce.messaging.infrastructure.metrics.MessagingMeters;
@@ -86,7 +90,9 @@ import static org.awaitility.Awaitility.await;
  * refer to event ids of an EventSourcingDB container that may no longer exist.
  */
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        // as in production: only requests and handshakes signed by an edge are served (the test profile alone says off)
+        properties = {EdgeRequests.ENFORCE, EdgeRequests.SECRET_PROPERTY})
 @ActiveProfiles("test")
 @DirtiesContext
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -130,6 +136,12 @@ class MessagingEndToEndTest {
     static class Stubs {
         static final List<Map<String, Object>> published = new CopyOnWriteArrayList<>();
         static final List<Map<String, String>> publishedHeaders = new CopyOnWriteArrayList<>();
+
+        /** The autowired client stands for an edge: each of its requests carries a fresh X-Service-Token. */
+        @Bean
+        org.springframework.boot.test.web.reactive.server.WebTestClientBuilderCustomizer edgeSignedClient() {
+            return EdgeRequests.signedWebTestClient();
+        }
 
         @Bean
         AnnounceLookup stubAnnounceLookup() {
@@ -192,6 +204,7 @@ class MessagingEndToEndTest {
 
         WsClient connect(String path, String header, int id) {
             HttpHeaders headers = new HttpHeaders();
+            headers.add(ServiceTokens.HEADER, EdgeRequests.token());   // the handshake comes through an edge
             if (header != null) {
                 headers.add(header, String.valueOf(id));
             }
@@ -294,6 +307,32 @@ class MessagingEndToEndTest {
     }
 
     // ------------------------------------------------------------------ tests
+
+    @Test
+    @Order(0)
+    void onlyRequestsAndHandshakesThatPassedAnEdgeAreServed() {
+        WebTestClient direct = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        // identity headers alone are worth nothing: without the edge's token a member, and "staff", are refused
+        direct.get().uri("/api/conversations").header(Principals.USER_HEADER, String.valueOf(BUYER)).exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.type").isEqualTo(ServiceTokenWebFilter.PROBLEM_TYPE_MISSING);
+        direct.get().uri("/api/admin/conversations?status=WAITING").header(Principals.STAFF_HEADER, String.valueOf(STAFF)).exchange()
+                .expectStatus().isUnauthorized();
+        direct.get().uri("/api/conversations").header(Principals.STAFF_HEADER, String.valueOf(STAFF))
+                .header(ServiceTokens.HEADER, ServiceTokens.mint("gateway-api", "guessed", java.time.Instant.now().getEpochSecond())).exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.type").isEqualTo(ServiceTokenWebFilter.PROBLEM_TYPE_INVALID);
+        // the WebSocket handshake is an HTTP request like any other
+        HttpHeaders unsigned = new HttpHeaders();
+        unsigned.add(Principals.STAFF_HEADER, String.valueOf(STAFF));
+        assertThatThrownBy(() -> new ReactorNettyWebSocketClient()
+                .execute(URI.create("ws://localhost:" + port + "/ws/staff?clientType=desktop"), unsigned, session -> Mono.empty())
+                .block(WAIT)).hasStackTraceContaining("401");
+        // health checks reach the service directly
+        direct.get().uri("/actuator/health").exchange().expectStatus().value(status -> assertThat(status).isNotEqualTo(401));
+
+        get("/api/conversations", Principals.USER_HEADER, BUYER).expectStatus().isOk();
+    }
 
     @Test
     @Order(1)
@@ -540,7 +579,7 @@ class MessagingEndToEndTest {
         await().atMost(WAIT).until(() -> sessions.sessions(RACE) == 0);
 
         // four writers at once over REST: each can lose to the three others, which the three retries absorb
-        WebClient http = WebClient.create("http://localhost:" + port);
+        WebClient http = WebClient.builder().baseUrl("http://localhost:" + port).filter(EdgeRequests.signing()).build();
         List<Integer> statuses = Flux.range(1, 4).flatMap(i -> http.post().uri("/api/conversations/" + RACE + "/messages")
                 .header(Principals.USER_HEADER, String.valueOf(i % 2 == 0 ? BUYER : SELLER)).contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{\"clientMsgId\":\"rr" + i + "\",\"content\":\"burst " + i + "\"}")

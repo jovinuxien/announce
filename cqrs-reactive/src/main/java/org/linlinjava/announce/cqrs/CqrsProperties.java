@@ -161,6 +161,12 @@ public class CqrsProperties {
         public static class Client {
             /** Fixed base URL; when set, service discovery and load balancing are bypassed for this client. */
             private String baseUrl;
+            /**
+             * Whether calls of this client carry {@code X-Service-Token} (needed when the provider runs with
+             * {@code announce.service-token.mode=enforce}). Off by default so the secret-derived token never
+             * reaches a service that is not ours, such as the OCS search tier.
+             */
+            private boolean serviceToken;
 
             public String getBaseUrl() {
                 return baseUrl;
@@ -168,6 +174,14 @@ public class CqrsProperties {
 
             public void setBaseUrl(String baseUrl) {
                 this.baseUrl = baseUrl;
+            }
+
+            public boolean isServiceToken() {
+                return serviceToken;
+            }
+
+            public void setServiceToken(boolean serviceToken) {
+                this.serviceToken = serviceToken;
             }
         }
     }

@@ -24,7 +24,7 @@ java -jar target/gateway-api-0.0.1-SNAPSHOT.jar --server.port=8090 --eureka.clie
 
 Properties: `announce.jwt.*` (dev keypair in `application.yml`, override with `ANNOUNCE_JWT_PRIVATE_KEY_PEM` /
 `ANNOUNCE_JWT_PUBLIC_KEY_PEM`), `announce.auth.*` (refresh cookie), `announce.machine.secret`
-(`X-Service-Token`), `announce.search.searcher-url|suggest-url`, `announce.routes.*` (route targets).
+(`X-Service-Token`, env `ANNOUNCE_SERVICE_SECRET`, the same value as the backends' `announce.service-token.secret`), `announce.search.searcher-url|suggest-url`, `announce.routes.*` (route targets).
 
 ## Packages
 
@@ -32,9 +32,10 @@ Properties: `announce.jwt.*` (dev keypair in `application.yml`, override with `A
   `RefreshTokenStore` with R2DBC adapters over db-reactive, `RefreshTokenService` (rotating, hashed),
   `AccessTokens` (RS256), `RefreshCookies` (httpOnly, path `/auth`).
 - `security` — `SecurityConfig` (deny by default), `PublicPaths`, `IdentityForwardingFilter` (strips client
-  `X-User-*`/`X-Seller-Id`, injects the trusted ones), `WebSocketTokenFilter` (`access_token` query parameter).
-- `machine` — `MachineTokenRelayFilter` adds `X-Service-Token` on routes with metadata `serviceToken: true`.
-- `gateway` — route filter `SellerHeader` (copies `X-User-Id` into `X-Seller-Id` for announce-management).
+  `X-User-*`, `X-Staff-Id`, `X-Admin-Id`, `X-Seller-Id` and `X-Service-Token`, injects the trusted `X-User-Id` and
+  `X-User-Type=MEMBER`), `WebSocketTokenFilter` (`access_token` query parameter).
+- `machine` — `MachineTokenRelayFilter` adds `X-Service-Token` on routes with metadata `serviceToken: true`; the
+  backends verify it (`announce.service-token.mode=enforce`) and answer 401 to anything that bypassed an edge.
 - `web` — `SpaHistoryFallbackFilter` (deep links -> `index.html`), `ProblemDetails` (401/403 bodies).
 - `storage` — pictures of the announces: `POST /api/storage/upload` (member, multipart field `file`, images only,
   `announce.storage.max-size` 10 MB) stores the file under `announce.storage.dir` (default `~/announce_storage`),
@@ -49,11 +50,12 @@ their original CDN URLs. Descriptions that contain HTML (the migrated goods) are
 
 The search projection indexes announces on their events only. Rows that never produced an event (the seed data)
 or a rebuilt Elasticsearch need one full pass from the read model, through announce-management's admin trigger
-(reached through the admin edge, or directly on the service in development):
+(reached through the admin edge; a direct call is answered 401 unless the service was started with
+`--announce.service-token.mode=off`, and then the staff identity goes in the headers):
 
 ```
-curl -X POST http://localhost:8085/api/admin/announces/reindex      # {"indexed": 240}
-curl -X POST http://localhost:8085/api/admin/listings/reindex       # crawled listings, same idea
+curl -X POST http://localhost:8085/api/admin/announces/reindex -H 'X-User-Id: 1' -H 'X-User-Type: ADMIN'   # {"indexed": 240}
+curl -X POST http://localhost:8085/api/admin/listings/reindex                                              # crawled listings, same idea
 ```
 
 ## SPA feature flags

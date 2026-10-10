@@ -7,10 +7,12 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
 /**
- * Same stance as announce-management in this phase: authentication happens at the gateway, which injects the
- * member as {@code X-User-Id} (staff as {@code X-Admin-Id}); this service accepts its routes without a login of
- * its own and disables CSRF for the stateless JSON API. Provider and carrier webhooks are protected by their
- * signatures instead. Not to be exposed directly to the internet until JWT validation replaces this.
+ * Same stance as announce-management: authentication happens at the edges, which inject the member as
+ * {@code X-User-Id} (staff as {@code X-Admin-Id}) and sign every proxied request with {@code X-Service-Token}.
+ * The framework's {@code ServiceTokenWebFilter} ({@code announce.service-token.mode=enforce}) answers 401 to a
+ * request without a valid token before this chain runs, so this service has no login of its own and disables CSRF
+ * for the stateless JSON API. Provider and carrier webhooks arrive through the customer edge too and are
+ * additionally protected by their signatures.
  */
 @Configuration
 @EnableWebFluxSecurity

@@ -37,13 +37,12 @@ self-issued tokens later behind the same `IdentityForwardingFilter`.
   order, specific prefixes first.
 - **Identity forwarding.** The edge strips every client-supplied `X-User-*` header, validates
   the token, and injects `X-User-Id`, `X-User-Type` (`MEMBER` or `ADMIN`) and, on the admin
-  edge, `X-User-Roles`. On routes to announce-management the customer edge also sets
-  `X-Seller-Id` to the same value until announce-management reads `X-User-Id` (follow-up in
-  that module, then drop the duplicate).
-- **Machine token.** `MachineTokenRelayFilter` adds `X-Service-Token` (HMAC over a shared
-  secret from config) on every `lb://` route so backends can later refuse traffic that did not
-  pass an edge. Backends verify it in a later step; today they trust the headers (see
-  `CatalogSecurityConfig`).
+  edge, `X-User-Roles`. The customer edge also strips `X-Staff-Id`, `X-Admin-Id`,
+  `X-Seller-Id` and `X-Service-Token`. announce-management reads the owner of an announce
+  from `X-User-Id` with `X-User-Type=MEMBER`; there is no `X-Seller-Id` any more (§10).
+- **Machine token.** `MachineTokenRelayFilter` adds `X-Service-Token` (HMAC over the shared
+  secret `ANNOUNCE_SERVICE_SECRET`) on the routes to our own services. The backends verify it
+  and answer 401 to traffic that did not pass an edge (§10).
 - **SPA history fallback.** A `WebFilter` rewrites every GET whose last path segment has no
   dot and that matches no route or public asset to `/index.html`, so deep links work.
 - **Problem details pass through.** Backend `application/problem+json` bodies reach the SPA
@@ -108,8 +107,9 @@ same paths either way.
   `lb://<service>`). The `dev` profile points announce-management at `http://localhost:8085` and
   messaging at `http://localhost:8086` because neither registers with Eureka yet; tests point them at
   MockWebServer. Eureka is off unless `ANNOUNCE_EUREKA_ENABLED=true`.
-- **Machine token.** `X-Service-Token = gateway-admin.<epoch-seconds>.<hmac-sha256>` over
-  `announce.machine.secret`; the staff JWT and the cookies are removed from every proxied request.
+- **Machine token.** `X-Service-Token = v1.gateway-admin.<epochSeconds>.<hmacSha256(issuer:epochSeconds)>` over
+  `announce.machine.secret` (the same layout and secret as the customer edge since 2026-10-01, §10); the staff
+  JWT and the cookies are removed from every proxied request.
 - **Edge controllers.** `/api/admin/users`, `/api/admin/admins`, `/api/admin/roles` (+ `/all`, `/{id}/permissions`),
   `/api/admin/permissions`, `/api/admin/regions`, `/api/admin/dashboard`, `/api/admin/listing-stats`
   (counts per source and status, recent GONE rows, most clicked; import and reindex stay in
@@ -300,9 +300,10 @@ because a Jenkins holds 8080 on the development machine; 8080 stays the configur
 - `/auth/me` reads `X-User-Id` injected by the identity filter, like every downstream service.
 - The dev RSA keypair is committed in `application.yml` (like litemall); production must set
   `ANNOUNCE_JWT_PRIVATE_KEY_PEM` / `ANNOUNCE_JWT_PUBLIC_KEY_PEM` and `ANNOUNCE_MACHINE_SECRET`.
-- Not done (follow-ups): announce-management reading `X-User-Id` (then drop `SellerHeader`), backends
-  verifying `X-Service-Token`, profile editing, image upload, a real WebSocket mock for the chat screens,
-  `gateway-admin`.
+- Follow-ups done since: announce-management reads `X-User-Id` and the `SellerHeader` filter is gone, the
+  backends verify `X-Service-Token` (both in §10), image upload (§9.1), `gateway-admin` (§4a). Still not done:
+  profile editing, a real WebSocket mock for the chat screens. Where this section mentions `X-Seller-Id`,
+  `SellerHeader` or `ANNOUNCE_MACHINE_SECRET`, §10 supersedes it.
 
 ### 9.1 Pictures and the reindex (2026-09-27)
 
@@ -324,3 +325,111 @@ Build note: the worktrees share one local Maven repository, so whoever installs 
 which mappers the other worktrees' tests see; after a merge that removes mappers, `mvn -pl db-reactive clean
 install` is needed, because a removed mapper XML survives in `target/classes` and gets packaged otherwise.
 
+## 10. Edge trust: verified service token and one identity header (2026-10-01)
+
+Until this step the backends trusted `X-User-Id` and friends from anyone who could reach their port, and the
+customer edge copied `X-User-Id` into a second header for announce-management. Both are closed.
+
+**The token.** Both edges sign every request they proxy to one of our services:
+
+```
+X-Service-Token = v1.<service>.<epochSeconds>.<hex hmacSha256(secret, service + ":" + epochSeconds)>
+```
+
+`<service>` is `gateway-api` or `gateway-admin` (or the name of a backend calling another backend). The secret
+is one value for the whole system, `ANNOUNCE_SERVICE_SECRET` (dev default `dev-service-secret-change-me`;
+`ANNOUNCE_MACHINE_SECRET` is gone). The admin edge used a three-part layout before; it now mints the same
+layout as the customer edge. The edges do not depend on `cqrs-reactive`, so each keeps its own small minting
+class; one test vector (secret `test-secret`, service `gateway-api`, epoch `1767225600`) is asserted in
+`ServiceTokensTest` (cqrs-reactive) and in both edges' `MachineTokensTest`. The token is not bound to the
+request: it only ever travels between our own processes and is refused when older than the allowed skew.
+
+**The check.** `cqrs-reactive` has a `security` package (auto-configured, `doc/cqrs-reactive.md` §5a). In each
+backend:
+
+```yaml
+announce:
+  service-token:
+    mode: enforce          # off | log | enforce
+    secret: ${ANNOUNCE_SERVICE_SECRET:dev-service-secret-change-me}
+```
+
+| Mode | Behaviour |
+|---|---|
+| `off` | no check (the `test` profiles; a service run on its own) |
+| `log` | the token is checked, a failure is logged, the request is served (for rolling the check out) |
+| `enforce` | a missing, stale (more than 60 s off, `max-skew`) or forged token is answered 401 `application/problem+json` (`urn:announce:cqrs:service-token-required` / `-invalid`) |
+
+`/actuator/**` stays open (`open-paths`; announce-management adds the API docs paths). The check covers the
+WebSocket handshake of messaging. announce-management, order and messaging ship with `enforce`; under the
+`prod` profile announce-management refuses to start without `ANNOUNCE_SERVICE_SECRET`.
+
+**Service to service.** messaging looks an announce up in announce-management; its client opts in with
+`cqrs.api.clients.announce-management.service-token: true` and then signs its calls as `messaging`. The
+opt-in is per client so the token never goes to the OCS tier.
+
+**Headers a client can no longer send.** The customer edge strips `X-User-*`, `X-Staff-Id`, `X-Admin-Id`,
+`X-Seller-Id` and `X-Service-Token` from every request before it injects `X-User-Id` and
+`X-User-Type=MEMBER`. Before, a signed-in member could add `X-Staff-Id` and messaging would treat the request
+(and the WebSocket) as staff.
+
+**One identity header in announce-management.** `interfaces.rest.Callers` reads the caller:
+
+| Controller | Rule |
+|---|---|
+| `/api/announces` writes | `X-User-Id` with `X-User-Type=MEMBER`: 401 `no-principal` without an id, 403 `not-a-member` for another type |
+| `/api/announces` reads | the same pair identifies the viewer (owners see their drafts); anyone else is a visitor |
+| `/api/admin/announces/**` (all routes) | `X-User-Id` with `X-User-Type=ADMIN`: 401 without an id, 403 `not-staff` for a member |
+
+`X-Seller-Id` is ignored and the edge's `SellerHeader` route filter is deleted. Member ids and staff ids are
+different number spaces, which is why the type is checked on both sides.
+
+**Working locally.** A direct `curl` to 8085 / 8083 / 8086 now answers 401. Go through an edge, or start the
+service with `--announce.service-token.mode=off` and send the identity headers yourself:
+
+```
+curl -X POST http://localhost:8085/api/admin/announces/reindex -H 'X-User-Id: 1' -H 'X-User-Type: ADMIN'
+```
+
+**Deploying.** The edges and the backends must hold the same secret. announce-management must be deployed
+before or together with the customer edge (an old announce-management still needs `X-Seller-Id`). To roll the
+check out without a window of 401s, start the backends with `mode=log`, deploy the edges, then switch to
+`enforce`.
+
+**Tests.** `ServiceTokensTest`, `ServiceTokenWebFilterTest`, `HttpExchangeClientsTest` (cqrs-reactive);
+`EdgeRequests` in the test kit signs a suite's requests, and the three end-to-end suites
+(`AnnounceKindsEndToEndTest`, `OrderModuleEndToEndTest`, `MessagingEndToEndTest`) run with `enforce` and
+assert the 401s, including an unsigned WebSocket handshake; `EdgeRoutesTest` of the customer edge asserts that
+spoofed staff headers and a client's own service token never reach a backend.
+
+**Manual check, executed 2026-10-01** with announce-management on 8085 (`enforce`, dev secret, import and
+scheduled jobs off) and the customer edge on 8090, both from this branch's classes, on the live MySQL and
+`docker/cqrs`:
+
+| Step | Result |
+|---|---|
+| Direct `GET :8085/api/announces`, no token | 401 `service-token-required` |
+| Direct `GET :8085/api/admin/announces` with `X-User-Id: 1`, `X-User-Type: ADMIN` | 401 |
+| Direct call with a well-formed token that is old and signed with another secret | 401 |
+| Direct `POST :8085/api/announces` with member headers | 401 |
+| Direct `GET :8085/actuator/health` | answered (503: the legacy Redis probe is down, as before), not 401 |
+| `GET :8090/api/announces` through the edge, anonymous | 200 |
+| `POST :8090/api/announces` through the edge, not signed in | 401 |
+| Register and log in through the edge | 201 / 200 (member 26, `edgetrust_1001`) |
+| Post a goods draft through the edge while sending `X-User-Id: 1`, `X-Seller-Id: 1`, `X-User-Type: ADMIN` | 201 DRAFT, `sellerId` 26 |
+| Owner reads the draft and lists `seller=26&status=DRAFT` through the edge | 200 DRAFT; total 1 |
+| Visitor reads the draft, asks for the same listing | 404; total 0 |
+| `/api/admin/announces` through the customer edge as that member | 404 (not routed) |
+
+The check left member 26 and one DRAFT announce (`42dabea8-691b-469c-bafa-77354fc2f24d`, titled "Edge trust
+check (draft, safe to delete)") in the development database; a draft cannot be withdrawn.
+
+**Not part of this step.** The admin edge forwards staff as `X-User-Id` + `X-User-Type=ADMIN`, while the
+admin routes of order read `X-Admin-Id` and those of messaging read `X-Staff-Id`; the admin edge sets neither,
+so those routes do not work against the real backends yet (the admin SPA's phase 2 runs on mocks). Left for
+the `gateway-admin` worktree. `/api/admin/listings/**` in announce-management has no caller check of its own.
+
+Build note: `announce-management/src/main/resources/config/application-prod.yml` was an empty file and is not
+any more. A `target/` built before this change holds an empty copy, and `maven-resources-plugin` 3.3.0 then
+fails with `copy-resources failed: newPosition < 0`. Delete
+`announce-management/target/classes/config/application-prod.yml` (or run `mvn -pl announce-management clean`) once.

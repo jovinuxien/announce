@@ -20,6 +20,10 @@ Build facts:
   `announce_reactive_db` (user `announce`) on localhost:3306. Never touch the
   `litemall` database on the same server.
 - `java` on PATH is 11; Maven runs on `/usr/lib/jvm/java-21-openjdk-amd64`.
+- announce-management, order and messaging answer 401 to requests without a
+  valid `X-Service-Token` (`announce.service-token.mode=enforce`): call them
+  through an edge, or start them with `--announce.service-token.mode=off`.
+  Their `test` profiles set it off. See `doc/frontend-edges.md` §10.
 - Design notes: `doc/announce-management-context.md`, `doc/auction-chat-schema.md`.
 
 Process rule: in a worktree session, write a plan and get approval before
@@ -123,8 +127,9 @@ or `target/`.
      OCS indexer configured in `docker/cqrs` (index `announce_index`), with
      `kind` as a facet. Removal on withdraw/expire.
   6. REST (`interfaces/rest`): `/api/announces` accepts a `kind`
-     discriminator in the body and filters by kind on listing; keep
-     `X-Seller-Id` as the owner header.
+     discriminator in the body and filters by kind on listing; the owner
+     is the member in `X-User-Id` with `X-User-Type=MEMBER` (`X-Seller-Id`
+     was dropped on 2026-10-01, `doc/frontend-edges.md` §10).
 - **Out of scope:** bidding (auction context), job applications, ticketing,
   moderation. They reference the announce id later.
 - **Acceptance:** `mvn -pl db-reactive test` and
@@ -394,9 +399,11 @@ or `target/`.
      hashed in new table `announce_refresh_token` in `db-reactive/sql`,
      httpOnly cookie on `/auth`); `security/SecurityConfig` deny by default
      with `PublicPaths`; `security/IdentityForwardingFilter` strips client
-     `X-User-*`, injects `X-User-Id`, `X-User-Type=MEMBER`, and
-     `X-Seller-Id` on announce-management routes; `machine/MachineTokenRelayFilter`
-     adds `X-Service-Token`.
+     `X-User-*`, `X-Staff-Id`, `X-Admin-Id`, `X-Seller-Id` and
+     `X-Service-Token`, injects `X-User-Id` and `X-User-Type=MEMBER`
+     (announce-management reads the owner from them; do not reintroduce
+     `X-Seller-Id`); `machine/MachineTokenRelayFilter` adds
+     `X-Service-Token`, which the backends verify.
   3. Routes of `doc/frontend-edges.md` §3 in `config/application.yml`
      (explicit, ordered, no StripPrefix), the OCS `SetPath` routes with
      fixed URLs from config (`announce.search.searcher-url`,
@@ -419,8 +426,9 @@ or `target/`.
 - **Acceptance:** `mvn -pl gateway-api -P webapp -DskipTests package`
   produces a jar serving the SPA at `/`; `mvn -pl gateway-api -P '!webapp'
   test` passes: route tests with MockWebServer (public GET without token
-  OK, write without token 401, valid token -> `X-User-Id` and
-  `X-Seller-Id` downstream, spoofed `X-User-Id` dropped, SPA fallback,
+  OK, write without token 401, valid token -> `X-User-Id` and a
+  verifiable `X-Service-Token` downstream, spoofed `X-User-Id` and staff
+  headers dropped, SPA fallback,
   search SetPath, refresh rotation, logout revokes); `npm test` and
   `npm run i18n:check` pass; with announce-management, db-reactive's MySQL
   and `docker/cqrs` running, the manual checklist in

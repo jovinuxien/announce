@@ -26,13 +26,11 @@ spring:
           # Every target is a property so tests can point a route at a MockWebServer.
           routes:
             # announce-management: catalog reads are public, writes need a member (see security.PublicPaths);
-            # SellerHeader copies the trusted X-User-Id into X-Seller-Id, the owner header that module reads today.
+            # the owner of an announce is the trusted X-User-Id.
             - id: announce-management
               uri: ${announce.routes.announce-management:lb://announce-management}
               predicates:
                 - Path=/api/announces/**,/api/categories/**,/api/brands/**
-              filters:
-                - SellerHeader
               metadata:
                 serviceToken: true
             # click-out of a crawled listing: 302 to the source page
@@ -96,7 +94,7 @@ server:
   compression:
     enabled: true
 
-spring.codec.max-in-memory-size: 11MB
+spring.http.codecs.max-in-memory-size: 11MB
 
 eureka:
   instance:
@@ -130,9 +128,11 @@ announce:
     cookie-secure: ${ANNOUNCE_AUTH_COOKIE_SECURE:false}
     refresh-ttl: 30d
   machine:
-    # X-Service-Token = v1.<service>.<epochSeconds>.<hmacSha256(service:epochSeconds)> on routes with metadata serviceToken
+    # X-Service-Token = v1.<service>.<epochSeconds>.<hmacSha256(service:epochSeconds)> on routes with metadata serviceToken.
+    # The secret is shared with gateway-admin and with every backend (announce.service-token.secret): they answer
+    # 401 to a request whose token does not verify.
     service: gateway-api
-    secret: ${ANNOUNCE_MACHINE_SECRET:announce-dev-machine-secret}
+    secret: ${ANNOUNCE_SERVICE_SECRET:dev-service-secret-change-me}
   jwt:
     issuer: announce-customer
     audience: announce-customer-api

@@ -6,6 +6,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.linlinjava.announce.cqrs.CqrsProperties;
+import org.linlinjava.announce.cqrs.security.ServiceTokenMinter;
+import org.linlinjava.announce.cqrs.security.ServiceTokens;
 import org.springframework.cloud.circuitbreaker.resilience4j.ReactiveResilience4JCircuitBreakerFactory;
 import org.springframework.cloud.circuitbreaker.resilience4j.Resilience4JConfigurationProperties;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +22,9 @@ import reactor.netty.http.server.HttpServer;
 import reactor.test.StepVerifier;
 
 import java.net.URI;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +46,9 @@ class HttpExchangeClientsTest {
             requests.incrementAndGet();
             if ("boom".equals(request.param("id"))) {
                 return response.status(500).send();
+            }
+            if ("token".equals(request.param("id"))) {
+                return response.sendString(Mono.just(String.valueOf(request.requestHeaders().get(ServiceTokens.HEADER))));
             }
             return response.sendString(Mono.just("announce-" + request.param("id")));
         })).bindNow();
@@ -84,6 +92,32 @@ class HttpExchangeClientsTest {
                 .create(AnnounceApi.class, "announce-management");
 
         StepVerifier.create(api.get("8")).expectNext("announce-8").verifyComplete();
+    }
+
+    @Test
+    void aClientThatOptsInSendsAServiceTokenAndTheOthersDoNot() {
+        Clock clock = Clock.fixed(Instant.ofEpochSecond(1767225600L), ZoneOffset.UTC);
+        ServiceTokenMinter minter = new ServiceTokenMinter("messaging", "test-secret", clock);
+        CqrsProperties.Api properties = pinned("announce-management");
+        properties.getClients().get("announce-management").setServiceToken(true);
+        properties.getClients().put("ocs", pinned("ocs").getClients().get("ocs"));
+        HttpExchangeClients clients = new HttpExchangeClients(WebClient.builder(), null, breakers(), properties, minter);
+
+        StepVerifier.create(clients.create(AnnounceApi.class, "announce-management").get("token"))
+                .assertNext(token -> assertThat(ServiceTokens.verify("test-secret", token, 1767225600L, 60)).contains("messaging"))
+                .verifyComplete();
+        StepVerifier.create(clients.create(AnnounceApi.class, "ocs").get("token")).expectNext("null").verifyComplete();
+    }
+
+    @Test
+    void optingInWithoutASecretFailsWhenTheClientIsBuilt() {
+        CqrsProperties.Api properties = pinned("announce-management");
+        properties.getClients().get("announce-management").setServiceToken(true);
+        HttpExchangeClients clients = new HttpExchangeClients(WebClient.builder(), null, breakers(), properties,
+                new ServiceTokenMinter("messaging", null, Clock.systemUTC()));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> clients.create(AnnounceApi.class, "announce-management"))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("ANNOUNCE_SERVICE_SECRET");
     }
 
     @Test

@@ -6,6 +6,9 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.linlinjava.announce.cqrs.messaging.PublicEventSubscribers;
+import org.linlinjava.announce.cqrs.security.ServiceTokenWebFilter;
+import org.linlinjava.announce.cqrs.security.ServiceTokens;
+import org.linlinjava.announce.cqrs.test.EdgeRequests;
 import org.linlinjava.announce.cqrs.test.PublicEventTestProducer;
 import org.linlinjava.announce.cqrs.test.containers.CqrsContainers;
 import org.linlinjava.announce.cqrs.test.containers.EventSourcingDbContainer;
@@ -25,6 +28,8 @@ import org.linlinjava.announce.shipping.infrastructure.carrier.CarrierWebhookSig
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.web.reactive.server.WebTestClientBuilderCustomizer;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -63,7 +68,9 @@ import static org.awaitility.Awaitility.await;
  * by hand. Scenarios (a) to (d) of the acceptance line in CLAUDE.md.
  */
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        // as in production: only requests signed by an edge are served (the test profile alone says off)
+        properties = {EdgeRequests.ENFORCE, EdgeRequests.SECRET_PROPERTY})
 @ActiveProfiles("test")
 @DirtiesContext
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -126,9 +133,16 @@ class OrderModuleEndToEndTest {
         PublicEventTestProducer otherServices(StreamBridge streamBridge, ObjectMapper objectMapper) {
             return new PublicEventTestProducer(streamBridge, objectMapper, "e2e-test");
         }
+
+        /** The autowired client stands for an edge: each of its requests carries a fresh X-Service-Token. */
+        @Bean
+        WebTestClientBuilderCustomizer edgeSignedClient() {
+            return EdgeRequests.signedWebTestClient();
+        }
     }
 
     @Autowired WebTestClient client;
+    @LocalServerPort int port;
     @Autowired PublicEventTestProducer others;
     @Autowired OrderService orders;   // the jobs are disabled in the test profile; their passes are run by hand
     @Autowired AnnounceAuctionSellerMapper auctionSellers;
@@ -191,6 +205,28 @@ class OrderModuleEndToEndTest {
     }
 
     // ------------------------------------------------------------------ scenarios
+
+    @Test
+    @Order(0)
+    void onlyRequestsThatPassedAnEdgeAreServed() {
+        WebTestClient direct = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        direct.get().uri("/api/orders?role=buyer").header("X-User-Id", String.valueOf(ALICE)).exchange()
+                .expectStatus().isUnauthorized()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody().jsonPath("$.type").isEqualTo(ServiceTokenWebFilter.PROBLEM_TYPE_MISSING);
+        direct.post().uri("/api/admin/auctions/close-due").header("X-Admin-Id", String.valueOf(ADMIN)).exchange()
+                .expectStatus().isUnauthorized();
+        direct.post().uri("/api/payments/webhook/fake").contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange()
+                .expectStatus().isUnauthorized();
+        direct.get().uri("/api/orders?role=buyer").header("X-User-Id", String.valueOf(ALICE))
+                .header(ServiceTokens.HEADER, ServiceTokens.mint("gateway-api", "guessed", Instant.now().getEpochSecond())).exchange()
+                .expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.type").isEqualTo(ServiceTokenWebFilter.PROBLEM_TYPE_INVALID);
+        // health checks reach the service directly
+        direct.get().uri("/actuator/health").exchange().expectStatus().value(status -> assertThat(status).isNotEqualTo(401));
+
+        as(ALICE, "GET", "/api/orders?role=buyer", null).expectStatus().isOk();
+    }
 
     @Test
     @Order(1)

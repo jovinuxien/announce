@@ -41,6 +41,8 @@ cqrs:
     handler-timeout: 15s
 
 announce:
+  service-token:
+    mode: "off"            # the suites call the controllers directly; AnnounceKindsEndToEndTest turns enforce on
   expiry:
     enabled: false
   search:

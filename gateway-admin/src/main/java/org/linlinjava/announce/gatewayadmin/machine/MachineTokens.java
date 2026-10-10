@@ -8,15 +8,21 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.util.HexFormat;
 
 /**
- * {@code X-Service-Token = <issuer>.<epoch-seconds>.<hmac-sha256(secret, issuer + "." + epoch-seconds)>}: proves
- * to a backend that the request passed an edge. Backends verify it (and its age) in a later step.
+ * {@code X-Service-Token = v1.<issuer>.<epochSeconds>.<hex hmacSha256(secret, issuer + ":" + epochSeconds)>}: proves
+ * to a backend that the request passed an edge. The backends verify it (signature and age) with
+ * {@code org.linlinjava.announce.cqrs.security.ServiceTokens} in cqrs-reactive; this edge does not depend on that
+ * module, so the layout is kept identical here and in gateway-api, and {@code MachineTokensTest} pins the shared
+ * vector.
  */
 @Component
 public class MachineTokens {
+
+    public static final String VERSION = "v1";
 
     private final MachineTokenProperties properties;
     private final Clock clock;
@@ -33,7 +39,7 @@ public class MachineTokens {
 
     public String token() {
         long ts = clock.instant().getEpochSecond();
-        return properties.issuer() + "." + ts + "." + sign(properties.issuer() + "." + ts);
+        return VERSION + "." + properties.issuer() + "." + ts + "." + sign(properties.issuer() + ":" + ts);
     }
 
     /** Verification for a backend (or a test): issuer, timestamp within {@code maxAgeSeconds} and a matching signature. */
@@ -42,13 +48,14 @@ public class MachineTokens {
             return false;
         }
         String[] parts = token.split("\\.");
-        if (parts.length != 3) {
+        if (parts.length != 4 || !VERSION.equals(parts[0]) || !properties.issuer().equals(parts[1])) {
             return false;
         }
         try {
-            long ts = Long.parseLong(parts[1]);
+            long ts = Long.parseLong(parts[2]);
             long age = Math.abs(clock.instant().getEpochSecond() - ts);
-            return age <= maxAgeSeconds && sign(parts[0] + "." + parts[1]).equals(parts[2]);
+            return age <= maxAgeSeconds && MessageDigest.isEqual(
+                    sign(parts[1] + ":" + ts).getBytes(StandardCharsets.US_ASCII), parts[3].getBytes(StandardCharsets.US_ASCII));
         } catch (NumberFormatException e) {
             return false;
         }

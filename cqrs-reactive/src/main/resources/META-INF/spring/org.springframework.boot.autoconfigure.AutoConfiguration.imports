@@ -4,3 +4,4 @@ org.linlinjava.announce.cqrs.command.CommandAutoConfiguration
 org.linlinjava.announce.cqrs.readside.ReadSideAutoConfiguration
 org.linlinjava.announce.cqrs.messaging.MessagingAutoConfiguration
 org.linlinjava.announce.cqrs.api.ApiClientAutoConfiguration
+org.linlinjava.announce.cqrs.security.ServiceTokenAutoConfiguration

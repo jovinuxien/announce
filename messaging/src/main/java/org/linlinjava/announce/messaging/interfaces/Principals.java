@@ -8,9 +8,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 
 /**
- * Who is calling, until the gateway propagates the authenticated principal: a member is identified by the
- * {@code X-User-Id} header, a staff member by {@code X-Staff-Id}. Writes may carry {@code X-Command-Id} for
- * idempotent dispatch. This service must not be exposed directly to the internet while headers are trusted.
+ * Who is calling: a member is identified by the {@code X-User-Id} header, a staff member by {@code X-Staff-Id}.
+ * Both are set by an edge after it authenticated the caller; the customer edge strips a client-supplied
+ * {@code X-Staff-Id}, and the framework's {@code ServiceTokenWebFilter}
+ * ({@code announce.service-token.mode=enforce}) refuses every request and WebSocket handshake that did not pass
+ * an edge, so the headers can be trusted. Writes may carry {@code X-Command-Id} for idempotent dispatch.
  */
 public final class Principals {
 

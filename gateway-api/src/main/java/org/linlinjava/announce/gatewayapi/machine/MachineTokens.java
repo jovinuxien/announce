@@ -4,11 +4,14 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.util.HexFormat;
 
 /**
- * {@code X-Service-Token = v1.<service>.<epochSeconds>.<hex hmacSha256(service:epochSeconds)>}. Backends that
- * verify it recompute the HMAC with the same secret and reject stale timestamps; today they only trust the headers.
+ * {@code X-Service-Token = v1.<service>.<epochSeconds>.<hex hmacSha256(service:epochSeconds)>}. The backends
+ * verify it with the same secret ({@code ANNOUNCE_SERVICE_SECRET}) and reject stale timestamps: see
+ * {@code org.linlinjava.announce.cqrs.security.ServiceTokens} in cqrs-reactive, which this class must stay
+ * compatible with (the edges do not depend on that module; {@code MachineTokensTest} pins the shared vector).
  */
 public final class MachineTokens {
 
@@ -34,7 +37,8 @@ public final class MachineTokens {
             return false;
         }
         if (Math.abs(nowEpochSeconds - ts) > maxSkewSeconds) return false;
-        return hmac(props.secret(), parts[1] + ":" + ts).equals(parts[3]);
+        return MessageDigest.isEqual(hmac(props.secret(), parts[1] + ":" + ts).getBytes(StandardCharsets.US_ASCII),
+                parts[3].getBytes(StandardCharsets.US_ASCII));
     }
 
     private static String hmac(String secret, String payload) {

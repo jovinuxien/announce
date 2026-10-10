@@ -1,5 +1,6 @@
 package org.linlinjava.announce.goods.interfaces.rest.admin;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.linlinjava.announce.goods.application.announce.AnnounceBrowsing;
 import org.linlinjava.announce.goods.application.announce.AnnounceNotFoundException;
@@ -18,6 +19,8 @@ import org.linlinjava.announce.goods.domain.announce.SaleType;
 import org.linlinjava.announce.goods.domain.announce.SellerId;
 import org.linlinjava.announce.goods.domain.category.CategoryId;
 import org.linlinjava.announce.goods.infrastructure.configuration.security.CatalogSecurityConfig;
+import org.linlinjava.announce.cqrs.command.CqrsProblemDetailsHandler;
+import org.linlinjava.announce.goods.interfaces.rest.Callers;
 import org.linlinjava.announce.goods.interfaces.rest.CatalogExceptionHandler;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,12 +46,18 @@ import static org.mockito.Mockito.when;
 
 /** The staff controller: no owner header, no forced status, moderation actions carry the moderator and a reason. */
 @WebFluxTest(controllers = AnnounceAdminController.class)
-@Import({CatalogExceptionHandler.class, CatalogSecurityConfig.class})
+@Import({CatalogExceptionHandler.class, CatalogSecurityConfig.class, CqrsProblemDetailsHandler.class})
 class AnnounceAdminControllerTest {
 
     static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 26, 12, 0);
 
-    @Autowired WebTestClient client;
+    @Autowired WebTestClient anonymous;
+    WebTestClient client;   // what the admin edge forwards for staff member 42
+
+    @BeforeEach
+    void asStaff() {
+        client = anonymous.mutate().defaultHeader(Callers.USER_HEADER, "42").defaultHeader(Callers.TYPE_HEADER, Callers.ADMIN).build();
+    }
     @MockBean AnnouncePublishing publishing;
     @MockBean AnnounceBrowsing browsing;
     @MockBean AnnounceReindexService reindex;
@@ -111,19 +120,33 @@ class AnnounceAdminControllerTest {
         when(publishing.moderateWithdraw(eq("a1"), eq(42), eq("spam"), eq("c-1"))).thenReturn(Mono.just(announce(AnnounceStatus.WITHDRAWN)));
         when(publishing.moderateExpire(eq("a1"), eq(42), eq("stale"), isNull())).thenReturn(Mono.just(announce(AnnounceStatus.EXPIRED)));
 
-        client.post().uri("/api/admin/announces/a1/withdraw").header(AnnounceAdminController.USER_HEADER, "42")
+        client.post().uri("/api/admin/announces/a1/withdraw")
                 .header(AnnounceAdminController.COMMAND_ID_HEADER, "c-1")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"spam\"}").exchange()
                 .expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("WITHDRAWN");
-        client.post().uri("/api/admin/announces/a1/expire").header(AnnounceAdminController.USER_HEADER, "42")
+        client.post().uri("/api/admin/announces/a1/expire")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"reason\":\"stale\"}").exchange()
                 .expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("EXPIRED");
     }
 
     @Test
-    void moderationRequiresTheModeratorHeader() {
-        client.post().uri("/api/admin/announces/a1/withdraw").contentType(MediaType.APPLICATION_JSON)
-                .bodyValue("{\"reason\":\"spam\"}").exchange().expectStatus().isBadRequest()
-                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    void everyRouteNeedsAStaffIdentity() {
+        anonymous.post().uri("/api/admin/announces/a1/withdraw").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"reason\":\"spam\"}").exchange().expectStatus().isUnauthorized()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody().jsonPath("$.code").isEqualTo(Callers.NO_PRINCIPAL);
+        anonymous.get().uri("/api/admin/announces").exchange().expectStatus().isUnauthorized();
+        anonymous.get().uri("/api/admin/announces/a1").exchange().expectStatus().isUnauthorized();
+        anonymous.post().uri("/api/admin/announces/reindex").exchange().expectStatus().isUnauthorized();
+
+        // a member (what the customer edge forwards) is refused on every admin route
+        WebTestClient member = anonymous.mutate().defaultHeader(Callers.USER_HEADER, "42").defaultHeader(Callers.TYPE_HEADER, Callers.MEMBER).build();
+        member.post().uri("/api/admin/announces/a1/withdraw").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"reason\":\"spam\"}").exchange().expectStatus().isForbidden()
+                .expectBody().jsonPath("$.code").isEqualTo(Callers.NOT_STAFF);
+        member.get().uri("/api/admin/announces").exchange().expectStatus().isForbidden();
+        member.get().uri("/api/admin/announces/a1").exchange().expectStatus().isForbidden();
+        member.post().uri("/api/admin/announces/reindex").exchange().expectStatus().isForbidden();
+        org.mockito.Mockito.verifyNoInteractions(publishing, browsing, reindex);
     }
 }

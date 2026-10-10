@@ -225,7 +225,7 @@ the due ids from `announce` and sends one `ExpireAnnounce` each.
 ### REST (`/api/announces`)
 
 The body carries `kind` and one of `goods`, `job`, `event`; listing filters on `kind` (and category, brand, seller,
-region, keywords, sale type, sort). `X-Seller-Id` stays the owner header, `X-Command-Id` makes a write idempotent.
+region, keywords, sale type, sort). The owner is the member the customer edge forwards as `X-User-Id` with `X-User-Type=MEMBER` (`X-Seller-Id` until 2026-10-01; see `doc/frontend-edges.md` §10), `X-Command-Id` makes a write idempotent.
 Writes answer with the state the command produced (201 on post); reads come from the projection a moment later.
 `/api/categories` takes and returns `kind` (`?kind=JOB` lists that tree).
 

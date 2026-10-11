@@ -770,6 +770,23 @@ jar without `security.Callers` (installed by another worktree), so the first ann
 Left open: an unread badge in the header, image attachments, the customer trade screens on the order module,
 push notifications.
 
+**Re-run on the development store (2026-10-11, evening).** After `docker restart announce_esdb` the same drive ran
+with messaging, announce-management and both edges on the real store (no throwaway store, no checkpoint reset, the
+members, the announce and the two conversations kept, the announce withdrawn through the edge afterwards). Every
+step above passed again; the live arrivals were faster (seller reply 125 ms, offer box 135 ms, offer accepted
+117 ms, staff joined 77 ms, staff reply 76 ms, close 70 ms) and the console showed only the expected 401, no 404:
+the rows were already projected when the screens read them. The store itself was never the problem: with no
+consumer attached, curl streams all 13 582 events in about a second, twice in a row. What wedges it is what the
+10 October note described from the other side: when the services' event processors replay a long stretch and the
+store's writes to a slow consumer time out (`write tcp … i/o timeout` in the container log), several broken
+streams in a row leave the store answering `ping` but never another `read-events`, for every client, including
+one inside the container. It happened again right after the first restart, when messaging and announce-management
+attached while the store was still reporting `health: starting` and replayed together; a second restart, waiting
+for `healthy`, then attaching messaging alone (its three processors replayed to the head in two and a half
+minutes with one broken stream that recovered) and announce-management afterwards, held. A workaround, not a
+fix; the store (eventsourcingdb 1.2.0, evaluation licence) or the framework's consumption pace is the place to
+look.
+
 ## 16. Customer SPA on the order module's member routes (2026-10-11)
 
 The trade screens of the customer SPA (auction panel and buy box on the announce page, orders list, order detail)

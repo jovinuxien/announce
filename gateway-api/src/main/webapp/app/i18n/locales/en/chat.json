@@ -1,14 +1,32 @@
 {
+  "change": {
+    "BLOCKED": "The conversation was blocked by support.",
+    "CLOSED": "The conversation was closed.",
+    "JOINED": "A support agent joined the conversation.",
+    "OFFER_ACCEPTED": "The offer was accepted. An order is being prepared.",
+    "OFFER_DECLINED": "The offer was declined."
+  },
   "contactSeller": "Message the seller",
   "inbox": {
+    "contactSupport": "Contact support",
+    "contactSupportHint": "Describe the problem; a support agent will join the conversation. You can keep writing in the meantime.",
     "empty": "No conversations yet.",
+    "firstMessage": "Message",
     "listing": "Ad {{id}}",
     "openOffer": "Open offer",
+    "start": "Send to support",
+    "subject": "Subject",
     "support": "Support",
-    "title": "Messages"
+    "title": "Messages",
+    "with": "with member #{{id}}"
   },
   "loadFailed": "Could not load the conversation.",
   "offerFailed": "Could not answer the offer.",
+  "offerStatus": {
+    "ACCEPTED": "accepted",
+    "DECLINED": "declined",
+    "OPEN": "open"
+  },
   "openFailed": "Could not open the conversation.",
   "postFailed": "The message was not sent.",
   "socket": {
@@ -21,10 +39,13 @@
     "BLOCKED": "blocked",
     "CLOSED": "closed",
     "OPEN": "open",
-    "WAITING": "waiting for staff"
+    "WAITING": "waiting for support"
   },
   "thread": {
     "accept": "Accept",
+    "back": "Back to messages",
+    "blocked": "This conversation was blocked by support: {{reason}}",
+    "closed": "This conversation is closed.",
     "decline": "Decline",
     "listing": "Conversation about ad {{id}}",
     "message": "Message",
@@ -33,6 +54,11 @@
     "openOffer": "Open offer of {{amount}}",
     "placeholder": "Write a message…",
     "send": "Send",
-    "sendOffer": "Send offer"
+    "sendOffer": "Send offer",
+    "staff": "Support agent #{{id}}",
+    "support": "Support",
+    "waiting": "Waiting for a support agent to join. You can already write.",
+    "with": "with member #{{id}}",
+    "yourOffer": "Your offer of {{amount}} is waiting for the seller."
   }
 }

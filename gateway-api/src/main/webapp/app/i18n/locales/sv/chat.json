@@ -1,14 +1,32 @@
 {
+  "change": {
+    "BLOCKED": "Konversationen blockerades av supporten.",
+    "CLOSED": "Konversationen stängdes.",
+    "JOINED": "En supportmedarbetare har anslutit till konversationen.",
+    "OFFER_ACCEPTED": "Budet accepterades. En order förbereds.",
+    "OFFER_DECLINED": "Budet avböjdes."
+  },
   "contactSeller": "Skriv till säljaren",
   "inbox": {
+    "contactSupport": "Kontakta supporten",
+    "contactSupportHint": "Beskriv problemet; en supportmedarbetare ansluter till konversationen. Du kan fortsätta skriva under tiden.",
     "empty": "Inga konversationer än.",
+    "firstMessage": "Meddelande",
     "listing": "Annons {{id}}",
     "openOffer": "Öppet bud",
+    "start": "Skicka till supporten",
+    "subject": "Ämne",
     "support": "Support",
-    "title": "Meddelanden"
+    "title": "Meddelanden",
+    "with": "med medlem #{{id}}"
   },
   "loadFailed": "Kunde inte hämta konversationen.",
   "offerFailed": "Kunde inte besvara budet.",
+  "offerStatus": {
+    "ACCEPTED": "accepterat",
+    "DECLINED": "avböjt",
+    "OPEN": "öppet"
+  },
   "openFailed": "Kunde inte öppna konversationen.",
   "postFailed": "Meddelandet skickades inte.",
   "socket": {
@@ -21,10 +39,13 @@
     "BLOCKED": "blockerad",
     "CLOSED": "stängd",
     "OPEN": "öppen",
-    "WAITING": "väntar på personal"
+    "WAITING": "väntar på supporten"
   },
   "thread": {
     "accept": "Acceptera",
+    "back": "Tillbaka till meddelanden",
+    "blocked": "Konversationen blockerades av supporten: {{reason}}",
+    "closed": "Konversationen är stängd.",
     "decline": "Avböj",
     "listing": "Konversation om annons {{id}}",
     "message": "Meddelande",
@@ -33,6 +54,11 @@
     "openOffer": "Öppet bud på {{amount}}",
     "placeholder": "Skriv ett meddelande…",
     "send": "Skicka",
-    "sendOffer": "Skicka bud"
+    "sendOffer": "Skicka bud",
+    "staff": "Supportmedarbetare #{{id}}",
+    "support": "Support",
+    "waiting": "Väntar på att en supportmedarbetare ansluter. Du kan redan skriva.",
+    "with": "med medlem #{{id}}",
+    "yourOffer": "Ditt bud på {{amount}} väntar på säljaren."
   }
 }

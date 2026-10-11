@@ -131,7 +131,8 @@ same paths either way.
 Phase 1 codes against the backend that exists today (announce-management, crawled listings,
 OCS). Phase 2 codes against the REST contracts in `doc/order-context.md` §8 and §9 behind
 feature flags (`features.trade`, `features.chat`) with MSW mocks, so the screens are ready
-when `order-reactive` and `messaging` land.
+when `order-reactive` and `messaging` land. (Since 2026-10-11 `features.chat` defaults on and the chat
+screens run against messaging, §15; `features.trade` still codes against §8 and stays off.)
 
 Phase 1 modules (`app/modules/*`):
 
@@ -257,7 +258,8 @@ URLs, preview, save draft, publish) with `validation.ts` mirroring the aggregate
 edit, publish, withdraw and mark sold. Phase 2 behind `localStorage.announceFeatures`
 (`{"trade":true,"chat":true,"mocks":true}`): auction panel, buy box and orders against the §8 contract,
 contact-seller, inbox and thread (WebSocket with REST polling fallback) against §9, MSW handlers in
-`app/mocks` (the WebSocket is not mocked; the thread polls).
+`app/mocks` (the WebSocket is not mocked; the thread polls). The chat screens were wired to messaging as built on
+2026-10-11 (§15).
 
 **Tests.** `mvn -pl gateway-api -P '!webapp' test`: 16 tests — `EdgeRoutesTest` (13, WebTestClient
 against one MockWebServer standing in for every backend, in-memory auth stores: public GET without token,
@@ -681,4 +683,90 @@ the development database afterwards, because their events live in the throwaway 
 | Block with a reason (edge) | 200; the row reads BLOCKED with `blockedReason` "Abusive language" |
 | Rules | join on the closed conversation 409 `conversation-closed` (problem+json); a member post into it 409 as well |
 | Console | one expected 401 (the silent refresh before login); nothing else |
+
+## 15. Customer SPA on messaging's member routes (2026-10-11)
+
+The customer SPA's chat (contact-seller button on an announce, inbox at `/messages`, thread at `/messages/:id`)
+was written on 26 September against the §9 sketch, before messaging existed, and ran on the service worker's
+fixtures. The customer edge already routes `/api/conversations/**` and `/ws/conversations/**` to messaging with
+the service token, and `WebSocketTokenFilter` turns the `access_token` query parameter into the bearer header.
+This round corrects the client to messaging as built, closes the gaps the comparison found, adds the way to reach
+support, and verifies the screens against the running service. No edge or backend change.
+
+**Where the sketch and the backend disagreed, and what the SPA does now.**
+
+| Sketch | Backend | SPA now |
+|---|---|---|
+| a `message` frame is the REST row (`id`, `offerAmount`, `offerCurrency`) | `MessageLive`: `messageId`, `offerAmountCents`, `currency` | `messageOfFrame` maps the frame before it is appended; de-duplication on message id, then client message id |
+| own messages recognised by `senderType === 'MEMBER'` | `SenderType` is `USER`, `ADMIN` or `SYSTEM` | `isMine`: `USER` plus the signed-in id; `ADMIN` lines carry a "Support" label, `SYSTEM` lines are centred |
+| open, accept, decline and close answer the row | they answer the aggregate (`ConversationResponse`: `lastSeq`, offers in cents, participants without read markers) | typed as such; used for the id (open) and for the status and offers (accept, decline), the row is refetched afterwards |
+| the composer only on OPEN | a member may post while WAITING (support, before staff joins); 409 `conversation-closed` / `conversation-blocked` otherwise | `isWritable`: OPEN or WAITING; closed and blocked rows show why |
+| no way to open a SUPPORT conversation | `POST /api/conversations {type: SUPPORT, subject}` opens WAITING; the first message is what the staff queue shows | the inbox has a "Contact support" form: subject and first message, then the thread |
+| row refetched on every frame | the live topic outruns the read-model projection by tens of milliseconds | the row is updated from the frame first (open offer from an OFFER message; status, joined staff, accepted offer, closed time from a `status` frame) and refetched once, one second later |
+| a just-opened conversation is read at once | the row appears a moment after the command | the first misses on `GET /api/conversations/{id}` are retried quietly every second; the alert shows after five |
+| `openOffer.amountCents` on the row | `OfferView {messageId, amount, currency, at}` with a decimal amount | the row's offers are decimals, the aggregate's cents; both typed |
+
+**Screens.** `Thread`: row and history over REST, `/ws/conversations/{id}?access_token=` through the edge,
+`post` and `offer` frames with the REST fallback, `read` frames as messages arrive, polling every 5 s while the
+socket is not open, the accept / decline box for the seller while an offer is open, the offer composer for the
+buyer of a listing while none is, and a notice for each `status` change (joined, offer accepted or declined,
+closed, blocked). The header links a listing conversation to its announce and names the other member or the
+support agents. `Inbox`: the member's conversations latest first (status, other member, open-offer badge, unread
+count), polled every 30 s, plus the support form. `ContactSeller`: the same button; a second click lands in the
+same conversation because messaging derives the id from the announce and the buyer; 409 `buyer-is-seller` and
+404 `announce-not-found` show as problem alerts.
+
+**Flags and mocks.** `chat` defaults on; `trade` stays off because the trade screens still code against §8 and
+were never checked against the order module. The chat fixtures moved to `app/mocks/chatData.ts` in messaging's
+shapes and rules (deterministic listing ids, WAITING support rows, 403 `not-participant`, 409 rules, duplicate
+client message ids, no message posted by open, accept, decline or close). The mock seller's auto-reply stays for
+the browser (`features.mocks`) and is off in the tests. The service worker script was regenerated for the pinned
+msw version.
+
+**Tests.** The customer SPA had unit specs only. The admin SPA's render helper (store signed in as member #1,
+router, msw/node over the same handlers) and `FakeWebSocket` double were ported to `app/test/`; axios goes
+through jsdom's `XMLHttpRequest`, which msw intercepts, so the handlers keep relative paths. Page specs for
+`Thread` (history and live frames, own bubbles, socket post with echo, REST fallback, buyer offer with the row
+update, seller accept, CLOSED status frame, WAITING support with a JOINED frame, closed support read-only, the
+quiet retry of a not-yet-projected row), `Inbox` (order, unread, support form, empty) and `ContactSeller`
+(request body and navigation, 409, 404), plus `chat.spec.ts` for the helpers and `features.spec.ts`. The suite is
+50 tests in 10 files (31 in 5 before). `npm run typecheck` and `npm run i18n:check` are clean (chat namespace
+rewritten in en, da, sv). Two dependency pins: `msw` 2.7.0 (2.15 pulls an ES-module dependency jest cannot load)
+and `undici` 6.21.0 (undici 7 opens a `MessagePort` at load time that keeps the jest worker alive).
+
+### 15a. Checklist, executed 2026-10-11
+
+Setup: live MySQL, `docker/cqrs` Kafka 9094, the customer edge jar (`mvn -pl gateway-api -P webapp -DskipTests
+package`) on 8090 with the route overrides to announce-management 8085 and messaging 8086, the admin edge jar
+with `--spring.profiles.active=dev` on 8081, messaging and announce-management from `spring-boot:run`. Service
+tokens stayed in `enforce` on both backends: every member call went through the customer edge, every staff
+call through the admin edge. Two deviations: the development EventSourcingDB on port 3000 still hangs on every
+streaming read, so both backends ran against a throwaway `eventsourcingdb:1.2.0` on port 3001
+(`--data-directory-temporary`), with the seven read-side checkpoint rows of messaging (`conversation-read-model`
+0 and 1, `messaging-live`, `messaging-public`, at 37) and announce-management (`announce-public`,
+`announce-read-model`, `announce-search`, at 2613) deleted before and restored after; and announce-management ran
+with `--announce.search.mode=noop` so the test announce never reached the search index. The two members, the
+announce and the two conversations the run wrote were deleted from the development database afterwards, because
+their events live in the throwaway store. One build gotcha on the way: the shared `~/.m2` held a `cqrs-reactive`
+jar without `security.Callers` (installed by another worktree), so the first announce POST failed with
+`NoClassDefFoundError` until `mvn -pl cqrs-reactive clean install` from this worktree.
+
+| Step | Result |
+|---|---|
+| Seller and buyer register through `/auth/register`; the seller posts a GOODS announce and publishes it | 201, 201, 201, 200; the row reads PUBLISHED with the seller's id |
+| The seller opens their own announce | no "Message the seller" button (owner sees Edit) |
+| The buyer clicks "Message the seller" | `POST /api/conversations {type: LISTING, announceId}` 201, lands on `/messages/{id}`, socket "live" on `ws://localhost:8090/ws/conversations/{id}?access_token=…`; a second click lands on the same id |
+| The buyer writes | `post` frame; the echo renders as an own bubble (right, blue) |
+| Seller's inbox | the row "Ad … · open · with member #37", unread badge 1, latest first |
+| Seller's thread | the buyer's line left, no offer composer for the seller; reply over the socket arrives on the buyer's screen in 157 ms |
+| The buyer offers 4 200 | `offer` frame in cents; the seller's Accept / Decline box appears in 137 ms (from the frame, before the row); the buyer sees "Your offer of 4.200 kr. is waiting for the seller" and no offer composer |
+| The seller accepts | the buyer gets the `OFFER_ACCEPTED` notice in 197 ms, the offer line reads "(accepted)", the seller's box is gone; messaging relays `OfferAcceptedV1` |
+| The buyer contacts support from the inbox | `POST /api/conversations {type: SUPPORT, subject}` then the first message; thread WAITING with the waiting hint, composer enabled, the row in the staff queue (`GET /api/admin/conversations?status=WAITING` through the admin edge) |
+| Staff joins, replies and closes through the admin edge | JOINED notice and "Support agent #1" in 105 ms, status open; the staff line with the "Support" label in 108 ms; the member's answer listed on the staff side; close in 121 ms, composer disabled, "This conversation is closed." |
+| Buyer's inbox afterwards | the support row closed, the listing row open with member #36 |
+| Rules | a post into the closed conversation 409 `conversation-closed`; the seller contacting their own announce 409 `buyer-is-seller` |
+| Console | the expected 401 (silent refresh before login) and one 404 on the buyer: the quiet row retry right after opening |
+
+Left open: an unread badge in the header, image attachments, the customer trade screens on the order module,
+push notifications.
 

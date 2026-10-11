@@ -1,14 +1,32 @@
 {
+  "change": {
+    "BLOCKED": "Samtalen blev blokeret af support.",
+    "CLOSED": "Samtalen blev lukket.",
+    "JOINED": "En supportmedarbejder deltager nu i samtalen.",
+    "OFFER_ACCEPTED": "Buddet blev accepteret. En ordre er på vej.",
+    "OFFER_DECLINED": "Buddet blev afvist."
+  },
   "contactSeller": "Skriv til sælger",
   "inbox": {
+    "contactSupport": "Kontakt support",
+    "contactSupportHint": "Beskriv problemet; en supportmedarbejder slutter sig til samtalen. Du kan skrive videre imens.",
     "empty": "Ingen samtaler endnu.",
+    "firstMessage": "Besked",
     "listing": "Annonce {{id}}",
     "openOffer": "Åbent bud",
+    "start": "Send til support",
+    "subject": "Emne",
     "support": "Support",
-    "title": "Beskeder"
+    "title": "Beskeder",
+    "with": "med medlem #{{id}}"
   },
   "loadFailed": "Kunne ikke hente samtalen.",
   "offerFailed": "Kunne ikke besvare buddet.",
+  "offerStatus": {
+    "ACCEPTED": "accepteret",
+    "DECLINED": "afvist",
+    "OPEN": "åbent"
+  },
   "openFailed": "Kunne ikke åbne samtalen.",
   "postFailed": "Beskeden blev ikke sendt.",
   "socket": {
@@ -21,10 +39,13 @@
     "BLOCKED": "blokeret",
     "CLOSED": "lukket",
     "OPEN": "åben",
-    "WAITING": "venter på personale"
+    "WAITING": "venter på support"
   },
   "thread": {
     "accept": "Acceptér",
+    "back": "Tilbage til beskeder",
+    "blocked": "Samtalen blev blokeret af support: {{reason}}",
+    "closed": "Samtalen er lukket.",
     "decline": "Afvis",
     "listing": "Samtale om annonce {{id}}",
     "message": "Besked",
@@ -33,6 +54,11 @@
     "openOffer": "Åbent bud på {{amount}}",
     "placeholder": "Skriv en besked…",
     "send": "Send",
-    "sendOffer": "Send bud"
+    "sendOffer": "Send bud",
+    "staff": "Supportmedarbejder #{{id}}",
+    "support": "Support",
+    "waiting": "Venter på, at en supportmedarbejder slutter sig til. Du kan allerede skrive.",
+    "with": "med medlem #{{id}}",
+    "yourOffer": "Dit bud på {{amount}} venter på sælgeren."
   }
 }

@@ -66,7 +66,7 @@ each processor run.
 | Component | Role | Notes |
 |---|---|---|
 | `Conversations` | command facade; resolves the seller through `AnnounceLookup`; `markRead` writes the read model directly; dispatches a command again when the event store refused its write (`messaging.command-retry.*`) | Every write except `markRead` is one command = one EventSourcingDB round trip, plus one per lost race |
-| `ConversationQueries` | inbox, one conversation, message page, support queue; always the MySQL read model; `mayAttach` for the socket handshake looks an unknown conversation up again (`messaging.attach.*`) | `view()` does one participants query per conversation row, so an inbox page of 20 is 21 statements |
+| `ConversationQueries` | inbox, one conversation, message page, support queue; always the MySQL read model; `mayAttach` for the socket handshake looks an unknown conversation up again (`messaging.attach.*`) | A page (inbox, support queue) is two statements whatever its size: the page, then the participants of the whole page in one `IN` query (step 7, 2026-10-11; before it, one participants query per row, 21 statements for a page of 20); every read is timed as `messaging.query.latency{query}` |
 | `Bulletins` | writes `announce_bulletin`, publishes `BulletinLive` on the live topic | Not event-sourced |
 | `AnnounceLookup` | `@HttpExchange` client to announce-management (`GET /api/announces/{id}`) via `HttpExchangeClients`: discovered, load-balanced, Resilience4j-wrapped; pinned by `cqrs.api.clients.announce-management.base-url` | On the path of `POST /api/conversations` for LISTING only |
 | `MessagingProperties` | `max-text-length` 4000, `max-page-size` 200, `command-retry` (3 retries, 5 to 50 ms), `attach` (5 re-checks, 200 ms apart) | |
@@ -259,7 +259,7 @@ Grouped by what they buy. "Knob" means it exists today; "change" means code.
 
 | Item | Kind | Effect |
 |---|---|---|
-| Inbox: fetch participants for the page in one `IN` query | change | 21 statements -> 2 per page |
+| Inbox: fetch participants for the page in one `IN` query (done 2026-10-11, section 7e) | change | 21 statements -> 2 per page; a page of 20 from 1.5 s to 0.17 s, a page of 50 from 3.4 s to 0.18 s under four concurrent readers |
 | `max-page-size`, default page 50 | knob | payload per request |
 | Indexes: `announce_conversation` needs (participant lookup) coverage for `selectByParticipant`; verify with `EXPLAIN` under load | check | |
 
@@ -293,6 +293,7 @@ samples of a meter that also has buckets. With a Prometheus server, set
 | `messaging.live.latency` | timer | `record` (`message`, `status`, `bulletin`) | `LiveEventsSubscriber` | record timestamp (the event time on the command side) to the push on this node: ESDB write, processor pickup, relay, Kafka, consumer |
 | `messaging.live.transport` | timer | `record` | `LiveEventsSubscriber` | the Kafka leg alone: record timestamp (the relay's send) to receipt by this node's consumer |
 | `messaging.live.delivered` | counter | `record` | `LiveEventsSubscriber` | frames pushed to local sockets |
+| `messaging.query.latency` | timer | `query` (`inbox`, `by_status`, `conversation`, `messages`), `outcome` | `ConversationQueries` | one read over the read model, from the subscription to the complete answer; the cost of a REST read minus the HTTP hop |
 | `messaging.projection.delay` | timer | `group` | `MeteredProjection` | event written in ESDB to handled by the group on this node; the per-event lag |
 | `messaging.projection.handler` | timer | `group`, `outcome` | `MeteredProjection` | the handler's own duration |
 | `messaging.sessions`, `messaging.sessions.conversations`, `messaging.staff_sessions` | gauge | | `LiveSessions` | sockets on this node, conversations with a socket, staff sockets |
@@ -381,11 +382,17 @@ Two defects the baseline run found, both fixed on 2026-10-01:
 6. Read-side partitions and R2DBC pool size together; measure `messaging.projection.delay` under load.
    Done 2026-10-10: 4 partitions for `conversation-read-model`, pool 40; lag p50 from 32 s to 0.08 s in
    section 7c.
-7. Query batching for the inbox.
+7. Query batching for the inbox. Done 2026-10-11: one `IN` query for the participants of a page, `messaging.query.latency`
+   timer; section 7e, where the per-statement cost of the reactive MySQL path is the finding that remains.
 8. Command-side throughput (found by the burst of step 4, section 7d): at 40 posts/s with 40 commands in
    flight a post takes about a second inside the facade and the acks queue up; find what serialises the
    command path (the EventSourcingDB client's connection pool, the store itself, the bounded-elastic hop)
    and measure `messaging.command.latency` against the number of commands in flight.
+9. The per-statement cost of the reactive MySQL path (found by step 7, section 7e): a statement MySQL
+   executes in under a millisecond costs the service about 30 ms alone and 80 ms under four concurrent
+   readers, in neither TLS nor TCP; find where it goes (reactive-mybatis-support's execution and mapping,
+   the pool's acquire, a scheduler hop) and measure `messaging.query.latency{conversation}` (two
+   statements) and `messaging.projection.handler` against it.
 
 Each step is small, independently revertable, and has one metric that tells whether it helped.
 
@@ -698,3 +705,55 @@ Housekeeping: the `load %` conversations and their messages were deleted after e
 bulletins after the stalled runs; the three groups' checkpoints and the lock rows are deleted (set partition
 0 to the development store's head before the next development start, section 7c); the throwaway store was
 removed. The development EventSourcingDB on port 3000 still needs `docker restart announce_esdb`.
+
+## 7e. Inbox query batching, 2026-10-11
+
+Same set-up as section 7d (one node on 8098, a fresh throwaway store, the live MySQL 8.0.34 on the same host).
+`InboxLoadDriver`: one member who takes part in 50 support conversations, one staff member who joined them
+all, then four clients fetching in turn the member's inbox, the staff member's inbox and the staff queue
+(`status=OPEN`) with pages of 20 and 50, for 60 s. A = the code before this step (one participants query
+per row: 21 statements for a page of 20, 51 for a page of 50); B = one `IN` query for the participants of
+the page (2 statements whatever the size). Latency is the driver's, request to parsed answer.
+
+| | A: one query per row | B: one query per page |
+|---|---|---|
+| requests answered in 60 s (four clients) | 83 = 1.4 requests/s | 1,207 = 20.1 requests/s |
+| member inbox, page of 20: p50 / p95 / max | 1,497 / 1,862 / 1,862 ms | 165 / 222 / 320 ms |
+| member inbox, page of 50 | 3,449 / 5,054 / 5,054 ms | 182 / 257 / 386 ms |
+| staff inbox, page of 20 | 1,768 / 2,224 / 2,224 ms | 167 / 225 / 299 ms |
+| staff inbox, page of 50 | 4,311 / 5,053 / 5,053 ms | 182 / 254 / 414 ms |
+| staff queue, page of 20 | 1,755 / 2,124 / 2,124 ms | 164 / 231 / 318 ms |
+| staff queue, page of 50 | 3,518 / 4,529 / 4,529 ms | 180 / 244 / 395 ms |
+| `messaging.query.latency{inbox}` p50 / p95 / p99 (server side) | not measured before this step | 180 / 239 / 315 ms |
+| R2DBC connections allocated at the end | 13 | 9 |
+
+The page size no longer matters (a page of 50 costs 10 % more than a page of 20, not twice), and a page
+is nine times faster at the median; one of about 1,200 requests in each run waited 30 s on the driver's
+side while the server had answered it within 0.4 s (the server-side maximum), a client artefact that is
+not counted.
+
+What the run also shows: MySQL executes each of the statements in well under a millisecond (`EXPLAIN` on
+the loaded rows: the inbox join reads the participant by `uk_participant`, the `IN` query by the same key,
+the queue page by `idx_conv_status_last`; profiling gives 0.3 to 0.7 ms per statement), yet two statements
+cost the service 165 ms with four clients, and the two statements of `GET /api/conversations/{id}` cost
+75 ms with the node otherwise idle. The cost is per statement, in the reactive MySQL path of the service
+(reactive-mybatis-support over r2dbc-mysql, through the pool), not in the database and not in the SQL. It
+is the same cost that makes the read-model projection spend 40 ms per event (section 7, handler duration)
+and it bounds every read and every projection of this service.
+
+Three 30 s probes with one client to locate it (page of 20 / page of 50, driver p50, and p95 in brackets):
+
+| Node | member inbox 20 | member inbox 50 | requests/s |
+|---|---|---|---|
+| as configured (r2dbc-mysql with TLS, its default on a MySQL that offers it) | 58 (269) ms | 69 (202) ms | 11.3 |
+| `sslMode=DISABLED` | 59 (78) ms | 71 (95) ms | 14.7 |
+| `tcpNoDelay=true` | 95 (128) ms | 120 (176) ms | 8.8 |
+
+With one client a page costs about 60 ms, 30 ms per statement, and it is neither TLS (same median
+without it; the tail is tighter, and the TLS setting stays as it is since the development host is not the
+production shape) nor a Nagle or delayed-ACK stall (the 40 ms signature does not appear, and forcing
+`TCP_NODELAY` does not help; that run was slower across the board, host noise). The cost is in the
+service's own path from the mapper call to the mapped row: reactive-mybatis-support's statement execution
+and result mapping over the pooled connection. Finding where those 30 ms go (a thread hop per statement,
+a connection acquire with validation, the result mapping, logging) is step 9 of section 6; it would pay on
+every read and on every event the projections handle.

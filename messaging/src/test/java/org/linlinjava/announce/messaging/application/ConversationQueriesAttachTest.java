@@ -1,5 +1,6 @@
 package org.linlinjava.announce.messaging.application;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.linlinjava.announce.db.dao.reactive.AnnounceChatMessageMapper;
 import org.linlinjava.announce.db.dao.reactive.AnnounceConversationMapper;
@@ -40,7 +41,7 @@ class ConversationQueriesAttachTest {
         properties.getAttach().setRechecks(RECHECKS);
         properties.getAttach().setRecheckInterval(Duration.ofMillis(5));
         when(participants.selectByExample(any())).thenReturn(Flux.just(participant(BUYER, "BUYER"), participant(SELLER, "SELLER")));
-        return new ConversationQueries(conversations, participants, mock(AnnounceChatMessageMapper.class), properties);
+        return new ConversationQueries(conversations, participants, mock(AnnounceChatMessageMapper.class), new SimpleMeterRegistry(), properties);
     }
 
     /** The projection writes the row after {@code missingLookups} look-ups found nothing. */

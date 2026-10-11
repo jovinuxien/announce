@@ -57,7 +57,7 @@ edge strips a client-supplied `X-Staff-Id`.
 | Route | Body / params | Answer |
 |---|---|---|
 | `POST /api/conversations` | `{type: LISTING, announceId}` or `{type: SUPPORT, subject}` | 201 the conversation state (LISTING: the existing one when already open) |
-| `GET /api/conversations?page&size` | | the caller's conversations, latest activity first, with `unread` |
+| `GET /api/conversations?page&size` | | the caller's conversations, latest activity first, with `unread`; two statements per page whatever `size` (the page, then every participant of it in one query) |
 | `GET /api/conversations/{id}` | | 404 unknown, 403 not a participant (staff always may) |
 | `GET /api/conversations/{id}/messages?after=0&limit=50` | | messages with `seq > after`, oldest first: the initial load and the catch-up after a reconnect |
 | `POST /api/conversations/{id}/messages` | `{clientMsgId, contentType, content, attachmentUrl, amountCents, currency}` | 201 `{messageId, seq, clientMsgId, duplicate}` |
@@ -159,8 +159,8 @@ mvn -pl messaging spring-boot:run
 ```
 
 `mvn -pl messaging test`: `ConversationTest` (aggregate through `CommandFixture`),
-`ConversationControllerTest` (REST slice), `ConversationsRetryTest` and `ConversationQueriesAttachTest`
-(the retry and the handshake re-check against mocks) and `MessagingEndToEndTest` (EventSourcingDB and Kafka
+`ConversationControllerTest` (REST slice), `ConversationsRetryTest`, `ConversationQueriesAttachTest` and
+`ConversationQueriesInboxTest` (the retry, the handshake re-check and the one-query page against mocks) and `MessagingEndToEndTest` (EventSourcingDB and Kafka
 from Testcontainers, the read model in the live `announce_reactive_db`; the class removes the rows it writes
 and clears the three groups' checkpoints and the test lock table `cqrs_readside_lock_test` before it starts).
 The test profile runs the processors under leader election with the read model in two partitions, as in

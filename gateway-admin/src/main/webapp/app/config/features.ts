@@ -1,13 +1,17 @@
 import { FEATURES_KEY } from './constants';
 
 /**
- * Feature flags. `trade` (auctions, orders, payouts) and `chat` (support queue, bulletins) default to off and are
- * backed by MSW mocks until the order and messaging modules are routed through the edge. `mocks` forces the MSW
- * worker on even in a production bundle.
+ * Feature flags.
+ *  - `trade` (auctions, orders, payouts): ON by default since 2026-10-10. The screens read the order module's admin
+ *    endpoints through the edge (doc/frontend-edges.md §12); when the module is down they show the problem alert.
+ *  - `chat` (support queue, bulletins): off; still served by the MSW fixtures until that wiring is done.
+ *  - `mocks`: starts the MSW worker so every phase-2 screen (trade included) is fed by app/mocks/handlers.ts. The
+ *    worker never starts on its own any more, otherwise it would hijack the real trade endpoints in development.
  *
  * Override without a rebuild:
- *  - localStorage key `announce.features` = {"trade":true,"chat":true}
- *  - query string `?features=trade,chat` at load (persisted to localStorage; `?features=` clears them).
+ *  - localStorage key `announce.features` = {"trade":true,"chat":true,"mocks":true}
+ *  - query string `?features=trade,chat,mocks` at load (persisted to localStorage; `?features=` clears them, which
+ *    also turns the defaults off: `?features=trade` is the way back to the defaults).
  */
 export interface Features {
   trade: boolean;
@@ -15,7 +19,7 @@ export interface Features {
   mocks: boolean;
 }
 
-export const DEFAULT_FEATURES: Features = { trade: false, chat: false, mocks: false };
+export const DEFAULT_FEATURES: Features = { trade: true, chat: false, mocks: false };
 
 export function parseFeatureList(list: string | null): Partial<Features> | undefined {
   if (list === null) return undefined;
@@ -78,7 +82,11 @@ export function isEnabled(name: keyof Features): boolean {
   return features[name];
 }
 
+/** Only the explicit `mocks` flag starts the MSW worker; see shouldStartMocksFor for the rule on its own. */
 export function shouldStartMocks(): boolean {
-  const flagged = features.trade || features.chat;
-  return (flagged && process.env.NODE_ENV !== 'production') || features.mocks;
+  return shouldStartMocksFor(features);
+}
+
+export function shouldStartMocksFor(f: Features): boolean {
+  return f.mocks;
 }

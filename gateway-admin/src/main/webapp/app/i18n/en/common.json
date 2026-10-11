@@ -7,7 +7,7 @@
   "statusLabel": "Status",
   "language": "Language",
   "menu": "Menu",
-  "mocked": "This screen is served by local mock data (MSW) until the backend module is routed through the edge.",
+  "mocked": "This screen is served by local mock fixtures (MSW, features.mocks), not by a backend.",
   "forbidden": {
     "title": "Not allowed",
     "detail": "This screen is reserved for super administrators."

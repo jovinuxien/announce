@@ -2,7 +2,7 @@ import { Alert } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { shouldStartMocks } from 'app/config/features';
 
-/** Reminds the reviewer that a phase-2 screen is fed by MSW, not by a backend. */
+/** Reminds the reviewer that the screen is fed by MSW fixtures (`features.mocks`), not by the order module. */
 export default function MockBanner() {
   const { t } = useTranslation();
   if (!shouldStartMocks()) return null;

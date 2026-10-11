@@ -2,8 +2,8 @@ import { setupWorker } from 'msw/browser';
 import { handlers } from './handlers';
 
 /**
- * Started from app/index.tsx only when `shouldStartMocks()` is true (a phase-2 flag on in a non-production bundle, or
- * `features.mocks`). Needs /mockServiceWorker.js at the site root: `npx msw init public` regenerates it
+ * Started from app/index.tsx only when `shouldStartMocks()` is true, that is when `features.mocks` is set
+ * (`?features=trade,mocks`). Needs /mockServiceWorker.js at the site root: `npx msw init public` regenerates it
  * (public/ is copied to the output by webpack). Unmatched requests pass through to the edge untouched.
  */
 export const worker = setupWorker(...handlers);

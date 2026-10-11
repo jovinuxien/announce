@@ -169,9 +169,11 @@ region, text; detail; withdraw; expire); crawled listings (trigger import for a 
 reindex, counts per source and status, recent GONE rows, click counts); members (list,
 search, status); admins, roles and permissions; regions.
 
-Phase 2 (flagged): auctions (list, cancel a bid with reason), orders (list by status,
-detail with payment and shipment timeline, resolve dispute to release or refund), payouts
-overview, support queue (WAITING conversations, join, bulletins).
+Phase 2: auctions (list, bids, cancel a bid with reason), orders (list, detail with the
+payment and shipment rows and a derived timeline, resolve dispute to release or refund) and
+payouts overview read the order module through the edge since 2026-10-10 (§13; `features.trade`
+defaults on). The support queue (WAITING conversations, join, bulletins) stays behind
+`features.chat` on MSW fixtures; `features.mocks` puts every phase-2 screen on the fixtures.
 
 ## 7. Tests and acceptance
 
@@ -520,8 +522,8 @@ blocked, releasing, sent and refunded amounts with their counts, `feesCollected`
 `feesPending`, from one hand-written aggregate query (`AnnounceOrderMapper.sumByStatus`, db-reactive). The
 provider's `payout_ref` is the payment context's and comes with the payment endpoint.
 
-**For the SPA wiring (not done here).** The mock types in `app/shared/api/{auctionsApi,ordersApi,payoutsApi}.ts`
-differ from the real rows: amounts are decimals (`agreedPrice: 95.00`), not cents; the auction row says `title`,
+**For the SPA wiring (done 2026-10-10, §13).** The mock types in `app/shared/api/{auctionsApi,ordersApi,payoutsApi}.ts`
+differed from the real rows: amounts are decimals (`agreedPrice: 95.00`), not cents; the auction row says `title`,
 `bidIncrement`, `autoExtendSec`, `startTime` / `endTime`, `closedTime` and the closed-by-buy-now status is
 `CLOSED_SNAGGED`; the order row says `title` and has no `payment` / `shipment` / `timeline` (two more calls, no
 timeline); the payouts answer is `{totals, page}` with the fields above (`feesCollected` means settled deals, the
@@ -531,3 +533,72 @@ mock summed every row). Bid rows say `bidTime` and `cancelledBy`.
 and `OrderModuleEndToEndTest` lists the auctions, orders and payouts the scenarios produced, with the filters,
 the paging guard, the payment and shipment details and the 403 for a member.
 
+
+## 13. Admin SPA on the order endpoints (2026-10-10)
+
+The trade screens of the admin SPA (`gateway-admin/src/main/webapp/app/modules/trade`) now read the order
+module's admin endpoints of §12 through the admin edge instead of the MSW sketch. "According to the backend":
+the SPA's types are the read-model rows as the contexts return them, nothing is reshaped on the way.
+
+**Clients (`app/shared/api`).** `auctionsApi.ts`: `AuctionRow` (`announce_auction`: `title`, `bidIncrement`,
+`autoExtendSec`, `startTime` / `endTime` / `closedTime`, decimal amounts, status `CLOSED_SNAGGED`), `BidRow`
+(`bidTime`, `cancelledBy`), `AuctionView {auction, bids}`. `ordersApi.ts`: `OrderRow` (`announce_order`, with
+`DECLINED`), `PaymentRow` and `ShipmentRow` behind their own queries (`GET /api/admin/orders/{id}/payment` and
+`/shipment`; a 404 means "none yet" and is not an error), `ResolutionRequest {resolution, note}` as
+`OrderController` takes it (the sketch sent `reason`). `payoutsApi.ts`: `PayoutOverview {totals, page}` with
+`Payouts.PayoutRow` and `Payouts.PayoutTotals` field for field. The two mutations answer the domain record (cents,
+other names); the SPA ignores the body and refetches through the RTK Query tags. Amounts go through
+`formatMoney` (decimal); `formatCents` is no longer used by these screens.
+
+**Screens.** One filter bar (`TradeFilterBar`) with the filters the endpoints accept: status plus seller id and
+title words on auctions, status plus seller id, buyer id and title words on orders, status plus seller id on
+payouts; the draft is applied on submit and kept in the URL (`usePaging.setFilters`). The auction panel shows the
+increment, reserve, buy-now price, auto-extend and close time, every bid with its max amount, the cancelling
+staff member, and lets staff cancel a bid only while the auction is OPEN. The order detail combines three calls and
+derives its timeline from the rows' timestamps (`app/shared/api/orderTimeline.ts`: agreed, paid, shipped,
+delivered, receipt confirmed, dispute opened, released, settled, closed, refund sent, last carrier event); there is
+no event-timeline endpoint and the screens never read the event store. The payouts page shows the five totals of
+`PayoutTotals` with their order counts, the fees collected and pending, and one line per order that holds or held
+money with the order status under the payout status and the seller gate (`payoutsDisabled`).
+
+**Flags and mocks (`app/config/features.ts`).** `trade` defaults on, `chat` stays off, and the MSW worker starts
+only with `features.mocks` (`?features=trade,mocks`); before, any phase-2 flag started it outside production,
+which would have hijacked the real trade calls in development. The fixtures (`app/mocks/tradeFixtures.ts`) are
+in the real shapes, the handlers apply the real filters and the 404 rule for payment and shipment, and the payout
+lines and totals are derived from the fixture orders the way `Payouts` does. The mock banner shows only with the
+flag.
+
+**Tests.** `npm test` runs 47 tests (28 before): `features.test.ts` (defaults, overrides, the mocks-only rule),
+`orderTimeline.test.ts`, `tradeFilters.test.ts`, and one rendering test file per page (`AuctionsPage`,
+`OrdersPage`, `OrderDetailPage`, `PayoutsPage`) over `msw/node` serving the same handlers and fixtures as the
+browser, through RTK Query and the real base query. For that, jest got `customExportConditions: ['']`, the
+polyfills borrow `fetch`, `Request`, `Response`, `Headers` and `FormData` from `undici` (new dev dependency) and
+the base query uses the page's origin as an absolute base URL (same-origin as before). `npm run i18n:check`
+passes with 457 keys in `en`, `da` and `sv`.
+
+### 13a. Checklist, executed 2026-10-10
+
+Setup: live MySQL, `docker/cqrs` (EventSourcingDB, Kafka 9094), the order service from its jar on 8083 (service
+token enforced, every call went through the edge), `gateway-admin` from `mvn -pl db-reactive,gateway-admin -P
+webapp -DskipTests package` with `--spring.profiles.active=dev` on 8081. The development database held one OPEN
+auction with one bid and one PROPOSED fixed-price order from the 27 September stack run, nothing else, so the
+rich states (disputes, payouts) were covered by the page tests over the fixtures. Automated first: `npm run
+typecheck`, `npm run i18n:check` (457 keys), `npm test` (47), the jar contains `static/index.html`,
+`static/assets/js/main.*.js` and `mockServiceWorker.js`.
+
+| Step | Result |
+|---|---|
+| `GET /api/admin/auctions` | 200, one row with `title`, status OPEN, `currentPrice 120.0`, `bidIncrement 10.0`, `autoExtendSec 120`; `status=CANCELLED` total 0; `size=500` capped, 200 |
+| `GET /api/admin/auctions/{announceId}` | 200, `{auction, bids}` with one ACTIVE bid (`bidTime`, `amount 120.0`) |
+| `GET /api/admin/orders` | 200, one PROPOSED fixed-price row at 1250.0 (buyer 14, seller 10); `status=DISPUTED` and `q=zzzz` total 0 |
+| `GET /api/admin/orders/{id}`, `/payment`, `/shipment` | row 200; payment 404, shipment 404 (none yet) |
+| `GET /api/admin/payouts` | 200, every total 0 with 0 orders, currency DKK, empty page; `status=FAILED` 400 |
+| Edge | no token 401; `GET /` and `GET /payouts` answer `index.html`; `main.*.js` 200 with the trade flag on and the body `{resolution, note}` |
+| Auctions screen (headless Chromium) | one row, no problem alert, no mock banner; the bids panel opens with the increment line and the bid |
+| Orders screen and detail | one row linking to its detail; summary, "No payment started", "No shipment requested", empty timeline (no timestamp on a PROPOSED order); no alert |
+| Payouts screen | five tiles at DKK 0.00 with 0 orders, the fees line, the empty state; no alert |
+| Filters | status DISPUTED on the orders screen writes `?status=DISPUTED&page=1` and shows the empty state |
+
+Observations: the payment and shipment 404s come as Spring's default JSON, not problem+json (the SPA only looks
+at the status). The browser console shows the expected 401 of the first silent refresh before login and the
+two 404s.

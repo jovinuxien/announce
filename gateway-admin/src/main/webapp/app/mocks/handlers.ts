@@ -1,123 +1,20 @@
 import { HttpResponse, delay, http } from 'msw';
-import type { AuctionDetail, AuctionSummary, Bid } from 'app/shared/api/auctionsApi';
-import type { OrderDetail, OrderStatus } from 'app/shared/api/ordersApi';
-import type { PayoutOverview, PayoutRow } from 'app/shared/api/payoutsApi';
+import type { AuctionView } from 'app/shared/api/auctionsApi';
 import type { Bulletin, ConversationSummary } from 'app/shared/api/supportApi';
-import type { PageResponse } from 'app/shared/types';
+import { auctions, bids, iso, orders, pageOf, payments, payoutOverview, shipments } from './tradeFixtures';
 
 /**
- * MSW handlers for the phase-2 screens (features.trade / features.chat). Every shape follows doc/order-context.md:
- *  - auctions and bids: §4 `auction` (OpenAuction, PlaceBid, CancelBid by staff) and §5 announce_auction / announce_bid;
- *    cancel endpoint from §8 (`POST /api/admin/bids/{id}/cancel`).
- *  - orders: §4 `order` state machine, §5 announce_order / announce_payment / announce_shipment, §8
- *    (`POST /api/admin/orders/{id}/resolve-dispute` with RELEASE or REFUND).
- *  - payouts: §3 release rule and §4 `payment` (PayoutRequested / PayoutSent); route from doc/frontend-edges.md §4.
- *  - support queue and bulletins: §9 (support conversation WAITING until staff joins; bulletins are announce_bulletin rows).
- * Only the admin paths below are intercepted; everything else (auth, phase-1 API) passes through to the edge.
+ * MSW handlers for the phase-2 admin paths, started only with `features.mocks` (app/config/features.ts).
+ *  - trade (auctions, bids, orders, payment, shipment, payouts): the order module's admin endpoints in their real
+ *    shapes (doc/frontend-edges.md §12), fixtures in ./tradeFixtures.ts. Without the flag these calls reach the
+ *    order module through the edge.
+ *  - support queue and bulletins: doc/order-context.md §9 sketch; the chat screens are not wired to messaging yet.
+ * Only the paths below are intercepted; everything else (auth, phase-1 API) passes through to the edge.
  */
-
-const now = Date.now();
-const iso = (offsetMinutes: number) => new Date(now + offsetMinutes * 60_000).toISOString();
-
-function page<T>(items: T[], url: URL): PageResponse<T> {
-  const p = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1);
-  const size = Math.max(1, Number(url.searchParams.get('size') ?? 20) || 20);
-  return { items: items.slice((p - 1) * size, p * size), page: p, size, total: items.length };
-}
 
 function problem(status: number, detail: string, code?: string) {
   return HttpResponse.json({ type: 'about:blank', title: 'Error', status, detail, code }, { status, headers: { 'content-type': 'application/problem+json' } });
 }
-
-// ---- auctions (§4 auction, §5 announce_auction / announce_bid) ----
-const bids: Bid[] = [
-  { id: 'bid-1001', announceId: 'ann-auction-1', bidderId: 42, amount: 52000, maxAmount: null, placedAt: iso(-180), status: 'OUTBID', cancelReason: null },
-  { id: 'bid-1002', announceId: 'ann-auction-1', bidderId: 57, amount: 55000, maxAmount: 70000, placedAt: iso(-120), status: 'OUTBID', cancelReason: null },
-  { id: 'bid-1003', announceId: 'ann-auction-1', bidderId: 42, amount: 58000, maxAmount: null, placedAt: iso(-30), status: 'ACTIVE', cancelReason: null },
-  { id: 'bid-2001', announceId: 'ann-auction-2', bidderId: 61, amount: 15000, maxAmount: null, placedAt: iso(-2880), status: 'WON', cancelReason: null },
-];
-const auctions: AuctionSummary[] = [
-  {
-    announceId: 'ann-auction-1', announceTitle: 'Vintage Ercol armchair', sellerId: 7, initialPrice: 50000, reservePrice: 55000, snagItPrice: null, increment: 1000,
-    currentPrice: 58000, currency: 'DKK', bidCount: 3, startTime: iso(-24 * 60), endTime: iso(6 * 60), autoExtend: true, status: 'OPEN', winnerId: null, winningBidId: null, orderId: null,
-  },
-  {
-    announceId: 'ann-auction-2', announceTitle: 'Canon EOS 500D body', sellerId: 12, initialPrice: 10000, reservePrice: null, snagItPrice: 20000, increment: 500,
-    currentPrice: 15000, currency: 'SEK', bidCount: 1, startTime: iso(-5 * 24 * 60), endTime: iso(-2 * 24 * 60), autoExtend: false, status: 'CLOSED_WON', winnerId: 61, winningBidId: 'bid-2001', orderId: 'ord-3002',
-  },
-  {
-    announceId: 'ann-auction-3', announceTitle: 'Box of LEGO Technic (mixed)', sellerId: 7, initialPrice: 30000, reservePrice: 40000, snagItPrice: null, increment: 1000,
-    currentPrice: 30000, currency: 'DKK', bidCount: 0, startTime: iso(-10 * 24 * 60), endTime: iso(-7 * 24 * 60), autoExtend: true, status: 'CLOSED_UNSOLD', winnerId: null, winningBidId: null, orderId: null,
-  },
-];
-
-// ---- orders (§4 order states, §5 read models) ----
-const orders: OrderDetail[] = [
-  {
-    id: 'ord-3001', announceId: 'ann-fixed-9', announceTitle: 'Brompton M6L 2019', sellerId: 7, buyerId: 42, door: 'FIXED_PRICE', agreedPrice: 950000, feeAmount: 57000, payoutAmount: 893000,
-    labelPrice: 4900, currency: 'DKK', status: 'DISPUTED', agreedAt: iso(-6 * 24 * 60), paidAt: iso(-6 * 24 * 60 + 15), shippedAt: iso(-5 * 24 * 60), deliveredAt: iso(-3 * 24 * 60),
-    releasedAt: null, settledAt: null, disputeReason: 'Frame has a crack not shown in the pictures',
-    payment: { id: 'pay-3001', provider: 'FAKE', intentRef: 'pi_fake_3001', status: 'CONFIRMED', amount: 950000, feeAmount: 57000, payoutRef: null, refundRef: null, confirmedAt: iso(-6 * 24 * 60 + 15), releasedAt: null, refundedAt: null },
-    shipment: { id: 'shp-3001', orderId: 'ord-3001', carrier: 'POSTNORD', service: 'MyPack Home', trackingNumber: 'PN123456789DK', labelUrl: 'https://example.invalid/label/3001.pdf', status: 'DELIVERED', lastCarrierEvent: 'Delivered to recipient', lastEventAt: iso(-3 * 24 * 60), deliveredAt: iso(-3 * 24 * 60) } as OrderDetail['shipment'],
-    timeline: [
-      { at: iso(-6 * 24 * 60), type: 'OrderAgreed', detail: 'Fixed price accepted by seller' },
-      { at: iso(-6 * 24 * 60 + 15), type: 'OrderPaid', detail: 'PaymentConfirmed pi_fake_3001' },
-      { at: iso(-5 * 24 * 60), type: 'OrderShipped', detail: 'ShipmentDispatched PN123456789DK' },
-      { at: iso(-3 * 24 * 60), type: 'OrderDelivered', detail: 'ShipmentDelivered' },
-      { at: iso(-2 * 24 * 60), type: 'DisputeOpened', detail: 'Frame has a crack not shown in the pictures' },
-    ],
-  },
-  {
-    id: 'ord-3002', announceId: 'ann-auction-2', announceTitle: 'Canon EOS 500D body', sellerId: 12, buyerId: 61, door: 'AUCTION', agreedPrice: 15000, feeAmount: 1400, payoutAmount: 13600,
-    labelPrice: null, currency: 'SEK', status: 'SHIPPED', agreedAt: iso(-2 * 24 * 60), paidAt: iso(-2 * 24 * 60 + 40), shippedAt: iso(-1 * 24 * 60), deliveredAt: null, releasedAt: null, settledAt: null, disputeReason: null,
-    payment: { id: 'pay-3002', provider: 'FAKE', intentRef: 'pi_fake_3002', status: 'CONFIRMED', amount: 15000, feeAmount: 1400, payoutRef: null, refundRef: null, confirmedAt: iso(-2 * 24 * 60 + 40), releasedAt: null, refundedAt: null },
-    shipment: { id: 'shp-3002', orderId: 'ord-3002', carrier: 'POSTNORD', service: 'MyPack Collect', trackingNumber: 'PN987654321SE', labelUrl: null, status: 'IN_TRANSIT', lastCarrierEvent: 'Arrived at sorting hub', lastEventAt: iso(-6 * 60), deliveredAt: null } as OrderDetail['shipment'],
-    timeline: [
-      { at: iso(-2 * 24 * 60), type: 'OrderAgreed', detail: 'CreateFromAuction (AuctionClosedWonV1)' },
-      { at: iso(-2 * 24 * 60 + 40), type: 'OrderPaid', detail: null },
-      { at: iso(-1 * 24 * 60), type: 'OrderShipped', detail: 'PN987654321SE' },
-    ],
-  },
-  {
-    id: 'ord-3003', announceId: 'ann-offer-4', announceTitle: 'IKEA Poäng + footstool', sellerId: 19, buyerId: 42, door: 'OFFER', agreedPrice: 40000, feeAmount: 3400, payoutAmount: 36600,
-    labelPrice: null, currency: 'DKK', status: 'SETTLED', agreedAt: iso(-20 * 24 * 60), paidAt: iso(-20 * 24 * 60 + 5), shippedAt: iso(-19 * 24 * 60), deliveredAt: iso(-17 * 24 * 60), releasedAt: iso(-14 * 24 * 60), settledAt: iso(-13 * 24 * 60), disputeReason: null,
-    payment: { id: 'pay-3003', provider: 'FAKE', intentRef: 'pi_fake_3003', status: 'RELEASED', amount: 40000, feeAmount: 3400, payoutRef: 'po_fake_3003', refundRef: null, confirmedAt: iso(-20 * 24 * 60 + 5), releasedAt: iso(-13 * 24 * 60), refundedAt: null },
-    shipment: { id: 'shp-3003', orderId: 'ord-3003', carrier: 'FAKE', service: 'standard', trackingNumber: 'FK-3003', labelUrl: null, status: 'DELIVERED', lastCarrierEvent: 'Delivered', lastEventAt: iso(-17 * 24 * 60), deliveredAt: iso(-17 * 24 * 60) } as OrderDetail['shipment'],
-    timeline: [
-      { at: iso(-20 * 24 * 60), type: 'OrderAgreed', detail: 'CreateFromOffer (OfferAcceptedV1)' },
-      { at: iso(-20 * 24 * 60 + 5), type: 'OrderPaid', detail: null },
-      { at: iso(-19 * 24 * 60), type: 'OrderShipped', detail: null },
-      { at: iso(-17 * 24 * 60), type: 'OrderDelivered', detail: null },
-      { at: iso(-14 * 24 * 60), type: 'PayoutReleaseRequested', detail: 'Grace period elapsed' },
-      { at: iso(-13 * 24 * 60), type: 'OrderSettled', detail: 'PayoutSent po_fake_3003' },
-    ],
-  },
-  {
-    id: 'ord-3004', announceId: 'ann-fixed-11', announceTitle: 'Bosch cordless drill', sellerId: 7, buyerId: 88, door: 'FIXED_PRICE', agreedPrice: 60000, feeAmount: 4600, payoutAmount: 55400,
-    labelPrice: null, currency: 'DKK', status: 'PAYMENT_PENDING', agreedAt: iso(-90), paidAt: null, shippedAt: null, deliveredAt: null, releasedAt: null, settledAt: null, disputeReason: null,
-    payment: { id: 'pay-3004', provider: 'FAKE', intentRef: 'pi_fake_3004', status: 'INTENT_CREATED', amount: 60000, feeAmount: 4600, payoutRef: null, refundRef: null, confirmedAt: null, releasedAt: null, refundedAt: null },
-    shipment: null,
-    timeline: [{ at: iso(-90), type: 'OrderAgreed', detail: 'AcceptPurchase' }, { at: iso(-89), type: 'PaymentIntentCreated', detail: 'pi_fake_4' }],
-  },
-  {
-    id: 'ord-3005', announceId: 'ann-fixed-12', announceTitle: 'Kids bike 20"', sellerId: 23, buyerId: 42, door: 'FIXED_PRICE', agreedPrice: 80000, feeAmount: 5800, payoutAmount: 74200,
-    labelPrice: null, currency: 'SEK', status: 'REFUNDED', agreedAt: iso(-12 * 24 * 60), paidAt: iso(-12 * 24 * 60 + 10), shippedAt: null, deliveredAt: null, releasedAt: null, settledAt: null, disputeReason: null,
-    payment: { id: 'pay-3005', provider: 'FAKE', intentRef: 'pi_fake_3005', status: 'REFUNDED', amount: 80000, feeAmount: 5800, payoutRef: null, refundRef: 're_fake_3005', confirmedAt: iso(-12 * 24 * 60 + 10), releasedAt: null, refundedAt: iso(-7 * 24 * 60) },
-    shipment: null,
-    timeline: [
-      { at: iso(-12 * 24 * 60), type: 'OrderAgreed', detail: null },
-      { at: iso(-12 * 24 * 60 + 10), type: 'OrderPaid', detail: null },
-      { at: iso(-7 * 24 * 60), type: 'OrderRefunded', detail: 'Ship window expired (OrderShipWindowJob)' },
-    ],
-  },
-];
-
-// ---- payouts (§3, §4 payment, §5 announce_payment / announce_seller_account) ----
-const payouts: PayoutRow[] = [
-  { orderId: 'ord-3003', paymentId: 'pay-3003', sellerId: 19, sellerAccountStatus: 'VERIFIED', payoutAmount: 36600, feeAmount: 3400, currency: 'DKK', status: 'SENT', releaseDueAt: null, releasedAt: iso(-13 * 24 * 60), payoutRef: 'po_fake_3003' },
-  { orderId: 'ord-3001', paymentId: 'pay-3001', sellerId: 7, sellerAccountStatus: 'VERIFIED', payoutAmount: 893000, feeAmount: 57000, currency: 'DKK', status: 'BLOCKED_DISPUTE', releaseDueAt: iso(+2 * 24 * 60), releasedAt: null, payoutRef: null },
-  { orderId: 'ord-3002', paymentId: 'pay-3002', sellerId: 12, sellerAccountStatus: 'PENDING', payoutAmount: 13600, feeAmount: 1400, currency: 'SEK', status: 'PENDING_RELEASE', releaseDueAt: iso(+5 * 24 * 60), releasedAt: null, payoutRef: null },
-];
 
 // ---- support (§9) ----
 const conversations: ConversationSummary[] = [
@@ -132,86 +29,96 @@ const bulletins: Bulletin[] = [
 ];
 
 export const handlers = [
-  // auctions
+  // auction context
   http.get('/api/admin/auctions', async ({ request }) => {
     await delay(150);
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
-    return HttpResponse.json(page(auctions.filter((a) => !status || a.status === status), url));
+    const seller = url.searchParams.get('seller');
+    const q = url.searchParams.get('q')?.toLowerCase();
+    if (Number(url.searchParams.get('size') ?? 20) > 100) return problem(400, 'size must be between 1 and 100');
+    const rows = auctions
+      .filter((a) => (!status || a.status === status) && (!seller || String(a.sellerId) === seller) && (!q || (a.title ?? '').toLowerCase().includes(q)))
+      .sort((a, b) => b.endTime.localeCompare(a.endTime));
+    return HttpResponse.json(pageOf(rows, url));
   }),
   http.get('/api/admin/auctions/:announceId', async ({ params }) => {
     await delay(100);
     const a = auctions.find((x) => x.announceId === params.announceId);
-    if (!a) return problem(404, `No auction for announce ${params.announceId}`);
-    const detail: AuctionDetail = { ...a, bids: bids.filter((b) => b.announceId === a.announceId) };
-    return HttpResponse.json(detail);
+    if (!a) return problem(404, `No auction for announce ${params.announceId}`, 'auction-not-found');
+    const view: AuctionView = { auction: a, bids: bids.filter((b) => b.announceId === a.announceId).sort((x, y) => y.bidTime.localeCompare(x.bidTime)) };
+    return HttpResponse.json(view);
   }),
-  // §8: POST /api/admin/bids/{id}/cancel (staff, with reason)
+  // POST /api/admin/bids/{id}/cancel {reason}; answers the domain record (cents), which the SPA ignores
   http.post('/api/admin/bids/:bidId/cancel', async ({ params, request }) => {
     await delay(200);
     const body = (await request.json()) as { reason?: string };
-    if (!body.reason?.trim()) return problem(400, 'A reason is required', 'reason-required');
     const b = bids.find((x) => x.id === params.bidId);
-    if (!b) return problem(404, `Unknown bid ${params.bidId}`);
+    if (!b) return problem(404, `Unknown bid ${params.bidId}`, 'bid-not-found');
+    const a = auctions.find((x) => x.announceId === b.announceId);
+    if (!a || a.status !== 'OPEN') return problem(409, 'Auction is not open', 'auction-not-open');
     if (b.status === 'CANCELLED') return problem(409, 'Bid already cancelled', 'bid-cancelled');
     b.status = 'CANCELLED';
-    b.cancelReason = body.reason.trim();
-    const a = auctions.find((x) => x.announceId === b.announceId);
-    if (a) {
-      const remaining = bids.filter((x) => x.announceId === a.announceId && x.status !== 'CANCELLED' && x.status !== 'RETRACTED');
-      remaining.forEach((x, i) => (x.status = i === remaining.length - 1 ? 'ACTIVE' : 'OUTBID'));
-      a.currentPrice = remaining.length ? remaining[remaining.length - 1].amount : a.initialPrice;
-      a.bidCount = remaining.length;
-    }
-    return HttpResponse.json(b);
+    b.cancelReason = body.reason?.trim() || null;
+    b.cancelledBy = 1;
+    const remaining = bids.filter((x) => x.announceId === a.announceId && x.status !== 'CANCELLED' && x.status !== 'RETRACTED').sort((x, y) => x.bidTime.localeCompare(y.bidTime));
+    remaining.forEach((x, i) => (x.status = i === remaining.length - 1 ? 'ACTIVE' : 'OUTBID'));
+    a.currentPrice = remaining.length ? remaining[remaining.length - 1].amount : a.initialPrice;
+    a.bidCount = remaining.length;
+    return HttpResponse.json({ announceId: a.announceId, status: a.status, currentPriceCents: Math.round(a.currentPrice * 100) });
   }),
 
-  // orders
+  // order context
   http.get('/api/admin/orders', async ({ request }) => {
     await delay(150);
     const url = new URL(request.url);
-    const status = url.searchParams.get('status') as OrderStatus | null;
-    const items = orders.filter((o) => !status || o.status === status).map(({ payment: _p, shipment: _s, timeline: _t, ...summary }) => summary);
-    return HttpResponse.json(page(items, url));
+    const status = url.searchParams.get('status');
+    const seller = url.searchParams.get('seller');
+    const buyer = url.searchParams.get('buyer');
+    const q = url.searchParams.get('q')?.toLowerCase();
+    if (Number(url.searchParams.get('size') ?? 20) > 100) return problem(400, 'size must be between 1 and 100');
+    const rows = orders.filter(
+      (o) => (!status || o.status === status) && (!seller || String(o.sellerId) === seller) && (!buyer || String(o.buyerId) === buyer) && (!q || (o.title ?? '').toLowerCase().includes(q)),
+    );
+    return HttpResponse.json(pageOf(rows, url));
   }),
   http.get('/api/admin/orders/:id', async ({ params }) => {
     await delay(100);
     const o = orders.find((x) => x.id === params.id);
-    return o ? HttpResponse.json(o) : problem(404, `Unknown order ${params.id}`);
+    return o ? HttpResponse.json(o) : problem(404, `Unknown order ${params.id}`, 'order-not-found');
   }),
-  // §8: POST /api/admin/orders/{id}/resolve-dispute -> DisputeResolved(RELEASE | REFUND)
+  // payment context: 404 until the buyer started paying
+  http.get('/api/admin/orders/:id/payment', async ({ params }) => {
+    await delay(80);
+    const p = payments.find((x) => x.orderId === params.id);
+    return p ? HttpResponse.json(p) : problem(404, `No payment for order ${params.id}`, 'payment-not-found');
+  }),
+  // shipping context: 404 until the seller requested a shipment
+  http.get('/api/admin/orders/:id/shipment', async ({ params }) => {
+    await delay(80);
+    const sh = shipments.find((x) => x.orderId === params.id);
+    return sh ? HttpResponse.json(sh) : problem(404, `No shipment for order ${params.id}`, 'shipment-not-found');
+  }),
+  // POST /api/admin/orders/{id}/resolve-dispute {resolution, note}; answers the domain record (cents), ignored by the SPA
   http.post('/api/admin/orders/:id/resolve-dispute', async ({ params, request }) => {
     await delay(250);
-    const body = (await request.json()) as { resolution?: 'RELEASE' | 'REFUND'; reason?: string };
+    const body = (await request.json()) as { resolution?: 'RELEASE' | 'REFUND'; note?: string };
     const o = orders.find((x) => x.id === params.id);
-    if (!o) return problem(404, `Unknown order ${params.id}`);
+    if (!o) return problem(404, `Unknown order ${params.id}`, 'order-not-found');
+    if (!body.resolution) return problem(400, 'resolution must not be blank');
     if (o.status !== 'DISPUTED') return problem(409, `Order ${o.id} is ${o.status}, not DISPUTED`, 'order-not-disputed');
-    if (!body.reason?.trim()) return problem(400, 'A reason is required', 'reason-required');
     o.status = body.resolution === 'REFUND' ? 'REFUNDING' : 'RELEASING';
-    o.timeline.push({ at: new Date().toISOString(), type: 'DisputeResolved', detail: `${body.resolution}: ${body.reason.trim()}` });
-    const p = payouts.find((x) => x.orderId === o.id);
-    if (p) p.status = body.resolution === 'REFUND' ? 'FAILED' : 'RELEASING';
-    return HttpResponse.json(o);
+    if (body.resolution === 'RELEASE') o.releasedAt = iso(0);
+    return HttpResponse.json({ id: o.id, status: o.status, note: body.note ?? null });
   }),
 
-  // payouts
+  // payouts, derived from the order rows
   http.get('/api/admin/payouts', async ({ request }) => {
     await delay(150);
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
-    const rows = payouts.filter((p) => !status || p.status === status);
-    const sum = (pred: (p: PayoutRow) => boolean, pick: (p: PayoutRow) => number = (p) => p.payoutAmount) => payouts.filter(pred).reduce((s, p) => s + pick(p), 0);
-    const overview: PayoutOverview = {
-      totals: {
-        pendingAmount: sum((p) => p.status === 'PENDING_RELEASE' || p.status === 'RELEASING'),
-        sentAmount: sum((p) => p.status === 'SENT'),
-        blockedAmount: sum((p) => p.status === 'BLOCKED_DISPUTE'),
-        feesCollected: sum(() => true, (p) => p.feeAmount),
-        currency: 'DKK',
-      },
-      page: page(rows, url),
-    };
-    return HttpResponse.json(overview);
+    if (status && !['PENDING_RELEASE', 'BLOCKED_DISPUTE', 'RELEASING', 'SENT', 'REFUNDED'].includes(status)) return problem(400, `Unknown payout status ${status}`);
+    return HttpResponse.json(payoutOverview(url));
   }),
 
   // support (§9)
@@ -219,7 +126,7 @@ export const handlers = [
     await delay(120);
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
-    return HttpResponse.json(page(conversations.filter((c) => !status || c.status === status), url));
+    return HttpResponse.json(pageOf(conversations.filter((c) => !status || c.status === status), url));
   }),
   http.post('/api/admin/conversations/:id/join', async ({ params }) => {
     await delay(200);

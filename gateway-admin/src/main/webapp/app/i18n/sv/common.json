@@ -7,7 +7,7 @@
   "statusLabel": "Status",
   "language": "Språk",
   "menu": "Meny",
-  "mocked": "Den här sidan visas med lokala testdata (MSW) tills backend-modulen är kopplad via gatewayen.",
+  "mocked": "Den här skärmen visas från lokala testdata (MSW, features.mocks), inte från en backend.",
   "forbidden": {
     "title": "Åtkomst nekad",
     "detail": "Den här sidan är reserverad för superadministratörer."

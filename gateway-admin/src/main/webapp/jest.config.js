@@ -1,6 +1,8 @@
 /** @type {import('jest').Config} */
 module.exports = {
   testEnvironment: 'jsdom',
+  // msw/node and undici export a 'node' condition that jsdom's default ('browser') would skip.
+  testEnvironmentOptions: { customExportConditions: [''] },
   roots: ['<rootDir>/app'],
   testMatch: ['**/*.test.ts', '**/*.test.tsx'],
   transform: {

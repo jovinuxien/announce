@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Card, Col, Form, Modal, Row, Spinner, Table } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { AUCTION_STATUSES, useCancelBidMutation, useGetAuctionQuery, useListAuctionsQuery, type AuctionStatus, type AuctionSummary, type Bid } from 'app/shared/api/auctionsApi';
-import { formatCents, formatDateTime } from 'app/shared/format';
+import { AUCTION_STATUSES, useCancelBidMutation, useGetAuctionQuery, useListAuctionsQuery, type AuctionRow, type AuctionStatus, type BidRow } from 'app/shared/api/auctionsApi';
+import { formatDateTime, formatMoney } from 'app/shared/format';
 import PageHeader from 'app/shared/ui/PageHeader';
 import ProblemAlert from 'app/shared/ui/ProblemAlert';
 import LoadingBlock from 'app/shared/ui/LoadingBlock';
@@ -11,17 +12,20 @@ import Pagination from 'app/shared/ui/Pagination';
 import StatusBadge from 'app/shared/ui/StatusBadge';
 import { usePaging } from 'app/shared/ui/usePaging';
 import MockBanner from './MockBanner';
+import TradeFilterBar from './TradeFilterBar';
+import { tradeFiltersFromSearch, tradeFiltersToParams, type TradeFilters } from './tradeFilters';
 
-function BidsPanel({ auction, onClose }: { auction: AuctionSummary; onClose: () => void }) {
+function BidsPanel({ auction, onClose }: { auction: AuctionRow; onClose: () => void }) {
   const { t, i18n } = useTranslation();
   const { data, error, isLoading } = useGetAuctionQuery(auction.announceId);
-  const [cancelling, setCancelling] = useState<Bid | null>(null);
+  const [cancelling, setCancelling] = useState<BidRow | null>(null);
   const [reason, setReason] = useState('');
   const [cancel, cancelState] = useCancelBidMutation();
+  const currency = data?.auction.currency ?? auction.currency;
   return (
     <Card className="shadow-sm h-100">
       <Card.Header className="d-flex justify-content-between align-items-center">
-        <span>{t('trade.auctions.bidsOf', { title: auction.announceTitle ?? auction.announceId })}</span>
+        <span>{t('trade.auctions.bidsOf', { title: auction.title ?? auction.announceId })}</span>
         <Button size="sm" variant="outline-secondary" onClick={onClose}>
           {t('common.actions.close')}
         </Button>
@@ -29,6 +33,15 @@ function BidsPanel({ auction, onClose }: { auction: AuctionSummary; onClose: () 
       <Card.Body className="p-0">
         {error ? <ProblemAlert error={error} className="m-3" /> : null}
         {isLoading && <LoadingBlock />}
+        {data && (
+          <div className="small text-muted px-3 py-2 border-bottom">
+            {t('trade.auctions.increment', { amount: formatMoney(data.auction.bidIncrement, currency, i18n.language) })}
+            {data.auction.reservePrice != null && <> · {t('trade.auctions.reserve', { amount: formatMoney(data.auction.reservePrice, currency, i18n.language) })}</>}
+            {data.auction.snagItPrice != null && <> · {t('trade.auctions.snagIt', { amount: formatMoney(data.auction.snagItPrice, currency, i18n.language) })}</>}
+            {data.auction.autoExtendSec ? <> · {t('trade.auctions.autoExtend', { seconds: data.auction.autoExtendSec })}</> : null}
+            {data.auction.closedTime && <> · {t('trade.auctions.closedAt', { at: formatDateTime(data.auction.closedTime, i18n.language) })}</>}
+          </div>
+        )}
         {data && data.bids.length === 0 && <EmptyState />}
         {data && data.bids.length > 0 && (
           <Table size="sm" hover className="mb-0">
@@ -36,7 +49,7 @@ function BidsPanel({ auction, onClose }: { auction: AuctionSummary; onClose: () 
               <tr>
                 <th>{t('trade.auctions.bidder')}</th>
                 <th className="text-end">{t('trade.auctions.amount')}</th>
-                <th>{t('trade.auctions.placedAt')}</th>
+                <th>{t('trade.auctions.bidTime')}</th>
                 <th>{t('common.statusLabel')}</th>
                 <th />
               </tr>
@@ -44,15 +57,36 @@ function BidsPanel({ auction, onClose }: { auction: AuctionSummary; onClose: () 
             <tbody>
               {data.bids.map((b) => (
                 <tr key={b.id}>
-                  <td>#{b.bidderId}</td>
-                  <td className="text-end">{formatCents(b.amount, data.currency, i18n.language)}</td>
-                  <td className="small text-muted">{formatDateTime(b.placedAt, i18n.language)}</td>
                   <td>
-                    <StatusBadge status={b.status} prefix="trade.bidStatus" />
-                    {b.cancelReason && <div className="small text-muted">{b.cancelReason}</div>}
+                    #{b.bidderId}
+                    {data.auction.winnerId === b.bidderId && data.auction.winningBidId === b.id && (
+                      <i className="bi bi-trophy ms-1 text-warning" title={t('trade.bidStatus.WON')} aria-hidden />
+                    )}
                   </td>
                   <td className="text-end">
-                    <Button size="sm" variant="outline-danger" disabled={b.status === 'CANCELLED' || b.status === 'RETRACTED'} onClick={() => { setCancelling(b); setReason(''); }}>
+                    {formatMoney(b.amount, currency, i18n.language)}
+                    {b.maxAmount != null && <div className="small text-muted">{t('trade.auctions.upTo', { amount: formatMoney(b.maxAmount, currency, i18n.language) })}</div>}
+                  </td>
+                  <td className="small text-muted">{formatDateTime(b.bidTime, i18n.language)}</td>
+                  <td>
+                    <StatusBadge status={b.status} prefix="trade.bidStatus" />
+                    {b.cancelReason && (
+                      <div className="small text-muted">
+                        {b.cancelReason}
+                        {b.cancelledBy != null && <> ({t('trade.auctions.cancelledBy', { by: b.cancelledBy })})</>}
+                      </div>
+                    )}
+                  </td>
+                  <td className="text-end">
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      disabled={data.auction.status !== 'OPEN' || b.status === 'CANCELLED' || b.status === 'RETRACTED'}
+                      onClick={() => {
+                        setCancelling(b);
+                        setReason('');
+                      }}
+                    >
                       {t('trade.auctions.cancelBid')}
                     </Button>
                   </td>
@@ -102,27 +136,16 @@ function BidsPanel({ auction, onClose }: { auction: AuctionSummary; onClose: () 
 
 export default function AuctionsPage() {
   const { t, i18n } = useTranslation();
-  const { params, page, size, setPage, setSize, setParam } = usePaging();
-  const status = (params.get('status') ?? '') as AuctionStatus | '';
-  const { data, error, isLoading } = useListAuctionsQuery({ status, page, size });
-  const [selected, setSelected] = useState<AuctionSummary | null>(null);
+  const { params, page, size, setPage, setSize, setFilters } = usePaging();
+  const filters = useMemo(() => tradeFiltersFromSearch(params, AUCTION_STATUSES), [params]);
+  const { data, error, isLoading } = useListAuctionsQuery({ ...tradeFiltersToParams(filters), page, size });
+  const [selected, setSelected] = useState<AuctionRow | null>(null);
+  const apply = (next: TradeFilters<AuctionStatus>) => setFilters({ status: next.status, seller: next.seller, q: next.q });
   return (
     <>
-      <PageHeader
-        title={t('trade.auctions.title')}
-        icon="bi-hammer"
-        actions={
-          <Form.Select size="sm" value={status} onChange={(e) => setParam('status', e.target.value)} aria-label={t('common.statusLabel')}>
-            <option value="">{t('common.all')}</option>
-            {AUCTION_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {t(`trade.auctionStatus.${s}`)}
-              </option>
-            ))}
-          </Form.Select>
-        }
-      />
+      <PageHeader title={t('trade.auctions.title')} icon="bi-hammer" />
       <MockBanner />
+      <TradeFilterBar filters={filters} statuses={AUCTION_STATUSES} statusPrefix="trade.auctionStatus" fields={{ seller: true, q: true }} onApply={apply} />
       {error ? <ProblemAlert error={error} /> : null}
       {isLoading && <LoadingBlock />}
       <Row className="g-3">
@@ -143,20 +166,25 @@ export default function AuctionsPage() {
                 </thead>
                 <tbody>
                   {data.items.map((a) => (
-                    <tr key={a.announceId} className={selected?.announceId === a.announceId ? 'table-active' : ''} style={{ cursor: 'pointer' }} onClick={() => setSelected(a)}>
+                    <tr key={a.id} className={selected?.id === a.id ? 'table-active' : ''} style={{ cursor: 'pointer' }} onClick={() => setSelected(a)}>
                       <td>
-                        <div className="fw-semibold">{a.announceTitle}</div>
-                        <code className="small">{a.announceId}</code>
+                        <div className="fw-semibold">{a.title ?? a.announceId}</div>
+                        <Link to={`/announces/${encodeURIComponent(a.announceId)}`} className="small text-decoration-none" onClick={(e) => e.stopPropagation()}>
+                          <code className="small">{a.announceId}</code>
+                        </Link>
                       </td>
-                      <td>#{a.sellerId}</td>
+                      <td>
+                        <Link to={`/users/${a.sellerId}`} onClick={(e) => e.stopPropagation()}>#{a.sellerId}</Link>
+                      </td>
                       <td className="text-end">
-                        {formatCents(a.currentPrice, a.currency, i18n.language)}
-                        <div className="small text-muted">{t('trade.auctions.from', { price: formatCents(a.initialPrice, a.currency, i18n.language) })}</div>
+                        {formatMoney(a.currentPrice, a.currency, i18n.language)}
+                        <div className="small text-muted">{t('trade.auctions.from', { price: formatMoney(a.initialPrice, a.currency, i18n.language) })}</div>
                       </td>
                       <td className="text-end">{a.bidCount}</td>
                       <td className="small text-muted">{formatDateTime(a.endTime, i18n.language)}</td>
                       <td>
                         <StatusBadge status={a.status} prefix="trade.auctionStatus" />
+                        {a.winnerId != null && <div className="small text-muted">{t('trade.auctions.winner', { id: a.winnerId })}</div>}
                       </td>
                     </tr>
                   ))}

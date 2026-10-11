@@ -7,7 +7,7 @@
   "statusLabel": "Status",
   "language": "Sprog",
   "menu": "Menu",
-  "mocked": "Denne side vises med lokale testdata (MSW), indtil backend-modulet er koblet på gatewayen.",
+  "mocked": "Denne skærm vises fra lokale testdata (MSW, features.mocks), ikke fra en backend.",
   "forbidden": {
     "title": "Ingen adgang",
     "detail": "Denne side er forbeholdt superadministratorer."

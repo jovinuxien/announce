@@ -1,5 +1,6 @@
 {
   "reason": "Begrundelse",
+  "note": "Note (gemmes sammen med afgørelsen)",
   "auctions": {
     "title": "Auktioner",
     "announce": "Annonce",
@@ -11,15 +12,23 @@
     "bidsOf": "Bud på “{{title}}”",
     "bidder": "Budgiver",
     "amount": "Beløb",
-    "placedAt": "Afgivet",
-    "cancelBid": "Annuller bud"
+    "cancelBid": "Annuller bud",
+    "increment": "Budtrin {{amount}}",
+    "reserve": "mindstepris {{amount}}",
+    "snagIt": "køb nu {{amount}}",
+    "autoExtend": "forlænges {{seconds}} s",
+    "closedAt": "lukket {{at}}",
+    "bidTime": "Afgivet",
+    "upTo": "op til {{amount}}",
+    "cancelledBy": "af medarbejder #{{by}}",
+    "winner": "Vinder #{{id}}"
   },
   "auctionStatus": {
     "OPEN": "Åben",
     "CLOSED_WON": "Afsluttet, vundet",
     "CLOSED_UNSOLD": "Afsluttet, usolgt",
-    "SNAGGED": "Købt til køb-nu-pris",
-    "CANCELLED": "Annulleret"
+    "CANCELLED": "Annulleret",
+    "CLOSED_SNAGGED": "Afsluttet, købt nu"
   },
   "bidStatus": {
     "ACTIVE": "Højeste",
@@ -55,7 +64,13 @@
     "timeline": "Tidslinje",
     "release": "Frigiv udbetaling",
     "refund": "Refundér køber",
-    "resolveHint": "Afgørelsen af tvisten er endelig: FRIGIV betaler sælgeren, REFUNDÉR sender pengene tilbage til køberen. Begrundelsen gemmes."
+    "resolveHint": "Afgørelsen af tvisten er endelig: FRIGIV betaler sælgeren, REFUNDÉR sender pengene tilbage til køberen. Begrundelsen gemmes.",
+    "auction": "Auktion",
+    "conversation": "Samtale",
+    "amount": "Beløb",
+    "dispatchedAt": "Afsendt",
+    "noPayment": "Ingen betaling påbegyndt",
+    "noShipment": "Ingen forsendelse bestilt"
   },
   "door": {
     "AUCTION": "Auktion",
@@ -74,14 +89,19 @@
     "CANCELLED": "Annulleret",
     "DISPUTED": "I tvist",
     "REFUNDING": "Refunderer",
-    "REFUNDED": "Refunderet"
+    "REFUNDED": "Refunderet",
+    "DECLINED": "Afvist"
   },
   "paymentStatus": {
     "INTENT_CREATED": "Betaling oprettet",
     "CONFIRMED": "Bekræftet",
     "RELEASED": "Frigivet",
     "REFUNDED": "Refunderet",
-    "FAILED": "Mislykkedes"
+    "FAILED": "Mislykkedes",
+    "RELEASING": "Frigives",
+    "PAID_OUT": "Udbetalt",
+    "REFUNDING": "Refunderes",
+    "CANCELLED": "Annulleret"
   },
   "shipmentStatus": {
     "REQUESTED": "Bestilt",
@@ -89,28 +109,48 @@
     "IN_TRANSIT": "Undervejs",
     "DELIVERED": "Leveret",
     "FAILED": "Mislykkedes",
-    "CANCELLED": "Annulleret"
+    "CANCELLED": "Annulleret",
+    "OPEN": "Åben"
   },
   "payouts": {
     "title": "Udbetalinger",
-    "pending": "Afventer frigivelse",
-    "sent": "Sendt",
-    "blocked": "Blokeret af tvister",
-    "fees": "Opkrævede gebyrer",
     "account": "Sælgerkonto",
-    "due": "Forfalder / frigivet",
-    "ref": "Reference hos udbyder"
+    "due": "Forfalder / afsluttet",
+    "orders": "{{count}} ordrer",
+    "feesCollected": "Opkrævede gebyrer (afsluttede handler): {{amount}}",
+    "feesPending": "Udestående gebyrer: {{amount}}",
+    "payoutsDisabled": "Udbetalinger slået fra"
   },
   "payoutStatus": {
     "PENDING_RELEASE": "Afventer frigivelse",
     "RELEASING": "Frigives",
     "SENT": "Sendt",
-    "FAILED": "Mislykkedes",
-    "BLOCKED_DISPUTE": "Blokeret af tvist"
+    "BLOCKED_DISPUTE": "Blokeret af tvist",
+    "REFUNDED": "Refunderet"
   },
   "accountStatus": {
     "PENDING": "Afventer",
     "VERIFIED": "Verificeret",
     "RESTRICTED": "Begrænset"
+  },
+  "filters": {
+    "status": "Status",
+    "seller": "Sælger-id",
+    "buyer": "Køber-id",
+    "text": "Titel",
+    "textPlaceholder": "Ord fra titlen"
+  },
+  "timeline": {
+    "agreed": "Aftalt",
+    "paid": "Betalt",
+    "shipped": "Afsendt",
+    "delivered": "Leveret",
+    "receiptConfirmed": "Modtagelse bekræftet af køber",
+    "disputeOpened": "Tvist åbnet",
+    "released": "Udbetaling frigivet",
+    "settled": "Afsluttet",
+    "closed": "Lukket",
+    "paymentRefunded": "Refusion sendt",
+    "carrierEvent": "Hændelse hos fragtfører"
   }
 }

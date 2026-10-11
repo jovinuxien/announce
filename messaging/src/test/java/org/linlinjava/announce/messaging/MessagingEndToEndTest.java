@@ -636,7 +636,7 @@ class MessagingEndToEndTest {
         }
         await().atMost(WAIT).until(() -> sessions.sessions(RACE) == 0);
 
-        // four writers at once over REST: each can lose to the three others, which the three retries absorb
+        // four writers at once over REST: on one node they take turns (SubjectQueues); across nodes the retries would absorb the race
         WebClient http = WebClient.builder().baseUrl("http://localhost:" + port).filter(EdgeRequests.signing()).build();
         List<Integer> statuses = Flux.range(1, 4).flatMap(i -> http.post().uri("/api/conversations/" + RACE + "/messages")
                 .header(Principals.USER_HEADER, String.valueOf(i % 2 == 0 ? BUYER : SELLER)).contentType(MediaType.APPLICATION_JSON)
@@ -814,8 +814,10 @@ class MessagingEndToEndTest {
         assertThat(meters.find(MessagingMeters.COMMAND_LATENCY).tag(MessagingMeters.TAG_COMMAND, "PostMessage")
                 .tag(MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_ERROR).timers())
                 .as("no post was lost to a concurrent write").allSatisfy(t -> assertThat(t.count()).isZero());
+        assertThat(MessagingMeters.commandQueued(meters, "PostMessage").count())
+                .as("the racing posts waited for each other on this node (step 8)").isGreaterThan(0);
         assertThat(MessagingMeters.commandRetries(meters, "PostMessage").count())
-                .as("the racing posts collided and were dispatched again").isGreaterThan(0);
+                .as("and therefore never collided in the store").isZero();
         for (String group : List.of(ConversationReadModelProjection.GROUP, MessagingRelays.PUBLIC_GROUP, MessagingRelays.LIVE_GROUP)) {
             assertThat(timer(MessagingMeters.PROJECTION_DELAY, MessagingMeters.TAG_GROUP, group).count()).as(group).isGreaterThan(0);
             assertThat(timer(MessagingMeters.PROJECTION_HANDLER, MessagingMeters.TAG_GROUP, group, MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_OK).count())

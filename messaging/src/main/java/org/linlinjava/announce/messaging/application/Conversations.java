@@ -57,6 +57,8 @@ public class Conversations {
     private final Clock clock;
     private final MeterRegistry meters;
     private final MessagingProperties.CommandRetry retry;
+    /** null when {@code messaging.serialize-commands} is off: commands of one conversation then race each other */
+    private final SubjectQueues queues;
 
     public Conversations(ReactiveCommandRouter router, AnnounceLookup announces, AnnounceConversationParticipantMapper participants, Clock clock,
                          MeterRegistry meters, MessagingProperties properties) {
@@ -66,6 +68,7 @@ public class Conversations {
         this.clock = clock;
         this.meters = meters;
         this.retry = properties.getCommandRetry();
+        this.queues = properties.isSerializeCommands() ? new SubjectQueues() : null;
     }
 
     /** Opens, or finds, the conversation between this buyer and the seller of the announce. */
@@ -127,7 +130,9 @@ public class Conversations {
         String name = command.getClass().getSimpleName();
         return Mono.defer(() -> {
             Timer.Sample sample = Timer.start(meters);
-            return retrying(router.send(command, metaData, resultType), name)
+            Mono<R> dispatch = retrying(router.send(command, metaData, resultType), name);
+            return (queues == null ? dispatch
+                    : queues.serialize(command.getSubject(), dispatch, () -> MessagingMeters.commandQueued(meters, name).increment()))
                     .doOnSuccess(r -> sample.stop(MessagingMeters.commandLatency(meters, name, MessagingMeters.OUTCOME_OK)))
                     .doOnError(e -> sample.stop(MessagingMeters.commandLatency(meters, name, e instanceof CommandRejectedException
                             ? MessagingMeters.OUTCOME_REJECTED : MessagingMeters.OUTCOME_ERROR)));

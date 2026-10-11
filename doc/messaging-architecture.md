@@ -69,7 +69,7 @@ each processor run.
 | `ConversationQueries` | inbox, one conversation, message page, support queue; always the MySQL read model; `mayAttach` for the socket handshake looks an unknown conversation up again (`messaging.attach.*`) | A page (inbox, support queue) is two statements whatever its size: the page, then the participants of the whole page in one `IN` query (step 7, 2026-10-11; before it, one participants query per row, 21 statements for a page of 20); every read is timed as `messaging.query.latency{query}` |
 | `Bulletins` | writes `announce_bulletin`, publishes `BulletinLive` on the live topic | Not event-sourced |
 | `AnnounceLookup` | `@HttpExchange` client to announce-management (`GET /api/announces/{id}`) via `HttpExchangeClients`: discovered, load-balanced, Resilience4j-wrapped; pinned by `cqrs.api.clients.announce-management.base-url` | On the path of `POST /api/conversations` for LISTING only |
-| `MessagingProperties` | `max-text-length` 4000, `max-page-size` 200, `command-retry` (3 retries, 5 to 50 ms), `attach` (5 re-checks, 200 ms apart) | |
+| `MessagingProperties` | `max-text-length` 4000, `max-page-size` 200, `command-retry` (3 retries, 5 to 50 ms), `serialize-commands` (one command per conversation at a time on the node), `attach` (5 re-checks, 200 ms apart), `socket` (section 2.6) | |
 
 ### 2.3 Domain
 
@@ -88,6 +88,10 @@ model.
    them through the state rebuilding handlers, runs the command handler, and appends the new event
    with a precondition on the subject (optimistic concurrency). A write that loses raises
    `ConcurrencyException`; `Conversations` dispatches the command again (section 5, step 0 of section 6).
+   Since 2026-10-11 (step 8) `Conversations` also runs at most one command per conversation at a time on
+   the node (`SubjectQueues`, `messaging.serialize-commands`, default on): a second command for the same
+   subject waits for the first instead of racing it to the store, so the two participants of a conversation
+   on one node never cost a refused write; the retry remains for commands from other nodes.
 3. When the caller supplied `X-Command-Id`, `R2dbcCommandIdStore` claims the id in
    `cqrs_command_log` before the dispatch and stores the JSON result after it (two more MySQL
    statements per command). WebSocket frames never pass a command id; they rely on `clientMsgId`
@@ -290,6 +294,7 @@ samples of a meter that also has buckets. With a Prometheus server, set
 |---|---|---|---|---|
 | `messaging.command.latency` | timer | `command`, `outcome` (`ok`, `rejected`, `error`) | `Conversations.send` | dispatch to answer, retries included, i.e. the ack latency minus the socket hop |
 | `messaging.command.retries` | counter | `command` | `Conversations.send` | re-dispatches after EventSourcingDB refused a write because another command changed the conversation first; the contention on single conversations |
+| `messaging.command.queued` | counter | `command` | `Conversations.send` | commands that waited for an earlier command of the same conversation on this node (the per-subject queue of step 8) |
 | `messaging.live.latency` | timer | `record` (`message`, `status`, `bulletin`) | `LiveEventsSubscriber` | record timestamp (the event time on the command side) to the push on this node: ESDB write, processor pickup, relay, Kafka, consumer |
 | `messaging.live.transport` | timer | `record` | `LiveEventsSubscriber` | the Kafka leg alone: record timestamp (the relay's send) to receipt by this node's consumer |
 | `messaging.live.delivered` | counter | `record` | `LiveEventsSubscriber` | frames pushed to local sockets |
@@ -384,14 +389,22 @@ Two defects the baseline run found, both fixed on 2026-10-01:
    section 7c.
 7. Query batching for the inbox. Done 2026-10-11: one `IN` query for the participants of a page, `messaging.query.latency`
    timer; section 7e, where the per-statement cost of the reactive MySQL path is the finding that remains.
-8. Command-side throughput (found by the burst of step 4, section 7d): at 40 posts/s with 40 commands in
-   flight a post takes about a second inside the facade and the acks queue up; find what serialises the
-   command path (the EventSourcingDB client's connection pool, the store itself, the bounded-elastic hop)
-   and measure `messaging.command.latency` against the number of commands in flight.
+8. Command-side throughput (found by the burst of step 4, section 7d). Done 2026-10-11: the ceiling was the
+   event store's disk (one fsynced write at a time, 28 ms each, about 30 commands/s; the same store on tmpfs
+   takes 40 posts/s at 9 ms), and on top of it the two participants of a conversation collided on nearly every
+   post once writes queued, each collision a refused write and a re-dispatch, 5 to 11 % of the posts refused
+   with 409 in the end. `SubjectQueues` now runs one command per conversation at a time on the node: no
+   retries and no refusals in any burst, nothing lost at 13 posts/s; section 7g.
 9. The per-statement cost of the reactive MySQL path (found by step 7, section 7e). Done 2026-10-11:
    reactive-mybatis-support 3.0.6 generated a ByteBuddy class on every statement; `mybatis-r2dbc-spring`
    3.1.3 in db-reactive, a mapper call from 19.5 to 8.7 ms alone and from 39.5 to 7.8 ms with four callers;
    section 7f.
+
+10. Read-side throughput at the command side's new ceiling (found by step 8, section 7g): at 133 posts/s on a
+    tmpfs store the command side keeps up (p50 267 ms with the queue) but the relay `messaging-live` (one
+    partition, one Kafka send per event) lags 19 s and `conversation-read-model` (four partitions) 31 s; measure
+    `messaging.projection.delay` per group against the event rate, then partition the relays or push live
+    frames to local sockets straight from the command side (the follow-up of step 4).
 
 Each step is small, independently revertable, and has one metric that tells whether it helped.
 
@@ -825,3 +838,70 @@ The read-model handler, which writes two tables and the checkpoint per event, co
 the per-statement overhead was the larger part of it. The command path does not touch MySQL for a post,
 and its numbers moved within run-to-run noise (this run had the end-to-end suite's containers still
 shutting down on the host); the ack latency is the command side's, not this step's.
+## 7g. The command side's ceiling and the queue per conversation, 2026-10-11
+
+The burst of section 7d (40 posts/s, 40 commands in flight, a post taking a second inside the facade, acks
+queued to tens of seconds, 5 % refused) was step 8's starting point. What serialises the command path is
+the event store on this disk, not the service, and the service made it worse by racing on conversations.
+
+### The store
+
+EventSourcingDB 1.2.0 in Docker, raw HTTP writes of one 200-byte event each (`esdb_probe.py`, 16 to 40
+writers): about 25 to 34 writes/s whatever the concurrency, 28 ms per write with one writer and a queue
+behind it with more (p50 900 ms with 40 writers). A read of an empty subject costs 0.4 ms, `ping` 0.2 ms,
+token verification 0.4 ms, so the per-request work is nothing; the write is the cost. The host's own fsync
+of a 4 KB file on the laptop SSD takes 1.8 ms, but one event makes the store rewrite and fsync the events
+segment and about twenty index files, and it commits one write at a time. A data directory on a bind mount
+of the SSD costs the same 28.6 ms as the container's temporary directory. The same store with
+`--tmpfs /data:rw,size=4g` writes 370 events/s at 2.6 ms (a 1 GB tmpfs makes it switch to read-only after
+about 7,500 events, the free-space guard; the evaluation licence caps a store at 25,000 events).
+
+### The service on the two stores
+
+`ChatLoadDriver`, 20 conversations, 40 sockets, 60 s. The store is fresh for every run.
+
+| 40 posts/s (one post per socket per second), 2,400 posts | store on disk | store on tmpfs |
+|---|---|---|
+| acknowledged / refused with 409 | 1,282 / 131 | 2,398 / 0 |
+| ack latency p50 / p95 (driver) | 14.6 / 31.8 s | 9 / 16 ms |
+| `messaging.command.latency{PostMessage}` p50 | 1.04 s | 8.7 ms |
+| `messaging.command.retries` | 1,146 | 0 |
+
+With the store at 28 ms per write and 40 posters the queue in front of it is the latency (Little's law:
+40 in flight at 30 per second is 1.3 s per command), and the service adds nothing of its own: on tmpfs the
+same 40 posts/s cost 9 ms per post, no retry, no refusal. Every refusal of every burst is
+`concurrent-modification`: both sockets of a conversation post into the same subject, and once a write
+waits in the store's queue the peer's post lands in the same window; the loser re-dispatches after 5 to
+50 ms, far less than the queue wait, and collides again until the three retries are gone. The retries are
+wasted round trips on the resource that is the bottleneck.
+
+### The queue per conversation
+
+`Conversations.send` now hands the dispatch to `SubjectQueues`: at most one command per subject in flight
+on the node, a second one waits for the first (success, failure or cancellation) and then runs; other
+subjects are not held up; the retry stays for commands from other nodes. `messaging.serialize-commands`
+turns it off; `messaging.command.queued{command}` counts the waits. The command timer includes the wait.
+
+| | without the queue | with the queue |
+|---|---|---|
+| disk, 40 posts/s: acknowledged / refused | 1,282 / 131 | 1,448 / 0 |
+| disk, 40 posts/s: retries | 1,146 | 0 |
+| disk, 40 posts/s: ack p50 / command p50 | 14.6 s / 1.04 s | 15.2 s / 1.74 s (the wait included) |
+| tmpfs, 133 posts/s (one post per socket every 300 ms), 7,986 posts: acknowledged / refused | 6,290 / 842 | 7,390 / 0 |
+| tmpfs, 133 posts/s: retries | 3,593 | 0 |
+| tmpfs, 133 posts/s: ack p50 / p95 | 421 ms / 4.2 s | 534 ms / 11.1 s |
+| tmpfs, 133 posts/s: command p50 / p95 | 205 / 315 ms | 267 / 469 ms |
+| standard load, 13 posts/s, 800 posts: acknowledged, ack p50 / p95 | 800, 52 / 117 ms (section 7d) | 800, 53 / 149 ms |
+
+No retry and no refusal in any burst, and 17 % more posts acknowledged at 133 posts/s because no store
+round trip is wasted; at 13 posts/s nothing changes. The command latency with the queue is higher by the
+wait, which is the honest number: without the queue the same post spent that time colliding and the client
+got a 409 for it. On the disk store the queue cannot shorten the store's own queue (ack p50 15 s either way:
+the driver's open loop keeps sending into a store that takes 30 posts/s); the gain there is the 131 posts
+that were refused and are now written.
+
+At 133 posts/s the read side on one node is the next ceiling: the relay `messaging-live` lags 19 s and
+`conversation-read-model` 31 s while the command side answers in 267 ms (step 10 of section 6). The disk
+runs took the three groups' checkpoints with them as usual; set partition 0 to the development store's head
+before the next development start.
+

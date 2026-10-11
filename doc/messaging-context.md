@@ -61,6 +61,7 @@ edge strips a client-supplied `X-Staff-Id`.
 | `GET /api/conversations/{id}` | | 404 unknown, 403 not a participant (staff always may) |
 | `GET /api/conversations/{id}/messages?after=0&limit=50` | | messages with `seq > after`, oldest first: the initial load and the catch-up after a reconnect |
 | `POST /api/conversations/{id}/messages` | `{clientMsgId, contentType, content, attachmentUrl, amountCents, currency}` | 201 `{messageId, seq, clientMsgId, duplicate}` |
+| | | A command for a conversation that already has one in flight on the node waits for it (`messaging.serialize-commands`); two participants posting at once therefore never cost a refused write on the same node |
 | `POST /api/conversations/{id}/offers/accept` and `.../decline` | | the state |
 | `POST /api/conversations/{id}/read` | `{seq}` | 204 |
 | `POST /api/conversations/{id}/close` | | the state |

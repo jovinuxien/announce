@@ -16,6 +16,8 @@ import java.time.Duration;
  *       and outcome ({@code ok}, {@code rejected}, {@code error}), retries included;</li>
  *   <li>{@link #COMMAND_RETRIES}: re-dispatches after the event store refused a write because another command
  *       changed the conversation first, per command type;</li>
+ *   <li>{@link #COMMAND_QUEUED}: commands that waited for an earlier command of the same conversation on this
+ *       node (the per-subject queue of {@code Conversations}), per command type;</li>
  *   <li>{@link #LIVE_LATENCY}: end-to-end fan-out delay, from the event's own timestamp to the moment this
  *       node pushes it to its sockets, per record type;</li>
  *   <li>{@link #LIVE_TRANSPORT}: the Kafka leg of that path alone, from the relay's send (the record's own
@@ -35,6 +37,7 @@ public final class MessagingMeters {
 
     public static final String COMMAND_LATENCY = "messaging.command.latency";
     public static final String COMMAND_RETRIES = "messaging.command.retries";
+    public static final String COMMAND_QUEUED = "messaging.command.queued";
     public static final String LIVE_LATENCY = "messaging.live.latency";
     public static final String LIVE_TRANSPORT = "messaging.live.transport";
     public static final String LIVE_DELIVERED = "messaging.live.delivered";
@@ -69,6 +72,11 @@ public final class MessagingMeters {
 
     public static Counter commandRetries(MeterRegistry registry, String command) {
         return Counter.builder(COMMAND_RETRIES).description("Re-dispatches after a concurrent write on the same conversation")
+                .tag(TAG_COMMAND, command).register(registry);
+    }
+
+    public static Counter commandQueued(MeterRegistry registry, String command) {
+        return Counter.builder(COMMAND_QUEUED).description("Commands that waited for an earlier command of the same conversation on this node")
                 .tag(TAG_COMMAND, command).register(registry);
     }
 

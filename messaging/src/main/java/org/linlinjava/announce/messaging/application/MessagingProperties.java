@@ -35,6 +35,20 @@ public class MessagingProperties {
         this.maxPageSize = maxPageSize;
     }
 
+    /**
+     * One command per conversation in flight on this node (a second one waits for the first): removes the
+     * refused writes and re-dispatches of two participants posting at the same moment on the same node.
+     */
+    private boolean serializeCommands = true;
+
+    public boolean isSerializeCommands() {
+        return serializeCommands;
+    }
+
+    public void setSerializeCommands(boolean serializeCommands) {
+        this.serializeCommands = serializeCommands;
+    }
+
     public CommandRetry getCommandRetry() {
         return commandRetry;
     }

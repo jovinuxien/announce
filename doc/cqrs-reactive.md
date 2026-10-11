@@ -407,6 +407,15 @@ docker compose -f docker/cqrs/docker-compose.yml --profile tools up -d   # adds 
 
 MySQL is the native server on `localhost:3306` (`announce_reactive_db`) and stays outside the file.
 
+What the store does on a developer disk (measured 2026-10-11, `doc/messaging-architecture.md` section 7g):
+EventSourcingDB commits one write at a time and fsyncs the events segment and about twenty index files for
+each, which costs about 28 ms per event on the SSD of a laptop, through a bind mount or a named volume
+alike: about 30 commands per second for every service that shares the store, whatever the clients do. The
+same store with `--tmpfs /data:rw,size=4g` on the container writes 370 events per second at 2.6 ms, so load
+runs that are about the services and not the disk use a throwaway store on tmpfs (a 1 GB tmpfs makes the
+store switch to read-only after a few thousand events, `writing is not permitted at this time`: its free-space
+guard). The evaluation licence of the image caps a store at 25,000 events.
+
 Topics in use: `announce.v1` (announce-management), `auction.v1`, `order.v1`, `payment.v1`,
 `shipping.v1` (order module), `messaging.v1` (messaging; `OfferAcceptedV1`), `messaging.live`
 (messaging, internal WebSocket fan-out keyed by conversation). The

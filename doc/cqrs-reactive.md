@@ -174,7 +174,9 @@ checkpoint after the call returns. The adapter therefore awaits the handler's `M
 `cqrs_readside_progress`, in the same database as the read model. Read-model write and checkpoint are two
 statements, so a crash in between replays the last event once more: **projections are at-least-once and must
 be idempotent** (upsert keyed by the subject, or compare `envelope.eventId()` with the row's last event id).
-Ordering per subject is guaranteed by OpenCQRS sequencing (`per_subject` by default).
+Ordering per subject is guaranteed by OpenCQRS sequencing (`per_second_level_subject` by default: the
+aggregate under the first path segment, so `/conversation/{id}`). The DDL of the framework's three tables is in
+`cqrs-reactive/src/main/resources/cqrs-schema-mysql.sql`; they are created on start-up when missing.
 
 **Retries.** A handler error or timeout does not advance the checkpoint; the processor retries with the
 group's `retry` policy. When the policy is exhausted the processor stops and logs "giving up"; it restarts
@@ -187,6 +189,35 @@ service resolves to the empty `ForeignEvent` record, which matches no handler an
 throwing `EventTypeResolutionException` until the retry policy gives up. Unknown types are logged once at
 INFO. `cqrs.command.tolerant-event-types=false` restores OpenCQRS's strict resolver. Narrow fetch subjects
 per group anyway (`opencqrs.event-handling.groups.<group>.fetch.subject`), reading `/` is wasted work.
+
+**Partitions.** `opencqrs.event-handling.groups.<group>.life-cycle.partitions=N` runs N processor threads for
+the group; events are spread over them by subject (sequence resolution `per_second_level_subject`, the default),
+so order per aggregate holds and the checkpoint table gets one row per partition (every partition advances its
+row past the events it skips too, so idle partitions all sit at the head). OpenCQRS warns that the partition
+count must only be changed administratively, with every node stopped, because a partition without a checkpoint
+starts at the first event of the log, which for a relay group republishes everything. The framework makes that
+step safe: on start-up `R2dbcProgressTracker.seedPartitions` copies the group's lowest existing checkpoint to
+every configured partition that has none (`cqrs.readside.progress.seed-partitions`, on by default; a group
+with no checkpoint at all is left alone and starts from the beginning like a new projection). Stop all nodes
+of the service before raising or lowering the count, as OpenCQRS requires. Raise partitions for projections
+whose handler is the bottleneck (a MySQL transaction per event); one Kafka send per event rarely is.
+
+**Leader election: one active copy per group across nodes.** With the default life-cycle controller
+(`application_context`) every node starts every processor: the work is done N times and a relay group puts N
+copies of each record on its topic. `cqrs.readside.leader-election.enabled=true` creates the bean
+`cqrsLockRegistry`, an `R2dbcLockRegistry` over the table `cqrs_readside_lock` in the service's MySQL
+database, and OpenCQRS's `life-cycle.controller=leader_election` (its default once a unique `LockRegistry`
+bean exists) wraps each processor in a Spring Integration `LockRegistryLeaderInitiator`: the node that holds
+the lease of `[group=<g>, partition=<p>]` runs that processor, the others poll for the lease
+(`poll-interval`, 250 ms) and stay idle. The holder renews the lease on every heartbeat (500 ms, the
+initiator's default); a lease not renewed within `ttl` (10 s) is taken over by another node, so a crashed
+node loses its groups after at most the ttl and the successor resumes from the shared checkpoint (at-least-once:
+the events in flight at the crash are handled again). Leases are released on a clean shutdown. The registry
+is reentrant per node and blocks only on the initiator's own thread. Cost: two short statements per
+processor and node every heartbeat, about 4 statements/s per processor per node (12/s measured for one node
+with three processors). Note that the first node up takes every lease; a second node is a warm standby, not a
+load share, until a lease moves. The measurement with the messaging service is in
+`doc/messaging-architecture.md` section 7c.
 
 **Replay and rebuild.** `ProjectionRebuilder.rebuild("announce-summary")` stops the group's processors,
 calls `reset()`, drops the group's checkpoints and starts the processors again; they replay the log from the

@@ -148,7 +148,9 @@ mvn -pl messaging spring-boot:run
 `ConversationControllerTest` (REST slice), `ConversationsRetryTest` and `ConversationQueriesAttachTest`
 (the retry and the handshake re-check against mocks) and `MessagingEndToEndTest` (EventSourcingDB and Kafka
 from Testcontainers, the read model in the live `announce_reactive_db`; the class removes the rows it writes
-and clears the three groups' checkpoints before it starts). Several worktrees share `~/.m2`, so build
+and clears the three groups' checkpoints and the test lock table `cqrs_readside_lock_test` before it starts).
+The test profile runs the processors under leader election with the read model in two partitions, as in
+production, and asserts the leases and the controllers. Several worktrees share `~/.m2`, so build
 with `-am` when another session may have installed an older `db-reactive`.
 
 The command side keeps the state of recently used conversations in an in-memory LRU cache
@@ -157,10 +159,20 @@ profiles). A command replays only the events written after the cached state, so 
 the same as a new one; a stale entry on another node is read forward from the store, never served as is.
 `doc/messaging-architecture.md` section 7b has the measurement.
 
-After a test run the three checkpoints in `cqrs_readside_progress` hold event ids of the test's
-EventSourcingDB container. Before starting a node against the local `docker/cqrs` store, set them to that
-store's latest `/conversation` event id (or delete them for a full rebuild); otherwise the node resumes from
-an id that means something else there and replays old events onto `messaging.v1` and `messaging.live`.
+Read side across nodes (since 2026-10-10): each group and partition runs on the one node holding its lease in
+`cqrs_readside_lock` (`cqrs.readside.leader-election.enabled=true`, `life-cycle.controller=leader_election`;
+lease 10 s, renewed every 500 ms), so two nodes no longer project every event twice or put two copies of each
+record on `messaging.live`. `conversation-read-model` has four partitions (order per conversation is kept;
+one checkpoint row per partition, seeded by the framework when the count rises). Changing the partition count
+needs every node stopped. `doc/messaging-architecture.md` section 7c has the measurements, including a crash
+of the node holding the leases (takeover after the lease, nothing lost).
+
+After a test run the checkpoints in `cqrs_readside_progress` (one row per partition) hold event ids of the
+test's EventSourcingDB container. Before starting a node against the local `docker/cqrs` store, set them to
+that store's latest `/conversation` event id (partition 0 is enough: the start-up seeding copies it to the
+other partitions when their rows are missing, so delete the rows of the other partitions) or delete them all
+for a full rebuild; otherwise the node resumes from an id that means something else there and replays old
+events onto `messaging.v1` and `messaging.live`.
 
 Out of scope for this iteration: push notifications, attachment storage (URLs only), moderation beyond
 Block, read receipts per message.

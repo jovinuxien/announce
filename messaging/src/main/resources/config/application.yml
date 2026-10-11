@@ -41,7 +41,9 @@ spring:
       password: ${ANNOUNCE_DB_PASSWORD:Calliste_1006}
       pool:
         initial-size: 2
-        max-size: 20
+        # processor threads (3 groups, 4 partitions for the read model = 6) x 2 statements in flight, the binder
+        # consumers, the lock heartbeats and the request concurrency; 20 was tight once the read model was partitioned
+        max-size: 40
 
 server:
   port: 8086
@@ -72,7 +74,14 @@ esdb:
 # the events written after the cached state instead of the whole conversation (the cache stores the id of the
 # last event it saw and the router always reads what came after it from EventSourcingDB, so a stale entry on one
 # node is harmless). Capacity = conversations kept per node; one entry grows by about 150 bytes per message.
-# Read side: the projection groups of this service (checkpoints in cqrs_readside_progress, same database)
+# Read side: the projection groups of this service (checkpoints in cqrs_readside_progress, same database).
+# life-cycle.controller=leader_election: every group and partition runs on exactly one node at a time, elected
+# through the lock table cqrs_readside_lock (cqrs.readside.leader-election below); with application_context every
+# node would run every processor and the live topic would carry one copy of each record per node.
+# conversation-read-model has 4 partitions: ordering is only needed per conversation (sequence resolution
+# per_second_level_subject), so four processor threads project four conversations at once; the relays keep one
+# partition each (one Kafka send per event is not the bottleneck). Changing the partition count is an
+# administrative step: stop every node first (cqrs.readside.progress.seed-partitions fills the new checkpoints).
 opencqrs:
   command-handling:
     cache:
@@ -89,9 +98,11 @@ opencqrs:
         max-interval: 30s
         max-elapsed-time: 1h
       life-cycle:
-        controller: application_context
+        controller: leader_election
     groups:
-      conversation-read-model: {}
+      conversation-read-model:
+        life-cycle:
+          partitions: 4
       messaging-public: {}
       messaging-live: {}
 
@@ -108,6 +119,14 @@ cqrs:
     handler-timeout: 30s
     progress:
       tracker: r2dbc
+      seed-partitions: true
+    # one active copy of each processor across nodes: lease of 10 s renewed every 500 ms (the initiator's heartbeat),
+    # a node that does not hold a group asks again every 250 ms; a crashed node loses its groups within the lease
+    leader-election:
+      enabled: true
+      table: cqrs_readside_lock
+      ttl: 10s
+      poll-interval: 250ms
   command:
     idempotency:
       enabled: true

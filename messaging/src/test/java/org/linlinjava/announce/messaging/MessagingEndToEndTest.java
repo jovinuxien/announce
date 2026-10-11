@@ -165,6 +165,9 @@ class MessagingEndToEndTest {
 
     @Autowired WebTestClient client;
     @Autowired com.opencqrs.framework.command.CommandRouter commandRouter;
+    @Autowired org.linlinjava.announce.cqrs.readside.R2dbcLockRegistry lockRegistry;
+    @Autowired org.linlinjava.announce.cqrs.readside.R2dbcProgressTracker progressTracker;
+    @Autowired org.springframework.context.ApplicationContext applicationContext;
     @Autowired LiveSessions sessions;
     @Autowired StreamBridge streamBridge;
     @Autowired ObjectMapper objectMapper;
@@ -290,6 +293,7 @@ class MessagingEndToEndTest {
         String password = System.getenv().getOrDefault("ANNOUNCE_DB_PASSWORD", "Calliste_1006");
         List<String> statements = List.of(
                 "delete from cqrs_readside_progress where group_id in ('conversation-read-model', 'messaging-public', 'messaging-live')",
+                "delete from cqrs_readside_lock_test",
                 "delete from announce_chat_message where conversation_id in (select id from announce_conversation where announce_id like 'e2e-%')",
                 "delete from announce_conversation_participant where conversation_id in (select id from announce_conversation where announce_id like 'e2e-%')",
                 "delete from announce_conversation where announce_id like 'e2e-%' or subject like 'e2e %'",
@@ -604,9 +608,44 @@ class MessagingEndToEndTest {
         assertThat(cache).isInstanceOf(com.opencqrs.framework.command.cache.LruInMemoryStateRebuildingCache.class);
     }
 
-    /** The meters of doc/messaging-architecture.md section 5 saw the traffic of the tests above. */
+    /**
+     * Every processor runs under OpenCQRS's leader-election controller: one {@code LockRegistryLeaderInitiator}
+     * per processor, each the elected leader of its role, with its lease in the lock table through the R2DBC
+     * registry: three groups, the read model with two partitions in the test profile, so four leases, all held
+     * by this node. The partitioned read model kept every conversation's messages in order: the earlier tests
+     * read them back by seq, and the checkpoints exist for both partitions.
+     */
     @Test
     @Order(9)
+    void theProcessorsAreLeaderElectedAndTheReadModelIsPartitioned() {
+        // OpenCQRS keeps the processors, their controllers and the leader initiators in a child context
+        org.springframework.context.ApplicationContext processors = applicationContext.getBean("openCqrsEventHandlingProcessorContext",
+                org.springframework.context.ApplicationContext.class);
+        Map<String, com.opencqrs.framework.eventhandler.EventHandlingProcessorLifecycleController> controllers =
+                processors.getBeansOfType(com.opencqrs.framework.eventhandler.EventHandlingProcessorLifecycleController.class);
+        assertThat(controllers).hasSize(4);
+        assertThat(controllers.values()).allSatisfy(controller -> assertThat(controller.getClass().getSimpleName())
+                .isEqualTo("LeaderElectionEventHandlingProcessorLifecycleController"));
+        Map<String, org.springframework.integration.support.leader.LockRegistryLeaderInitiator> initiators =
+                processors.getBeansOfType(org.springframework.integration.support.leader.LockRegistryLeaderInitiator.class);
+        assertThat(initiators).hasSize(4);
+        assertThat(initiators.values()).allMatch(org.springframework.integration.support.leader.LockRegistryLeaderInitiator::isRunning);
+        assertThat(initiators.values()).allSatisfy(initiator -> assertThat(initiator.getContext().isLeader())
+                .as("leader of " + initiator.getContext().getRole()).isTrue());
+        Map<String, String> leases = lockRegistry.holders().block(Duration.ofSeconds(5));
+        assertThat(leases).hasSize(4);
+        assertThat(leases.values()).containsOnly(lockRegistry.owner());
+        assertThat(leases.keySet()).anySatisfy(key -> assertThat(key).contains("conversation-read-model"))
+                .anySatisfy(key -> assertThat(key).contains("messaging-public"))
+                .anySatisfy(key -> assertThat(key).contains("messaging-live"));
+
+        Map<Long, String> checkpoints = progressTracker.checkpoints("conversation-read-model").block(Duration.ofSeconds(5));
+        assertThat(checkpoints).containsKeys(0L, 1L);
+    }
+
+    /** The meters of doc/messaging-architecture.md section 5 saw the traffic of the tests above. */
+    @Test
+    @Order(10)
     void metersCoverCommandsProjectionsAndTheLiveFanOut() {
         assertThat(timer(MessagingMeters.COMMAND_LATENCY, MessagingMeters.TAG_COMMAND, "PostMessage", MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_OK).count())
                 .isGreaterThan(0);

@@ -83,6 +83,11 @@ public class CqrsProperties {
         /** How long a projection handler may take for one event before the processor treats it as failed. */
         private Duration handlerTimeout = Duration.ofSeconds(30);
         private final Progress progress = new Progress();
+        private final LeaderElection leaderElection = new LeaderElection();
+
+        public LeaderElection getLeaderElection() {
+            return leaderElection;
+        }
 
         public Duration getHandlerTimeout() {
             return handlerTimeout;
@@ -103,6 +108,20 @@ public class CqrsProperties {
             private boolean createTable = true;
             /** Name of the progress (checkpoint) table. */
             private String table = "cqrs_readside_progress";
+            /**
+             * Whether, on start-up, a group configured with more partitions than it has checkpoints gets the
+             * missing partitions seeded from its lowest checkpoint (otherwise a new partition replays the log
+             * from the first event, which for a relay group republishes everything).
+             */
+            private boolean seedPartitions = true;
+
+            public boolean isSeedPartitions() {
+                return seedPartitions;
+            }
+
+            public void setSeedPartitions(boolean seedPartitions) {
+                this.seedPartitions = seedPartitions;
+            }
 
             public Tracker getTracker() {
                 return tracker;
@@ -134,6 +153,64 @@ public class CqrsProperties {
                 /** OpenCQRS' in-memory tracker: every start replays from the beginning. Tests only. */
                 IN_MEMORY
             }
+        }
+    }
+
+    /**
+     * One active copy of each event handling group and partition across the nodes of a service: a
+     * {@code LockRegistry} over MySQL (bean {@code cqrsLockRegistry}) that OpenCQRS's
+     * {@code life-cycle.controller=leader_election} uses to elect the node that runs a processor.
+     */
+    public static class LeaderElection {
+        /** Whether the lock registry bean is created. Off: every node runs every processor (application_context). */
+        private boolean enabled = false;
+        /** Whether the lock table is created on start-up when missing (MySQL DDL). */
+        private boolean createTable = true;
+        /** Name of the lock table. */
+        private String table = "cqrs_readside_lock";
+        /** How long a lease lasts without renewal; a crashed node loses its groups after this. */
+        private Duration ttl = Duration.ofSeconds(10);
+        /** How often a node that does not hold a lock asks for it again. */
+        private Duration pollInterval = Duration.ofMillis(250);
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public boolean isCreateTable() {
+            return createTable;
+        }
+
+        public void setCreateTable(boolean createTable) {
+            this.createTable = createTable;
+        }
+
+        public String getTable() {
+            return table;
+        }
+
+        public void setTable(String table) {
+            this.table = table;
+        }
+
+        public Duration getTtl() {
+            return ttl;
+        }
+
+        public void setTtl(Duration ttl) {
+            this.ttl = ttl;
+        }
+
+        public Duration getPollInterval() {
+            return pollInterval;
+        }
+
+        public void setPollInterval(Duration pollInterval) {
+            this.pollInterval = pollInterval;
         }
     }
 

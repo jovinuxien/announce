@@ -43,6 +43,12 @@ opencqrs:
         initial-interval: 200ms
         max-interval: 2s
         max-attempts: 30
+      life-cycle:
+        controller: leader_election    # as in production; MessagingEndToEndTest asserts the controllers and the leases
+    groups:
+      conversation-read-model:
+        life-cycle:
+          partitions: 2                # the suite runs a partitioned projection; order per conversation must hold
 
 announce:
   service-token:
@@ -51,6 +57,9 @@ announce:
 cqrs:
   readside:
     handler-timeout: 15s
+    leader-election:
+      enabled: true
+      table: cqrs_readside_lock_test   # not the table of a node running on the same database (its leases would block the suite)
   api:
     clients:
       announce-management:

@@ -118,17 +118,22 @@ Mechanics that matter for tuning:
 - Each processor runs on its own thread and calls the handler synchronously; the reactive handler is
   awaited with `cqrs.readside.handler-timeout` (30 s). Throughput of a group is therefore
   `1 / (handler latency + checkpoint latency)` per partition.
-- `life-cycle.partitions` is 1 (default) for every group: one thread, strictly ordered over all
-  conversations. Sequence resolution is `per_second_level_subject`, meaning ordering is only required
-  per `/conversation/{id}`, so partitions can be raised without breaking order.
+- `life-cycle.partitions` is 4 for `conversation-read-model` since 2026-10-10 (section 7c) and 1 for the two
+  relays. Sequence resolution is `per_second_level_subject`, meaning ordering is only required per
+  `/conversation/{id}`, so the four threads project four conversations at once without breaking order; the
+  checkpoint table holds one row per partition. Changing the count is an administrative step with every node
+  stopped; the framework seeds new partitions from the lowest existing checkpoint
+  (`cqrs.readside.progress.seed-partitions`).
 - `R2dbcProgressTracker.proceed` writes the checkpoint after every event: read-model write and
   checkpoint are two round trips to MySQL per event per group, so three groups cost roughly four
   MySQL statements plus two Kafka sends per `MessagePosted`.
-- `life-cycle.controller=application_context`: every node starts every processor. With two nodes, both
-  run `conversation-read-model` against the same checkpoint row, both publish to Kafka. The outcome is
-  still correct (idempotent upserts, at-least-once on the topic) but the work is duplicated N times
-  and the live topic carries N copies of each record. OpenCQRS also offers a lock-registry controller
-  (leader election per group and partition), which is the multi-node setting to use.
+- `life-cycle.controller=leader_election` since 2026-10-10 (section 7c): each group and partition runs on
+  the one node that holds its lease in `cqrs_readside_lock` (`cqrs.readside.leader-election`, the R2DBC lock
+  registry of `cqrs-reactive`), renewed every 500 ms, taken over by another node 10 s after the holder stops
+  renewing. With the previous `application_context` controller every node ran every processor: the work was
+  done N times and the live topic carried N copies of each record, so every socket received every message N
+  times (measured with two nodes in section 7c). The first node up holds every lease; a second node is a
+  standby that takes over within the lease, not a load share.
 - Retry: exponential back-off 500 ms to 30 s, max elapsed 1 h, then the processor gives up and the
   group stalls until restart (see the memory note on `cqrs-reactive`).
 
@@ -185,14 +190,16 @@ outbound buffers) are listed in section 5, together with the load driver that ex
 |---|---|---|---|
 | Netty event loop | CPU count | HTTP, WebSocket frames, R2DBC callbacks | nothing (must stay that way) |
 | Reactor bounded-elastic | 10 x CPU, queue 100 000 | command dispatch, bulletin publish | EventSourcingDB HTTP, state replay |
-| OpenCQRS processors | 1 thread per group per partition (3 today) | projection, two relays | MySQL (via `block(timeout)`), Kafka send |
+| OpenCQRS processors | 1 thread per group per partition (6 today: 4 + 1 + 1), on the node holding the lease | projection, two relays | MySQL (via `block(timeout)`), Kafka send |
+| Leader initiators | 1 thread per processor per node (6) | lease renewal or polling, 2 statements per heartbeat | MySQL |
 | Kafka binder consumers | 1 per binding (2 today) | live push, order.v1 commands | order.v1 handler blocks on a command |
-| R2DBC pool | 20 connections | everything above that touches MySQL | |
+| R2DBC pool | 40 connections | everything above that touches MySQL | |
 
 A first-order capacity estimate per node: commands per second are bounded by bounded-elastic threads
 divided by EventSourcingDB round trip time (replay + append). Read-model freshness is bounded by the
-single `conversation-read-model` thread: roughly one event per (two MySQL round trips). Fan-out is
-bounded by the single `messaging-live` thread plus one Kafka consumer thread pushing into local sinks.
+`conversation-read-model` threads: roughly one event per (two MySQL round trips) per partition, about 23
+events/s per partition on this host, so about 90 events/s with four. Fan-out is bounded by the single
+`messaging-live` thread plus one Kafka consumer thread pushing into local sinks.
 
 ## 4. Tuning surface
 
@@ -213,8 +220,8 @@ Grouped by what they buy. "Knob" means it exists today; "change" means code.
 
 | Item | Kind | Effect |
 |---|---|---|
-| `opencqrs.event-handling.groups.<g>.life-cycle.partitions` > 1 | knob | parallel projection across conversations; per-subject order kept; checkpoint rows per partition |
-| Lock-registry lifecycle controller for multi-node | knob + bean | one active copy of each group per partition across nodes; removes N-fold duplicate projection and N copies on the live topic |
+| `opencqrs.event-handling.groups.<g>.life-cycle.partitions` > 1 (4 for the read model since 2026-10-10) | knob | parallel projection across conversations; per-subject order kept; checkpoint rows per partition, seeded by the framework |
+| Leader-election lifecycle controller with the R2DBC lock registry (on since 2026-10-10) | knob + bean | one active copy of each group per partition across nodes; removes N-fold duplicate projection and N copies on the live topic; `ttl` bounds the failover gap |
 | Retry policy `max-elapsed-time` and alerting on a stopped processor | knob | today a group silently stalls after 1 h of failures |
 | `cqrs.readside.handler-timeout` | knob | lower for the projection (should be milliseconds), keep higher for relays |
 | Checkpoint every N events or every T ms instead of per event | change (framework) | halves MySQL statements per event; widens the at-least-once replay window |
@@ -252,7 +259,7 @@ Grouped by what they buy. "Knob" means it exists today; "change" means code.
 
 | Item | Kind | Effect |
 |---|---|---|
-| R2DBC `pool.max-size` | knob | must cover processor threads x 2 + binder threads + request concurrency; 20 is tight once partitions rise |
+| R2DBC `pool.max-size` (40 since 2026-10-10) | knob | must cover processor threads x 2 + binder threads + lock heartbeats + request concurrency; 20 was tight once the read model was partitioned |
 | `pool.max-idle-time`, `validation-query` | knob | avoid stale connections after MySQL restarts |
 
 ## 5. What is measured (implemented 2026-09-29)
@@ -347,10 +354,13 @@ Two defects the baseline run found, both fixed on 2026-10-01:
    capacity 1000, in both profiles; A/B with 200-message conversations in section 7b (post latency p50 3.5 s
    and half the posts lost without the cache, 78 ms and nothing lost with it).
 3. Leader-elected processors (lock registry) before any multi-node test, or the numbers will be
-   polluted by duplicate work.
+   polluted by duplicate work. Done 2026-10-10: `R2dbcLockRegistry` in `cqrs-reactive`,
+   `life-cycle.controller=leader_election`; two-node A/B and a crash of the leader in section 7c.
 4. Kafka producer/consumer latency settings on the live topic; measure `messaging.live.latency`.
 5. Bounded `LiveSink` and socket timeouts; measure heap and `messaging.sink.dropped` with a stalled client.
 6. Read-side partitions and R2DBC pool size together; measure `messaging.projection.delay` under load.
+   Done 2026-10-10: 4 partitions for `conversation-read-model`, pool 40; lag p50 from 32 s to 0.08 s in
+   section 7c.
 7. Query batching for the inbox.
 
 Each step is small, independently revertable, and has one metric that tells whether it helped.
@@ -492,4 +502,83 @@ What the A/B says:
 Housekeeping as in section 7a: checkpoints set to the store's head before the first node started (they held
 ids of the test container after the suite ran), the node restarted between the runs, the 40 `load %`
 conversations and their 9,209 messages deleted from the read model afterwards.
+
+## 7c. Leader election and read-model partitions, 2026-10-10
+
+Steps 3 and 6 of section 6, implemented in `cqrs-reactive` (`R2dbcLockRegistry`, partition seeding in
+`R2dbcProgressTracker`, `cqrs.readside.leader-election.*`) and switched on in this service
+(`life-cycle.controller=leader_election`, `conversation-read-model` with 4 partitions, pool 40). Four runs with
+the load of section 7b (20 support conversations prefilled with 200 messages each over REST, then 40 sockets
+posting every 3 s for 60 s: 4,800 `MessagePosted` per run, 4,840 events for the read model). The shared dev
+EventSourcingDB had stopped answering streaming reads that afternoon (`ping` fine, every `read-events` hung;
+it needs a restart of its container), so the runs used a fresh `thenativeweb/eventsourcingdb:1.2.0` container
+on port 3001 with a temporary data directory, the dev Kafka and the live `announce_reactive_db`. Load average
+2 to 5 during the runs. The nodes were started with `--esdb.server.uri=http://localhost:3001`, service token
+off, and the three groups' checkpoints set to the store's head before every run.
+
+**Step 6, one node, partitions and pool (runs 1 and 2).** Run 1 started the node with
+`--opencqrs.event-handling.groups.conversation-read-model.life-cycle.partitions=1 --spring.r2dbc.mybatis.pool.max-size=20`
+(the previous settings), run 2 with the new defaults (4 partitions, pool 40).
+
+| | run 1: 1 partition, pool 20 | run 2: 4 partitions, pool 40 |
+|---|---|---|
+| prefill of 4,000 messages over REST | 169 s | 192 s |
+| posts sent / acknowledged / `error` frames | 800 / 800 / 0 | 800 / 800 / 0 |
+| ack latency p50 / p95 / max | 61 / 207 / 504 ms | 48 / 127 / 179 ms |
+| `messaging.command.latency{PostMessage,ok}` p50 / p95 | 64 / 234 ms | 47 / 129 ms |
+| `messaging.projection.handler{conversation-read-model}` p50, per event | 39 ms | 41 ms |
+| `messaging.projection.delay{conversation-read-model}` p50 / p95 / max | 31.7 / 42.4 / 41.8 s | 0.08 / 0.11 / 0.31 s |
+| read model caught up after the driver ended | 10 s later | already at the head |
+| heap, old generation, after the run | 188 MB | 255 MB |
+
+The single thread handled 4,840 events in 209 s of handler time: 23 events/s against an arrival rate of
+about 24/s during the prefill, so the lag grew for the whole prefill and peaked at 42 s. With four partitions
+the handler cost per event is unchanged (41 ms: one transaction with two or three statements plus the
+checkpoint) but four conversations are projected at once, and the lag never exceeded a third of a second. The
+post latency improved as well (p95 from 207 to 127 ms), because the pool no longer queued the commands'
+reads behind the projection; `r2dbc_pool_pending_connections` stayed at 0 in both runs, so 20 was tight rather
+than exhausted. The partitions all advance their checkpoint past the events they skip, so an idle group shows
+four rows at the head.
+
+**Step 3, two nodes (runs 3 and 4).** Both nodes on this host (8086 `node-a`, 8087 `node-b`), 4 partitions,
+pool 40, driver sockets on one node. Run 3 started both with
+`--opencqrs.event-handling.standard.life-cycle.controller=application_context` (the previous controller), run
+4 with the new default (leader election). In run 4 node-a was started first and took the six leases; node-b
+got none and stayed idle; the sockets were on node-b, and node-a was killed with SIGKILL 20 s into the socket
+phase, so its leases expired instead of being released.
+
+| | run 3: every node runs every processor | run 4: leader election, leader killed |
+|---|---|---|
+| posts sent / acknowledged / `error` frames | 800 / 800 / 0 | 799 / 799 / 0 |
+| fan-out frames received by the sockets (expected) | 3,200 (1,600): every message twice | 1,598 (1,598): every message once |
+| `messaging.projection.handler{conversation-read-model}` count, node-a + node-b | 4,840 + 4,840 = 9,680 for 4,840 events | 4,280 (until the kill) + 557 = 4,837 for 4,839 events |
+| `messaging.live.latency{message}` count per node (records on `messaging.live`) | 9,600 = 2 x 4,800 | 4,799 |
+| ack latency p50 / p95 | 89 / 222 ms | 101 / 246 ms |
+| fan-out latency p50 / p95 / max | 93 / 229 / 374 ms | 137 ms / 8.0 s / 9.7 s |
+| `messaging.projection.delay{conversation-read-model}` p50 / p95 / max on the live node | 0.13 / 0.18 / 0.48 s | 0.10 / 9.1 / 9.5 s on node-b |
+| leases after the run | not used | all six on node-b |
+
+Run 3 is the duplication the old controller caused: each node projected all 4,840 events and relayed all
+4,800 messages, the live topic carried two copies of every record, and every socket received every message
+twice (the driver's 3,200 fan-out frames for 1,600 expected). The read model stayed correct because the
+projection is an idempotent upsert, and MySQL simply did the work twice. Run 4 with leader election: node-b did
+nothing while node-a held the leases (0 handler calls, 0 live records produced by it), the live topic carried
+one copy, every socket received every message once. The kill at 16:27:02.75 left six leases with 10 s to live;
+node-b was granted all of them between 16:27:12.50 and 16:27:12.81, 9.8 to 10.1 s after the kill, and started
+the processors from the shared checkpoints: 4,280 + 557 handler calls for 4,839 events (the two events in
+flight at the kill were scraped from node-a just before it died and were handled again by node-b, as
+at-least-once allows). During those 10 s the command side kept acknowledging (799 of 799) and the read model
+and the live push stood still: that is the 9.1 s p95 of the projection delay and the 8.0 s p95 of the fan-out
+latency on the sockets, all delivered once the relay resumed, nothing lost. The lease is therefore the knob
+for the failover gap; 10 s is conservative for a 500 ms heartbeat.
+
+What this does not give: load sharing between nodes. Leases are first come first served, so one node runs
+every processor until it stops. That is fine for this service (the projection needs 4 x 41 ms per 4 events,
+far below one node's capacity); spreading groups over nodes would need the initiator's `yield` or a lock
+registry that refuses a node more than its share, neither of which is wired.
+
+Housekeeping: the 80 `load %` conversations and their 19,199 messages deleted from the read model, the three
+groups' checkpoints and the lock rows deleted (they held ids of the temporary store; set them to the dev
+store's head before the next dev node start, as section 7a says), the temporary store removed, nothing
+pushed to `messaging.v1` that anyone consumed (no other service was running).
 

@@ -1,8 +1,7 @@
-// Phase 2 screens behind flags. `chat` (contact seller, inbox, thread) defaults ON since 2026-10-11: the screens
-// run against messaging through the edge (doc/frontend-edges.md §15). `trade` (auction panel, buy flow, orders)
-// still codes against the doc/order-context.md §8 contract and stays OFF until it is checked against the order
-// module. `mocks` starts the MSW worker (app/mocks) so the flagged screens run without the services. Override
-// for a browser session with:  localStorage.announceFeatures = '{"trade":true,"chat":true,"mocks":true}'
+// Phase 2 screens behind flags. `trade` (auction panel, buy box, orders, payouts) and `chat` (contact seller, inbox,
+// thread) default ON since 2026-10-11: the screens run against the order module and messaging through the edge
+// (doc/frontend-edges.md §15, §16). `mocks` starts the MSW worker (app/mocks) so the flagged screens run without the
+// services. Override for a browser session with:  localStorage.announceFeatures = '{"trade":true,"chat":true,"mocks":true}'
 export interface Features {
   trade: boolean;
   chat: boolean;
@@ -10,7 +9,7 @@ export interface Features {
 }
 
 export const DEFAULT_FEATURES: Features = {
-  trade: false,
+  trade: true,
   chat: true,
   mocks: false,
 };

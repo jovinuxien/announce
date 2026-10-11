@@ -1,14 +1,51 @@
 import { http, HttpResponse } from 'msw';
-import { BidRequest, DisputeRequest, RequestPurchaseRequest, ShipmentView } from 'app/shared/model/trade';
+import { BidRequest, PurchaseRequest, ReasonRequest, ShipmentRequest } from 'app/shared/model/trade';
 import { OpenConversationRequest, PostMessageRequest } from 'app/shared/model/chat';
-import { auctionFor, mockDb, newOrder, placeBid, transition } from './data';
-import { chatDb, closeConversation, conversationOf, decideOffer, inboxOf, markRead, ME, MockProblem, openListing, openSupport, postMessage, replyFrom, responseOf } from './chatData';
+import {
+  accept,
+  auctionOf,
+  cancel,
+  carrierDispatched,
+  confirmReceipt,
+  decline,
+  dispute,
+  onboard,
+  ordersOf,
+  orderOf,
+  paymentOf,
+  placeBid,
+  requestPurchase,
+  requestShipment,
+  retractBid,
+  sellerAccount,
+  shipmentOf,
+  snag,
+  tradeDb,
+} from './tradeData';
+import {
+  chatDb,
+  closeConversation,
+  conversationOf,
+  decideOffer,
+  inboxOf,
+  markRead,
+  ME,
+  MockProblem,
+  openListing,
+  openSupport,
+  postMessage,
+  replyFrom,
+  responseOf,
+} from './chatData';
 
 const problem = (e: unknown) => {
   const p = e as Partial<MockProblem>;
-  return HttpResponse.json({ status: p.status ?? 500, title: 'mock', code: p.code, detail: p.detail ?? String(e) }, { status: p.status ?? 500, headers: { 'Content-Type': 'application/problem+json' } });
+  return HttpResponse.json(
+    { status: p.status ?? 500, title: 'mock', code: p.code, detail: p.detail ?? String(e) },
+    { status: p.status ?? 500, headers: { 'Content-Type': 'application/problem+json' } }
+  );
 };
-const page = <T,>(items: T[], url: string) => {
+const page = <T>(items: T[], url: string) => {
   const q = new URL(url, 'http://localhost').searchParams;
   const p = Math.max(1, Number(q.get('page') ?? 1) || 1);
   const size = Math.min(200, Math.max(1, Number(q.get('size') ?? 20) || 20));
@@ -16,77 +53,129 @@ const page = <T,>(items: T[], url: string) => {
 };
 
 /**
- * REST mocks of the order (doc/order-context.md §8) contract and of messaging's member routes as built
- * (doc/frontend-edges.md §15). The WebSocket is not mocked: in the browser the thread polls; the page tests use
+ * REST mocks of the order module's member routes (doc/frontend-edges.md §16) and of messaging's member routes
+ * (§15) as built. The WebSocket is not mocked: in the browser the thread polls; the page tests use
  * app/test/fakeWebSocket.ts for the frames.
  */
 export const handlers = [
-  // ---- auctions
-  http.get('/api/auctions/:announceId', ({ params }) => HttpResponse.json(auctionFor(String(params.announceId)))),
+  // ---- order module: auction, order, payment, shipping (the caller is member #1)
+  http.get('/api/auctions/:announceId', ({ params }) => {
+    try {
+      return HttpResponse.json(auctionOf(String(params.announceId)));
+    } catch (e) {
+      return problem(e);
+    }
+  }),
   http.post('/api/auctions/:announceId/bids', async ({ params, request }) => {
     try {
       const body = (await request.json()) as BidRequest;
-      return HttpResponse.json(placeBid(String(params.announceId), body.amountCents, mockDb.me));
+      return HttpResponse.json(placeBid(String(params.announceId), ME, body.amountCents), { status: 201 });
     } catch (e) {
       return problem(e);
     }
   }),
   http.post('/api/auctions/:announceId/snag', ({ params }) => {
-    const a = auctionFor(String(params.announceId));
-    if (a.snagPriceCents == null) return problem({ status: 409, detail: 'no snag price' });
-    a.currentBidCents = a.snagPriceCents;
-    a.status = 'CLOSED';
-    a.highestBidderId = mockDb.me;
-    a.myHighestBidCents = a.snagPriceCents;
-    a.bidCount += 1;
-    const order = newOrder(a.announceId, mockDb.me, a.snagPriceCents);
-    transition(order.id, 'AGREED', 'snagged');
-    return HttpResponse.json(a);
+    try {
+      return HttpResponse.json(snag(String(params.announceId), ME));
+    } catch (e) {
+      return problem(e);
+    }
   }),
-
-  // ---- orders
+  http.delete('/api/auctions/:announceId/bids/:bidId', ({ params }) => {
+    try {
+      return HttpResponse.json(retractBid(String(params.announceId), String(params.bidId), ME));
+    } catch (e) {
+      return problem(e);
+    }
+  }),
   http.post('/api/orders', async ({ request }) => {
-    const body = (await request.json()) as RequestPurchaseRequest;
-    return HttpResponse.json(newOrder(body.announceId, mockDb.me), { status: 201 });
+    try {
+      const body = (await request.json()) as PurchaseRequest;
+      return HttpResponse.json(requestPurchase(body.announceId, ME), { status: 201 });
+    } catch (e) {
+      return problem(e);
+    }
   }),
   http.get('/api/orders', ({ request }) => {
-    const role = new URL(request.url).searchParams.get('role') ?? 'buyer';
-    const list = [...mockDb.orders.values()].filter(o => (role === 'seller' ? o.sellerId === mockDb.me : o.buyerId === mockDb.me));
-    return HttpResponse.json(list);
+    const q = new URL(request.url, 'http://localhost').searchParams;
+    return HttpResponse.json(ordersOf(ME, q.get('role') ?? 'buyer', Number(q.get('page') ?? 0), Number(q.get('size') ?? 20)));
   }),
   http.get('/api/orders/:id', ({ params }) => {
-    const o = mockDb.orders.get(String(params.id));
-    return o ? HttpResponse.json(o) : problem({ status: 404, detail: 'order not found' });
+    try {
+      return HttpResponse.json(orderOf(String(params.id), ME));
+    } catch (e) {
+      return problem(e);
+    }
   }),
-  http.post('/api/orders/:id/accept', ({ params }) => HttpResponse.json(transition(String(params.id), 'AGREED', 'seller accepted'))),
-  http.post('/api/orders/:id/decline', ({ params }) => HttpResponse.json(transition(String(params.id), 'CANCELLED', 'seller declined'))),
-  http.post('/api/orders/:id/cancel', ({ params }) => HttpResponse.json(transition(String(params.id), 'CANCELLED', 'cancelled'))),
-  http.post('/api/orders/:id/confirm-receipt', ({ params }) => HttpResponse.json(transition(String(params.id), 'SETTLED', 'receipt confirmed, payout released'))),
+  http.post('/api/orders/:id/accept', ({ params }) => {
+    try {
+      return HttpResponse.json(accept(String(params.id), ME));
+    } catch (e) {
+      return problem(e);
+    }
+  }),
+  http.post('/api/orders/:id/decline', ({ params }) => {
+    try {
+      return HttpResponse.json(decline(String(params.id), ME));
+    } catch (e) {
+      return problem(e);
+    }
+  }),
+  http.post('/api/orders/:id/cancel', ({ params }) => {
+    try {
+      return HttpResponse.json(cancel(String(params.id), ME));
+    } catch (e) {
+      return problem(e);
+    }
+  }),
+  http.post('/api/orders/:id/confirm-receipt', ({ params }) => {
+    try {
+      return HttpResponse.json(confirmReceipt(String(params.id), ME));
+    } catch (e) {
+      return problem(e);
+    }
+  }),
   http.post('/api/orders/:id/dispute', async ({ params, request }) => {
-    const body = (await request.json()) as DisputeRequest;
-    return HttpResponse.json(transition(String(params.id), 'DISPUTED', body.reason));
+    try {
+      const body = (await request.json()) as ReasonRequest;
+      return HttpResponse.json(dispute(String(params.id), ME, body.reason ?? undefined));
+    } catch (e) {
+      return problem(e);
+    }
   }),
-  http.post('/api/orders/:id/shipment', ({ params }) => {
-    const id = String(params.id);
-    const s: ShipmentView = { orderId: id, carrier: 'FakeCarrier', trackingNumber: `FK${Date.now()}`, status: 'DISPATCHED', updatedAt: new Date().toISOString().slice(0, 19) };
-    mockDb.shipments.set(id, s);
-    transition(id, 'SHIPPED', 'dispatched');
-    window.setTimeout(() => {
-      s.status = 'DELIVERED';
-      s.updatedAt = new Date().toISOString().slice(0, 19);
-      transition(id, 'DELIVERED', 'carrier delivered');
-    }, 15000);
-    return HttpResponse.json(s, { status: 201 });
+  http.get('/api/orders/:id/payment', ({ params }) => {
+    try {
+      return HttpResponse.json(paymentOf(String(params.id), ME));
+    } catch (e) {
+      return problem(e);
+    }
   }),
   http.get('/api/orders/:id/shipment', ({ params }) => {
-    const s = mockDb.shipments.get(String(params.id));
-    return s ? HttpResponse.json(s) : problem({ status: 404, detail: 'no shipment' });
+    try {
+      return HttpResponse.json(shipmentOf(String(params.id), ME));
+    } catch (e) {
+      return problem(e);
+    }
   }),
-  http.post('/api/payments/webhook/fake', async ({ request }) => {
-    const body = (await request.json()) as { orderId: string };
-    transition(body.orderId, 'PAID', 'fake provider confirmed');
-    return new HttpResponse(null, { status: 204 });
+  http.post('/api/orders/:id/shipment', async ({ params, request }) => {
+    try {
+      const body = (await request.json()) as ShipmentRequest;
+      const id = String(params.id);
+      const answer = requestShipment(id, ME, body);
+      if (tradeDb.autoCarrier) window.setTimeout(() => carrierDispatched(id), 1500);
+      return HttpResponse.json(answer, { status: 201 });
+    } catch (e) {
+      return problem(e);
+    }
   }),
+  http.get('/api/sellers/me/account', () => {
+    try {
+      return HttpResponse.json(sellerAccount(ME));
+    } catch (e) {
+      return problem(e);
+    }
+  }),
+  http.post('/api/sellers/me/account', () => HttpResponse.json(onboard(ME), { status: 201 })),
 
   // ---- conversations (messaging's member routes; the caller is member #1)
   http.get('/api/conversations', ({ request }) => HttpResponse.json(page(inboxOf(ME), request.url))),

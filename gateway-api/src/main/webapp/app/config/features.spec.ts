@@ -1,9 +1,9 @@
 import { DEFAULT_FEATURES, readFeatures } from './features';
 
 describe('features', () => {
-  it('defaults to chat on, trade and mocks off', () => {
+  it('defaults to trade and chat on, mocks off', () => {
     expect(DEFAULT_FEATURES).toEqual({
-      trade: false,
+      trade: true,
       chat: true,
       mocks: false,
     });
@@ -11,7 +11,7 @@ describe('features', () => {
   });
 
   it('merges a browser override and survives bad JSON', () => {
-    expect(readFeatures({ getItem: () => '{"mocks":true,"chat":false}' })).toEqual({ trade: false, chat: false, mocks: true });
+    expect(readFeatures({ getItem: () => '{"mocks":true,"chat":false}' })).toEqual({ trade: true, chat: false, mocks: true });
     expect(readFeatures({ getItem: () => '{nope' })).toEqual(DEFAULT_FEATURES);
   });
 });

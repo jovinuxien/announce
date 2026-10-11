@@ -9,13 +9,10 @@ import { ConversationView, isMine, isWritable, MessageView, messageOfFrame, othe
 import { formatDateTime } from 'app/shared/util/dates';
 import { amountToCents, formatMoney } from 'app/shared/util/money';
 import { describeError } from 'app/shared/util/problem';
+import { ROW_RETRIES, ROW_SETTLE_MS } from 'app/shared/util/settle';
 import { useConversationSocket } from './useConversationSocket';
 
 export const THREAD_POLL_MS = 5000;
-/** A live frame arrives before the read model has caught up; the row is refetched this long after it. */
-export const ROW_SETTLE_MS = 1000;
-/** Row loads that may miss quietly before the alert shows. */
-export const ROW_RETRIES = 5;
 const clientMsgId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 /**

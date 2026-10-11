@@ -8,7 +8,11 @@ import ProblemAlert from 'app/shared/components/ProblemAlert';
 import { AnnounceResponse } from 'app/shared/model/announce';
 import { describeError } from 'app/shared/util/problem';
 
-/** Phase 2 (features.trade): "request purchase" on a fixed-price goods announce; the order page takes over. */
+/**
+ * "Buy" on a fixed-price or giveaway goods announce: `POST /api/orders {announceId}` opens a PROPOSED order (the
+ * aggregate answers; its id is all that is needed) and the order page takes over. 409 `own-announce` and the
+ * snapshot rules (announce unknown, not published) come back as problem details.
+ */
 export default function BuyBox({ announce }: { announce: AnnounceResponse }) {
   const { t } = useTranslation('trade');
   const navigate = useNavigate();

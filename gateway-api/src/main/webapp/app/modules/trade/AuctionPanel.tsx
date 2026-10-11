@@ -1,80 +1,177 @@
-import { FormEvent, useEffect, useState } from 'react';
-import { Button, Card, Form, InputGroup } from 'react-bootstrap';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { Badge, Button, Card, Form, InputGroup } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from 'app/config/store';
 import { tradeApi } from 'app/shared/api/tradeApi';
 import ProblemAlert from 'app/shared/components/ProblemAlert';
 import { AnnounceResponse } from 'app/shared/model/announce';
-import { AuctionView } from 'app/shared/model/trade';
-import { countdown } from 'app/shared/util/dates';
-import { amountToCents, centsToAmount, formatMoney } from 'app/shared/util/money';
+import { AuctionView, isAuctionOpen, minimumNextBid, myStandingBid } from 'app/shared/model/trade';
+import { countdown, formatDateTime } from 'app/shared/util/dates';
+import { amountToCents, formatMoney } from 'app/shared/util/money';
 import { describeError } from 'app/shared/util/problem';
+import { ROW_SETTLE_MS } from 'app/shared/util/settle';
 
-/** Phase 2 (features.trade): current price, bid count, countdown, bid form and snag-it on an AUCTION goods announce. */
+export const AUCTION_POLL_MS = 15000;
+
+/**
+ * The auction of an AUCTION goods announce (`GET /api/auctions/{announceId}`: the `announce_auction` row and its
+ * bids): current price, increment and minimum next bid, bid count, countdown to the end time, the member's own
+ * standing bid, the outcome once closed. Bids and buy-now go in cents; the panel refetches the row afterwards and
+ * every 15 s while open. A 404 means no auction is open for the announce (the seller has no payout account yet).
+ */
 export default function AuctionPanel({ announce, mine }: { announce: AnnounceResponse; mine: boolean }) {
   const { t, i18n } = useTranslation('trade');
   const status = useAppSelector(s => s.auth.status);
-  const [auction, setAuction] = useState<AuctionView | null>(null);
+  const me = useAppSelector(s => s.auth.user?.id);
+  const [view, setView] = useState<AuctionView | null>(null);
+  const [missing, setMissing] = useState(false);
   const [amount, setAmount] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(new Date());
-
-  useEffect(() => {
-    tradeApi.auction(announce.id).then(setAuction).catch(e => setError(describeError(e, t('auction.unavailable'))));
-    const timer = window.setInterval(() => setNow(new Date()), 30000);
-    return () => window.clearInterval(timer);
-  }, [announce.id, t]);
-
-  if (!auction) return <ProblemAlert message={error} />;
   const lang = i18n.language;
-  const closed = auction.status !== 'OPEN' || new Date(auction.endsAt).getTime() <= now.getTime();
 
-  const bid = async (e: FormEvent) => {
-    e.preventDefault();
+  // `GET /api/auctions/{id}` needs a member token at the edge, so a visitor sees the invitation to log in instead
+  const signedIn = status === 'authenticated';
+  const load = useCallback(
+    () =>
+      tradeApi
+        .auction(announce.id)
+        .then(v => {
+          setView(v);
+          setMissing(false);
+        })
+        .catch(e => {
+          if ((e as { status?: number }).status === 404) setMissing(true);
+          else setError(describeError(e, t('auction.unavailable')));
+        }),
+    [announce.id, t]
+  );
+
+  const settle = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (signedIn) void load();
+    return () => window.clearTimeout(settle.current);
+  }, [load, signedIn]);
+
+  const open = view ? isAuctionOpen(view.auction, now) : false;
+  useEffect(() => {
+    if (!open) return;
+    const tick = window.setInterval(() => setNow(new Date()), 30000);
+    const poll = window.setInterval(() => void load(), AUCTION_POLL_MS);
+    return () => {
+      window.clearInterval(tick);
+      window.clearInterval(poll);
+    };
+  }, [open, load]);
+
+  if (!signedIn) {
+    return (
+      <Card className="mt-3 border-primary" data-testid="auction-panel">
+        <Card.Body>
+          <h2 className="h6">{t('auction.title')}</h2>
+          <div className="small">{t('auction.loginToBid')}</div>
+        </Card.Body>
+      </Card>
+    );
+  }
+  if (missing) {
+    return (
+      <Card className="mt-3 border-primary" data-testid="auction-panel">
+        <Card.Body>
+          <h2 className="h6">{t('auction.title')}</h2>
+          <div className="small text-muted">{t('auction.notOpenYet')}</div>
+        </Card.Body>
+      </Card>
+    );
+  }
+  if (!view) return <ProblemAlert message={error} />;
+  const { auction, bids } = view;
+  const minimum = minimumNextBid(auction);
+  const own = myStandingBid(bids, me);
+  const won = auction.status === 'CLOSED_WON' || auction.status === 'CLOSED_SNAGGED';
+
+  const run = async (fn: () => Promise<unknown>, fail: string) => {
+    setBusy(true);
     setError(null);
     try {
-      setAuction(await tradeApi.bid(announce.id, amountToCents(Number(amount))));
-      setAmount('');
+      await fn();
+      await load();
+      window.clearTimeout(settle.current);
+      settle.current = window.setTimeout(() => void load(), ROW_SETTLE_MS); // the row follows the aggregate a moment later
     } catch (err) {
-      setError(describeError(err, t('auction.bidFailed')));
+      setError(describeError(err, fail));
+    } finally {
+      setBusy(false);
     }
   };
-  const snag = async () => {
-    setError(null);
-    try {
-      setAuction(await tradeApi.snag(announce.id));
-    } catch (err) {
-      setError(describeError(err, t('auction.bidFailed')));
-    }
+  const bid = (e: FormEvent) => {
+    e.preventDefault();
+    const cents = amountToCents(Number(amount));
+    if (!cents) return;
+    void run(() => tradeApi.bid(announce.id, { amountCents: cents }).then(() => setAmount('')), t('auction.bidFailed'));
   };
 
   return (
-    <Card className="mt-3 border-primary">
+    <Card className="mt-3 border-primary" data-testid="auction-panel">
       <Card.Body>
-        <h2 className="h6">{t('auction.title')}</h2>
-        <div className="an-price fs-4">{formatMoney(centsToAmount(auction.currentBidCents ?? auction.startPriceCents), auction.currency, lang)}</div>
-        <div className="small text-muted">
-          {t('auction.bids', { count: auction.bidCount })} · {closed ? t('auction.closed') : t('auction.endsIn', { time: countdown(auction.endsAt, now) })}
+        <div className="d-flex justify-content-between align-items-start">
+          <h2 className="h6">{t('auction.title')}</h2>
+          <Badge bg={open ? 'primary' : 'secondary'} data-testid="auction-status">
+            {t(`auctionStatus.${auction.status}`)}
+          </Badge>
         </div>
-        {auction.myHighestBidCents != null && <div className="small">{t('auction.myBid', { amount: formatMoney(centsToAmount(auction.myHighestBidCents), auction.currency, lang) })}</div>}
+        <div className="an-price fs-4" data-testid="auction-price">
+          {formatMoney(auction.currentPrice, auction.currency, lang)}
+        </div>
+        <div className="small text-muted">
+          {t('auction.bids', { count: auction.bidCount })} ·{' '}
+          {open ? t('auction.endsIn', { time: countdown(auction.endTime, now) }) : t('auction.endedAt', { date: formatDateTime(auction.closedTime ?? auction.endTime, lang) })}
+        </div>
+        {own && (
+          <div className="small" data-testid="my-bid">
+            {t('auction.myBid', { amount: formatMoney(own.amount, auction.currency, lang) })} <span className="text-muted">({t(`bidStatus.${own.status}`)})</span>
+          </div>
+        )}
+        {won && auction.winnerId != null && <div className="small">{auction.winnerId === me ? t('auction.youWon') : t('auction.wonBy', { id: auction.winnerId })}</div>}
         <ProblemAlert message={error} onClose={() => setError(null)} />
-        {!closed && !mine && status === 'authenticated' && (
+        {open && !mine && status === 'authenticated' && (
           <Form onSubmit={bid} className="mt-2">
             <InputGroup>
-              <Form.Control type="number" step="1" min={centsToAmount(auction.minimumNextBidCents)} value={amount} onChange={e => setAmount(e.target.value)} placeholder={String(centsToAmount(auction.minimumNextBidCents))} required aria-label={t('auction.bidAmount')} />
-              <Button type="submit">{t('auction.bid')}</Button>
+              <Form.Control
+                type="number"
+                step="any"
+                min={minimum}
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                placeholder={String(minimum)}
+                required
+                aria-label={t('auction.bidAmount')}
+              />
+              <Button type="submit" disabled={busy || !amount}>
+                {t('auction.bid')}
+              </Button>
             </InputGroup>
-            <Form.Text>{t('auction.minimum', { amount: formatMoney(centsToAmount(auction.minimumNextBidCents), auction.currency, lang) })}</Form.Text>
-            {auction.snagPriceCents != null && (
+            <Form.Text>
+              {t('auction.minimum', { amount: formatMoney(minimum, auction.currency, lang), increment: formatMoney(auction.bidIncrement, auction.currency, lang) })}
+            </Form.Text>
+            {auction.snagItPrice != null && (
               <div className="mt-2">
-                <Button variant="success" size="sm" onClick={snag}>
-                  {t('auction.snag', { amount: formatMoney(centsToAmount(auction.snagPriceCents), auction.currency, lang) })}
+                <Button variant="success" size="sm" disabled={busy} onClick={() => void run(() => tradeApi.snag(announce.id), t('auction.bidFailed'))}>
+                  {t('auction.snag', { amount: formatMoney(auction.snagItPrice, auction.currency, lang) })}
+                </Button>
+              </div>
+            )}
+            {own && own.status === 'ACTIVE' && (
+              <div className="mt-2">
+                <Button variant="link" size="sm" className="p-0" disabled={busy} onClick={() => void run(() => tradeApi.retractBid(announce.id, own.id), t('auction.bidFailed'))}>
+                  {t('auction.retract')}
                 </Button>
               </div>
             )}
           </Form>
         )}
-        {!closed && !mine && status !== 'authenticated' && <div className="small mt-2">{t('auction.loginToBid')}</div>}
+        {open && mine && <div className="small mt-2 text-muted">{t('auction.yours')}</div>}
       </Card.Body>
     </Card>
   );

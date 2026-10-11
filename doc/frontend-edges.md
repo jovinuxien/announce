@@ -131,8 +131,8 @@ same paths either way.
 Phase 1 codes against the backend that exists today (announce-management, crawled listings,
 OCS). Phase 2 codes against the REST contracts in `doc/order-context.md` §8 and §9 behind
 feature flags (`features.trade`, `features.chat`) with MSW mocks, so the screens are ready
-when `order-reactive` and `messaging` land. (Since 2026-10-11 `features.chat` defaults on and the chat
-screens run against messaging, §15; `features.trade` still codes against §8 and stays off.)
+when `order-reactive` and `messaging` land. (Since 2026-10-11 both flags default on: the chat screens run
+against messaging, §15, and the trade screens against the order module, §16.)
 
 Phase 1 modules (`app/modules/*`):
 
@@ -769,4 +769,91 @@ jar without `security.Callers` (installed by another worktree), so the first ann
 
 Left open: an unread badge in the header, image attachments, the customer trade screens on the order module,
 push notifications.
+
+## 16. Customer SPA on the order module's member routes (2026-10-11)
+
+The trade screens of the customer SPA (auction panel and buy box on the announce page, orders list, order detail)
+were written on 26 September against the §8 sketch and ran on the service worker's fixtures. The customer edge
+routes `/api/auctions/**`, `/api/orders/**`, `/api/sellers/**` and the provider webhooks to the order module with
+the service token. This round corrects the client to the module as built (the same rows the admin SPA reads since
+§13), adds the two pieces a member could not do, and verifies the screens against the running module. No edge or
+backend change.
+
+**Where the sketch and the backend disagreed, and what the SPA does now.**
+
+| Sketch | Backend | SPA now |
+|---|---|---|
+| cents and sketch names (`amountCents`, `announceTitle`, `currentBidCents`, `endsAt`) | the read-model rows: decimals, `title`, `agreedPrice`, `feeAmount`, `payoutAmount`, `currentPrice`, `bidIncrement`, `endTime`, timestamps per step | `app/shared/model/trade.ts` holds the rows field for field (same types as the admin SPA) and the request records in cents |
+| ten order statuses from REQUESTED | thirteen: PROPOSED, AGREED, PAYMENT_PENDING, PAID, SHIPPED, DELIVERED, RELEASING, SETTLED, DISPUTED, REFUNDING, REFUNDED, CANCELLED, DECLINED; auctions close as CLOSED_WON, CLOSED_UNSOLD, CLOSED_SNAGGED | every status named and coloured; actions keyed on the module's rules |
+| the auction read is the row | `{auction, bids}`; the row's `bidCount`, `currentPrice`, `bidIncrement` give the minimum next bid (`Auction.minimumNextBidCents`); the route needs a member token at the edge | panel on the row and the bids: minimum, countdown, own standing bid, retraction, outcome; a visitor sees the invitation to log in; a 404 means no auction is open yet (seller not payable) |
+| the orders list is a page with a timeline per order | a plain array, 0-based page, no timeline | list newest first; the detail combines the order, payment and shipment rows (404 = none yet) and derives the timeline from their timestamps (`orderTimeline`, ported from the admin SPA) |
+| commands answer the row | they answer the aggregate (cents) | typed as such; the screens refetch the rows |
+| no payout account | AcceptPurchase and OpenAuction refused with `seller-not-payable` until `POST /api/sellers/me/account` | `PayoutsCard` on the seller tab of the orders page and on the profile; the refusal links to it |
+| "Pay (fake provider)" posted the webhook from the browser | the webhook is HMAC-signed with the backend's secret; the real flow is the provider's checkout with the payment row's client secret | the detail shows "waiting for your payment through <provider>" and the payment row; nothing to click until a provider is wired |
+| an empty shipment request | `{service, parcelSize, fromAddress, toAddress}`; the row carries the label URL and the carrier's last event | a four-field form for the seller on PAID; the label link for the seller only |
+| the row read right after a command | the projection lands a moment after the aggregate answers (seen: 1 s for the seller account) | commands show the aggregate's answer where they can (payouts) and refetch once more a second later; a just-created order is retried quietly up to eight times |
+
+**Screens.** `AuctionPanel` (polls every 15 s while open), `BuyBox`, `Orders` (role in the URL, `?role=seller`
+with the payouts card), `OrderDetail` (polls every 5 s while the order moves, since payment and carrier facts
+arrive by webhook; seller accept / decline on PROPOSED, cancel before payment by either party, shipment form on
+PAID, confirm receipt on SHIPPED or DELIVERED, dispute while paid and not disputed; payment, shipment and timeline
+cards), `PayoutsCard`. The fee line shows once the deal is agreed (the row carries no fee before).
+
+**Flags and mocks.** `trade` defaults on (both phase-2 flags do now). The trade fixtures moved to
+`app/mocks/tradeData.ts` in the rows' shapes with the module's rules (409 `own-announce`, `not-proposed`,
+`already-paid`, `seller-not-payable`, `bid-below-minimum`, `seller-cannot-bid`, `auction-not-open`, `not-paid`;
+403 `not-seller`, `not-buyer`, `not-party`; 404 for a payment or shipment that does not exist yet; the fee computed
+at accept). The browser mock's carrier dispatches 1.5 s after booking; the tests switch that off.
+
+**Tests.** Page specs for `AuctionPanel` (row, minimum, refused and accepted bid with retraction, owner, not open
+yet, closed and won, visitor), `BuyBox`, `Orders` (both roles, payouts onboarding, empty), `OrderDetail` (buyer
+proposed and cancel, seller refused then accepted, carrier booking, pay hint and dispute form, receipt
+confirmation to settlement, dispute, settled read-only, quiet retry of a just-created order) and the timeline
+helper; the render helper can sign nobody in. The suite is 70 tests in 15 files (50 in 10 after §15).
+`npm run typecheck` and `npm run i18n:check` are clean (trade namespace rewritten in en, da, sv).
+
+### 16a. Checklist, executed 2026-10-11
+
+Setup: live MySQL, `docker/cqrs` Kafka 9094, the customer edge jar on **8092** (8090 and 8091 were taken by the
+achatglasses stack of another session that afternoon; the first attempt registered two members in that stack's
+database through its edge, which were removed there), announce-management and the order service from jars built
+with the framework in the same reactor (`mvn -pl db-reactive,cqrs-reactive,order,announce-management -P webapp
+-Dskip.npm=true -Dskip.installnodenpm=true -Dmaven.test.skip=true -DskipTests package`), because the shared
+`~/.m2` had received a `cqrs-reactive` without `security.Callers` from another worktree at 15:52 and both services
+started from it hung on their first member request (`NoClassDefFoundError` inside the handler; the edge then
+never answers). Service tokens in `enforce`; every member call through the customer edge; the provider and carrier
+webhooks posted by the driver, signed, through the edge's public webhook routes. Deviations as in §15a: the
+development EventSourcingDB on port 3000 still hangs on reads, so both backends ran against a throwaway store on
+port 3001 with the nine read-side checkpoint rows of announce-management and the order module deleted before and
+restored after (the order module's `AuctionClosingJob` logs an error every minute for the auction row of
+27 September whose events are not in that store); announce-management with the search indexer off. The members,
+announces, orders, auction, bids, payment, shipment, seller account and gate rows the runs wrote were deleted
+afterwards, as was the order the module created from the chat round's accepted offer when it caught up on
+`messaging.v1`, and the snapshot rows of today's deleted announces.
+
+| Step | Result |
+|---|---|
+| Seller sets up payouts on `/orders?role=seller` | "Payouts enabled · FAKE · VERIFIED · Account acct_fake_46" from the aggregate's answer; the row answers 200 a moment later; the order and auction gate rows followed within 18 ms this time (1 s and about 90 s in two earlier runs) |
+| Seller posts and publishes a fixed-price and an AUCTION announce | 201 / 200 ×2; the auction row is OPEN 1.3 s after publishing (start price 100, increment 10) |
+| Buyer clicks Buy | `POST /api/orders {announceId}` 201, lands on the PROPOSED order at the first attempt: "Waiting for the seller to accept", Cancel, no payment, no shipment |
+| Seller's orders list and detail | row "Trade run fixed · Fixed price · member #47 · 1.250 kr. · Proposed"; Accept → "Awaiting payment", payment card "awaiting payment · 1.250 kr. · FAKE · Reference pi_fake_1" |
+| Buyer's screen | picks the change up by polling in 5.8 s; "Waiting for your payment through FAKE." |
+| Provider webhook CONFIRMED (signed, through the edge) | 204; the buyer sees Paid in 9.9 s, the payment card "confirmed", the dispute form appears |
+| Seller books the carrier | form MyPack Collect / M / Vamdrup 6580 → København 2100; shipment card "FAKE · MyPack Collect FAKE00000001 · Booked" with the label link; the row REQUESTED |
+| Carrier webhooks DISPATCHED then DELIVERED | 204 ×2; the buyer sees Shipped in 8.9 s and Delivered in 9.9 s; no label link for the buyer |
+| Buyer confirms receipt | "Releasing payout"; the payment row RELEASING with `payoutRef tr_fake_2`; after the provider's PAYOUT_SENT webhook, Settled in 8.4 s; timeline Agreed, Paid, Shipped, Delivered, Receipt confirmed, Payout released, Settled; payment card "paid out"; no button left |
+| Auction, bid below the minimum (REST through the edge) | 409 `bid-below-minimum`, "The bid must be at least 10000 minor units (current price 10000)" |
+| Auction panel, buyer | "100 kr. · 0 bids · ends in 6d 23h · Minimum 100 kr. (increment 10 kr.)"; bid 100 → "Your bid: 100 kr. (leading)"; bid 110 → "110 kr. · 2 bids · Minimum 120 kr." with "Retract my bid"; the row holds both bids (110 ACTIVE, 100 OUTBID) |
+| Auction panel, owner | "This is your auction.", no bid input |
+| Seller buys their own announce (REST) | 409 (`announce-not-available` from the snapshot rule, ahead of `own-announce`) |
+| Buyer's orders list | one row, Settled |
+| Console | the expected 401 of the silent refresh before login, and the 404s of the payment and shipment reads before they exist and of the quiet row retries |
+
+Observations: the trade screens poll, so a change made by the other party or by a webhook shows within the poll
+interval (5 s on the detail, 15 s on the auction panel); the live push the chat has would need the order module to
+expose one. `GET /api/auctions/{id}` needs a member token at the edge, so visitors do not see the auction's state
+on the announce page; opening that read in `PublicPaths` is a one-line edge change for a later round.
+
+Left open: a real payment provider and its checkout, carrier booking beyond the fake, proxy bidding, auction
+closing from the SPA (the end time is days away), refund and dispute resolution screens on the customer side.
 

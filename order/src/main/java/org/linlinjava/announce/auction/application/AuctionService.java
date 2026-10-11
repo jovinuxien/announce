@@ -107,6 +107,27 @@ public class AuctionService {
         return auctions.selectByPrimaryKey(announceId).filter(a -> !Boolean.TRUE.equals(a.getDeleted()));
     }
 
+    /** Staff listing filter: every field optional; {@code q} matches the announce title. */
+    public record AuctionFilter(String status, Integer sellerId, String q) {
+        org.linlinjava.announce.db.domain.AnnounceAuctionExample toExample() {
+            var example = new org.linlinjava.announce.db.domain.AnnounceAuctionExample();
+            var c = example.or().andDeletedEqualTo(false);
+            if (status != null && !status.isBlank()) c.andStatusEqualTo(status.trim().toUpperCase(java.util.Locale.ROOT));
+            if (sellerId != null) c.andSellerIdEqualTo(sellerId);
+            if (q != null && !q.isBlank()) c.andTitleLike("%" + q.trim() + "%");
+            example.setOrderByClause("end_time desc, id");
+            return example;
+        }
+    }
+
+    public Mono<Long> countAuctions(AuctionFilter filter) {
+        return auctions.countByExample(filter.toExample());
+    }
+
+    public Flux<AnnounceAuction> findAuctions(AuctionFilter filter, long offset, int limit) {
+        return auctions.selectPageByExample(filter.toExample(), offset, limit);
+    }
+
     public Flux<AnnounceBid> findBids(String announceId) {
         var example = new org.linlinjava.announce.db.domain.AnnounceBidExample();
         example.or().andAuctionIdEqualTo(announceId).andDeletedEqualTo(false);

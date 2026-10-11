@@ -1,14 +1,18 @@
 {
   "support": {
     "title": "Support queue",
-    "subtitle": "Support conversations wait until a staff member joins.",
+    "subtitle": "Support conversations wait until a staff member joins. One status at a time, oldest first; the list refreshes every 15 seconds.",
     "emptyHint": "Nobody is waiting.",
+    "emptyStatus": "No conversation in this status.",
     "conversation": "Conversation",
-    "openedBy": "Opened by",
+    "member": "Member",
     "openedAt": "Opened",
     "lastMessage": "Last message",
+    "messages": "{{count}} messages",
     "staff": "Staff",
-    "join": "Join"
+    "join": "Join",
+    "open": "Open",
+    "noSubject": "No subject"
   },
   "conversationStatus": {
     "WAITING": "Waiting",
@@ -20,22 +24,59 @@
     "LISTING": "Listing",
     "SUPPORT": "Support"
   },
+  "thread": {
+    "title": "Conversation",
+    "back": "Back to the queue",
+    "member": "Member",
+    "opened": "Opened",
+    "closedAt": "Closed",
+    "blockedReason": "Blocked",
+    "noMessages": "No messages yet.",
+    "system": "System",
+    "you": "You",
+    "offer": "Offer {{amount}}",
+    "image": "Image",
+    "placeholder": "Write a reply…",
+    "reply": "Reply",
+    "send": "Send",
+    "close": "Close",
+    "block": "Block",
+    "blockTitle": "Block the conversation",
+    "blockHint": "Nobody can post in a blocked conversation any more. The reason is recorded on the conversation.",
+    "blockReason": "Reason",
+    "joinFirst": "Join the conversation to reply.",
+    "notWritable": "This conversation is {{status}}.",
+    "frameError": "The server refused a frame"
+  },
+  "socket": {
+    "connecting": "Connecting…",
+    "open": "Live",
+    "closed": "Reconnecting…",
+    "unavailable": "Not live, polling"
+  },
   "bulletins": {
     "title": "Bulletins",
-    "subtitle": "Bulletins are pushed live to connected staff clients of the chosen type.",
+    "subtitle": "A bulletin is stored and pushed live to the connected staff dashboards of the chosen client type.",
     "post": "Post a bulletin",
     "posted": "Bulletin posted.",
     "send": "Post",
-    "recent": "Recent bulletins",
+    "current": "Current bulletins",
+    "contentHelp": "At most {{max}} characters, {{left}} left. The first line is shown as the heading.",
+    "expires": "Expires {{at}}",
     "fields": {
-      "title": "Title",
       "content": "Content",
-      "clientType": "Client type"
+      "audience": "Audience",
+      "clientType": "Client type",
+      "expiresAt": "Expires (optional)"
     }
   },
+  "audience": {
+    "STAFF": "Staff",
+    "MEMBERS": "Members"
+  },
   "clientType": {
-    "ALL": "All clients",
-    "WEB": "Web",
-    "MOBILE": "Mobile"
+    "all": "Every client",
+    "web": "Web",
+    "mobile": "Mobile"
   }
 }

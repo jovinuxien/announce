@@ -2,7 +2,7 @@ package org.linlinjava.announce.gatewayadmin.security;
 
 /**
  * What the admin edge serves without a token: the sign-in endpoints, the SPA shell and its assets, and the health
- * probe. Everything else is denied unless a rule in {@link SecurityConfig} grants it. Deep links such as
+ * probe ({@code /ws/**} is a backend prefix: a handshake needs the staff token like {@code /api/**}). Everything else is denied unless a rule in {@link SecurityConfig} grants it. Deep links such as
  * {@code /announces/abc} are rewritten to {@code /index.html} by the SPA fallback filter before security runs.
  */
 public final class PublicPaths {

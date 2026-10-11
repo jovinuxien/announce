@@ -9,8 +9,8 @@ import { loggedOut, signedIn, type HasAuth, type TokenResponse } from 'app/share
  *  - when the refresh fails the session is cleared (loggedOut) and RequireAuth routes to /login.
  * Concurrent 401s share a single in-flight refresh.
  */
-/** Same-origin in the browser; Node (jest) needs an absolute origin to build a Request. */
-const BASE_URL = typeof window !== 'undefined' && window.location ? '' : 'http://localhost';
+/** The page's own origin (a WHATWG Request needs an absolute URL); Node (jest) falls back to localhost. */
+const BASE_URL = typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'null' ? window.location.origin : 'http://localhost';
 
 export const rawBaseQuery = fetchBaseQuery({
   baseUrl: BASE_URL,

@@ -1,5 +1,6 @@
 {
   "reason": "Reason",
+  "note": "Note (recorded with the decision)",
   "auctions": {
     "title": "Auctions",
     "announce": "Announce",
@@ -11,15 +12,23 @@
     "bidsOf": "Bids on “{{title}}”",
     "bidder": "Bidder",
     "amount": "Amount",
-    "placedAt": "Placed",
-    "cancelBid": "Cancel bid"
+    "cancelBid": "Cancel bid",
+    "increment": "Increment {{amount}}",
+    "reserve": "reserve {{amount}}",
+    "snagIt": "buy now {{amount}}",
+    "autoExtend": "auto-extend {{seconds}} s",
+    "closedAt": "closed {{at}}",
+    "bidTime": "Placed",
+    "upTo": "up to {{amount}}",
+    "cancelledBy": "by staff #{{by}}",
+    "winner": "Winner #{{id}}"
   },
   "auctionStatus": {
     "OPEN": "Open",
     "CLOSED_WON": "Closed, won",
     "CLOSED_UNSOLD": "Closed, unsold",
-    "SNAGGED": "Snagged",
-    "CANCELLED": "Cancelled"
+    "CANCELLED": "Cancelled",
+    "CLOSED_SNAGGED": "Closed, bought now"
   },
   "bidStatus": {
     "ACTIVE": "Leading",
@@ -55,7 +64,13 @@
     "timeline": "Timeline",
     "release": "Release payout",
     "refund": "Refund buyer",
-    "resolveHint": "Resolving the dispute is final: RELEASE pays the seller, REFUND returns the money to the buyer. The reason is recorded."
+    "resolveHint": "Resolving the dispute is final: RELEASE pays the seller, REFUND returns the money to the buyer. The reason is recorded.",
+    "auction": "Auction",
+    "conversation": "Conversation",
+    "amount": "Amount",
+    "dispatchedAt": "Dispatched",
+    "noPayment": "No payment started",
+    "noShipment": "No shipment requested"
   },
   "door": {
     "AUCTION": "Auction",
@@ -74,14 +89,19 @@
     "CANCELLED": "Cancelled",
     "DISPUTED": "Disputed",
     "REFUNDING": "Refunding",
-    "REFUNDED": "Refunded"
+    "REFUNDED": "Refunded",
+    "DECLINED": "Declined"
   },
   "paymentStatus": {
     "INTENT_CREATED": "Intent created",
     "CONFIRMED": "Confirmed",
     "RELEASED": "Released",
     "REFUNDED": "Refunded",
-    "FAILED": "Failed"
+    "FAILED": "Failed",
+    "RELEASING": "Releasing",
+    "PAID_OUT": "Paid out",
+    "REFUNDING": "Refunding",
+    "CANCELLED": "Cancelled"
   },
   "shipmentStatus": {
     "REQUESTED": "Requested",
@@ -89,28 +109,48 @@
     "IN_TRANSIT": "In transit",
     "DELIVERED": "Delivered",
     "FAILED": "Failed",
-    "CANCELLED": "Cancelled"
+    "CANCELLED": "Cancelled",
+    "OPEN": "Open"
   },
   "payouts": {
     "title": "Payouts",
-    "pending": "Pending release",
-    "sent": "Sent",
-    "blocked": "Blocked by disputes",
-    "fees": "Fees collected",
     "account": "Seller account",
-    "due": "Due / released",
-    "ref": "Provider reference"
+    "due": "Due / settled",
+    "orders": "{{count}} orders",
+    "feesCollected": "Fees collected (settled deals): {{amount}}",
+    "feesPending": "Fees pending: {{amount}}",
+    "payoutsDisabled": "Payouts disabled"
   },
   "payoutStatus": {
     "PENDING_RELEASE": "Pending release",
     "RELEASING": "Releasing",
     "SENT": "Sent",
-    "FAILED": "Failed",
-    "BLOCKED_DISPUTE": "Blocked by dispute"
+    "BLOCKED_DISPUTE": "Blocked by dispute",
+    "REFUNDED": "Refunded"
   },
   "accountStatus": {
     "PENDING": "Pending",
     "VERIFIED": "Verified",
     "RESTRICTED": "Restricted"
+  },
+  "filters": {
+    "status": "Status",
+    "seller": "Seller id",
+    "buyer": "Buyer id",
+    "text": "Title",
+    "textPlaceholder": "Words of the title"
+  },
+  "timeline": {
+    "agreed": "Agreed",
+    "paid": "Paid",
+    "shipped": "Shipped",
+    "delivered": "Delivered",
+    "receiptConfirmed": "Receipt confirmed by buyer",
+    "disputeOpened": "Dispute opened",
+    "released": "Payout released",
+    "settled": "Settled",
+    "closed": "Closed",
+    "paymentRefunded": "Refund sent",
+    "carrierEvent": "Carrier event"
   }
 }

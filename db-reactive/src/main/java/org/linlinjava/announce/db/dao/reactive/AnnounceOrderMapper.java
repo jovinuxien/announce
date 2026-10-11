@@ -3,6 +3,7 @@ package org.linlinjava.announce.db.dao.reactive;
 import org.apache.ibatis.annotations.Param;
 import org.linlinjava.announce.db.domain.AnnounceOrder;
 import org.linlinjava.announce.db.domain.AnnounceOrderExample;
+import org.linlinjava.announce.db.domain.AnnounceOrderStatusTotal;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -43,4 +44,7 @@ public interface AnnounceOrderMapper {
                                               @Param("offset") long offset,
                                               @Param("limit") int limit,
                                               @Param("selective") AnnounceOrder.Column... selective);
+
+    /** Hand-written: live orders counted and their fee / payout amounts summed per status (the payouts overview). */
+    Flux<AnnounceOrderStatusTotal> sumByStatus();
 }

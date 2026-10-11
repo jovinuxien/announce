@@ -7,7 +7,7 @@
   "statusLabel": "Status",
   "language": "Sprog",
   "menu": "Menu",
-  "mocked": "Denne side vises med lokale testdata (MSW), indtil backend-modulet er koblet på gatewayen.",
+  "mocked": "Denne skærm vises fra lokale testdata (MSW, features.mocks), ikke fra en backend.",
   "forbidden": {
     "title": "Ingen adgang",
     "detail": "Denne side er forbeholdt superadministratorer."
@@ -19,7 +19,8 @@
   "pagination": {
     "summary": "Side {{page}} af {{pages}} · {{total}} rækker",
     "size": "Rækker pr. side",
-    "perPage": "{{size}} / side"
+    "perPage": "{{size}} / side",
+    "summaryMore": "Side {{page}} · {{count}} rækker på denne side"
   },
   "actions": {
     "cancel": "Annuller",

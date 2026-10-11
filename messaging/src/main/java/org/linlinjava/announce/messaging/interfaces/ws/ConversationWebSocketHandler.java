@@ -24,7 +24,7 @@ import java.util.Optional;
 
 /**
  * {@code /ws/conversations/{id}}: the live channel of one conversation. The handshake identifies the member or
- * staff member by {@code X-User-Id} / {@code X-Staff-Id}; a caller who is neither a participant nor staff is closed
+ * staff member by {@code X-User-Id} + {@code X-User-Type} (MEMBER / ADMIN); a caller who is neither a participant nor staff is closed
  * with 4403 (4401 without a principal). Frames the client sends are commands ({@code post}, {@code offer},
  * {@code accept-offer}, {@code decline-offer}, {@code read}, {@code close}, {@code ping}) answered with {@code ack}
  * or {@code error}; what every participant sees ({@code message}, {@code status}) arrives through the live topic,

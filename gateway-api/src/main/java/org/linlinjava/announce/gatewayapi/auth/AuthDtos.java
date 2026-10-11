@@ -1,6 +1,11 @@
 package org.linlinjava.announce.gatewayapi.auth;
 
+import java.time.LocalDate;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -20,10 +25,24 @@ public final class AuthDtos {
             @Size(max = 20) String mobile) {
     }
 
-    public record UserResponse(Integer id, String username, String nickname, String mobile, String avatar) {
+    /** {@code PUT /auth/me}: what a member may change; the username stays the login. */
+    public record ProfileUpdateRequest(
+            @Size(max = 63) String nickname,
+            @Size(max = 20) @Pattern(regexp = "[0-9+ ]*") String mobile,
+            @Size(max = 255) String avatar,
+            @Min(0) @Max(2) Integer gender,
+            @PastOrPresent LocalDate birthday) {
+    }
+
+    /** {@code POST /auth/password}: the current password proves the member, the new one replaces it. */
+    public record PasswordChangeRequest(@NotBlank String currentPassword, @NotBlank @Size(min = 8, max = 63) String newPassword) {
+    }
+
+    /** Gender as {@code announce_user.gender}: 0 unknown, 1 male, 2 female. */
+    public record UserResponse(Integer id, String username, String nickname, String mobile, String avatar, Integer gender, LocalDate birthday) {
 
         static UserResponse of(Account a) {
-            return new UserResponse(a.id(), a.username(), a.nickname(), a.mobile(), a.avatar());
+            return new UserResponse(a.id(), a.username(), a.nickname(), a.mobile(), a.avatar(), a.gender(), a.birthday());
         }
     }
 

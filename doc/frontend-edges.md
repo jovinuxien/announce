@@ -122,19 +122,23 @@ same paths either way.
   `AnnounceAdminController` at `/api/admin/announces` (list in any status, `GET {id}`,
   `POST {id}/withdraw|expire {reason}` with the moderator from `X-User-Id`).
 - **SPA dev server** on 9001 (the customer SPA keeps 9000), proxying `/api` and `/auth` to 8081.
+- **Staff chat (2026-10-10, §11).** Routes `/api/conversations/**` and `/ws/**` to messaging, the token on a
+  handshake as `?access_token=` (`WebSocketTokenFilter`), `ROLE_ADMIN` on `/ws/**`; `X-Staff-Id` and
+  `X-Admin-Id` are stripped from clients, and every backend reads staff from `X-User-Id` + `X-User-Type=ADMIN`.
 
 ## 5. Customer SPA
 
 Phase 1 codes against the backend that exists today (announce-management, crawled listings,
 OCS). Phase 2 codes against the REST contracts in `doc/order-context.md` §8 and §9 behind
 feature flags (`features.trade`, `features.chat`) with MSW mocks, so the screens are ready
-when `order-reactive` and `messaging` land.
+when `order-reactive` and `messaging` land. (Since 2026-10-11 both flags default on: the chat screens run
+against messaging, §15, and the trade screens against the order module, §16.)
 
 Phase 1 modules (`app/modules/*`):
 
 - **shell**: layout, header with kind tabs (Goods, Jobs, Events), search box with suggest,
   language switch, footer; auth guard; error boundary showing problem details.
-- **auth**: login, register, logout, refresh on 401, profile.
+- **auth**: login, register, logout, refresh on 401, profile (editable since 2026-10-11, §17).
 - **home**: category roots per kind (from `/api/categories?kind=`), latest announces per kind
   (search sorted by `created_epoch`), region chooser.
 - **search**: query, facets `kind`, `category_ids`, `price`, `region_id`/`city`, `condition`,
@@ -166,9 +170,12 @@ region, text; detail; withdraw; expire); crawled listings (trigger import for a 
 reindex, counts per source and status, recent GONE rows, click counts); members (list,
 search, status); admins, roles and permissions; regions.
 
-Phase 2 (flagged): auctions (list, cancel a bid with reason), orders (list by status,
-detail with payment and shipment timeline, resolve dispute to release or refund), payouts
-overview, support queue (WAITING conversations, join, bulletins).
+Phase 2: auctions (list, bids, cancel a bid with reason), orders (list, detail with the
+payment and shipment rows and a derived timeline, resolve dispute to release or refund) and
+payouts overview read the order module through the edge since 2026-10-10 (§13; `features.trade`
+defaults on). The support queue, the staff conversation screen and the bulletins read messaging's staff
+routes and WebSockets through the edge since 2026-10-11 (§14, `features.chat` defaults on); `features.mocks`
+puts every phase-2 screen on the fixtures.
 
 ## 7. Tests and acceptance
 
@@ -251,7 +258,8 @@ URLs, preview, save draft, publish) with `validation.ts` mirroring the aggregate
 edit, publish, withdraw and mark sold. Phase 2 behind `localStorage.announceFeatures`
 (`{"trade":true,"chat":true,"mocks":true}`): auction panel, buy box and orders against the §8 contract,
 contact-seller, inbox and thread (WebSocket with REST polling fallback) against §9, MSW handlers in
-`app/mocks` (the WebSocket is not mocked; the thread polls).
+`app/mocks` (the WebSocket is not mocked; the thread polls). The chat screens were wired to messaging as built on
+2026-10-11 (§15).
 
 **Tests.** `mvn -pl gateway-api -P '!webapp' test`: 16 tests — `EdgeRoutesTest` (13, WebTestClient
 against one MockWebServer standing in for every backend, in-memory auth stores: public GET without token,
@@ -424,12 +432,499 @@ scheduled jobs off) and the customer edge on 8090, both from this branch's class
 The check left member 26 and one DRAFT announce (`42dabea8-691b-469c-bafa-77354fc2f24d`, titled "Edge trust
 check (draft, safe to delete)") in the development database; a draft cannot be withdrawn.
 
-**Not part of this step.** The admin edge forwards staff as `X-User-Id` + `X-User-Type=ADMIN`, while the
-admin routes of order read `X-Admin-Id` and those of messaging read `X-Staff-Id`; the admin edge sets neither,
-so those routes do not work against the real backends yet (the admin SPA's phase 2 runs on mocks). Left for
-the `gateway-admin` worktree. `/api/admin/listings/**` in announce-management has no caller check of its own.
+**Not part of this step.** The admin edge forwarded staff as `X-User-Id` + `X-User-Type=ADMIN`, while the
+admin routes of order read `X-Admin-Id` and those of messaging read `X-Staff-Id`; closed in §11.
+`/api/admin/listings/**` in announce-management has no caller check of its own.
 
 Build note: `announce-management/src/main/resources/config/application-prod.yml` was an empty file and is not
 any more. A `target/` built before this change holds an empty copy, and `maven-resources-plugin` 3.3.0 then
 fails with `copy-resources failed: newPosition < 0`. Delete
 `announce-management/target/classes/config/application-prod.yml` (or run `mvn -pl announce-management clean`) once.
+
+## 11. Staff identity: one caller convention for every backend (2026-10-10)
+
+After §10 the admin edge forwarded staff as `X-User-Id` + `X-User-Type=ADMIN` + `X-User-Roles`, but the staff
+routes of order still read `X-Admin-Id` and those of messaging `X-Staff-Id`, so nothing staff did on those two
+services worked through the admin edge; and the admin edge had no route for the staff chat at all. Both are
+closed, "according to our backend": the backends keep the convention announce-management already had, and the
+admin edge is completed around it. Nothing here involves an outside party: two edges, three backends, one
+header pair.
+
+**The convention.** `cqrs-reactive` (`security` package) has a `Caller` record and a `Callers` helper
+(`doc/cqrs-reactive.md` §5a). Every service reads its callers through it:
+
+| Call | Who passes | Otherwise |
+|---|---|---|
+| `Callers.member(headers)` | `X-User-Type=MEMBER` | 401 `no-principal` without an id, 403 `not-a-member` for staff |
+| `Callers.staff(headers)` | `X-User-Type=ADMIN` | 401 `no-principal`, 403 `not-staff` for a member |
+| `Callers.any(headers)` | either | 401 `no-principal` |
+| `Callers.memberIfAny(headers)` | a member, else empty | never fails for a visitor or staff |
+
+An id with a missing or unknown type is 403 `unknown-caller-type`; a non-numeric id is 400. `X-Seller-Id`,
+`X-Staff-Id` and `X-Admin-Id` are read nowhere.
+
+**Per module.**
+
+| Module | Change |
+|---|---|
+| order | The six staff routes (`/api/admin/bids/{id}/cancel`, `/api/admin/auctions/{announceId}/cancel`, `/api/admin/auctions/close-due`, `/api/admin/orders/{id}` GET, `/resolve-dispute`, `/release`) read `Callers.staff`; the seventeen member parameters read `Callers.member`, so a staff id is no longer taken for the member with the same number. `X-Admin-Id` gone. |
+| messaging | `Principals` is a thin layer over `Callers` (viewer, member, staff); `AdminMessagingController`, `/ws/staff` and `/ws/conversations/{id}` read the same pair. `X-Staff-Id` gone. |
+| announce-management | its `Callers` delegates to the framework; behaviour unchanged. |
+| gateway-admin | routes `/api/conversations/**` (staff read, post in and close the support conversations they joined) and `/ws/**` (`/ws/staff` bulletins, `/ws/conversations/{id}`) to messaging; `WebSocketTokenFilter` turns `?access_token=` into the bearer header, as on the customer edge; `ROLE_ADMIN` on `/ws/**`; `X-Staff-Id` / `X-Admin-Id` stripped from clients; the `dev` profile points order at 8083 and the WebSocket route at `ws://localhost:8086`. |
+
+**Tests.** `CallersTest` (framework); `OrderModuleEndToEndTest` sends members and staff as the edges do and
+asserts the two 403s and that `X-Admin-Id` is not an identity; `MessagingEndToEndTest` and
+`ConversationControllerTest` the same for messaging, including the staff WebSocket handshake;
+`EdgeRoutesTest` of the admin edge proves the staff identity reaches order and messaging, that the former staff
+headers are dropped, and that the `/ws/staff` handshake with the query token is forwarded with the identity and
+without the JWT. The load driver `ChatLoadDriver` sends the pair too.
+
+**Manual run.** Not executed: the plan ended with a run through the admin edge against a local messaging
+service, but another session was running messaging on port 8086 against the shared EventSourcingDB, Kafka and
+MySQL, and a second node would have joined its consumer groups. While that instance ran, `MessagingEndToEndTest`
+(whose read model is the live database) stalled because the instance kept overwriting the checkpoint rows the
+suite had reset; it passed as soon as the instance stopped. Run the suite when no messaging instance uses
+`announce_reactive_db`.
+
+**Still open.** Roles are forwarded but not checked inside the backends (the edge enforces `ROLE_ADMIN`, and
+`ROLE_SUPER` on its own admin, role and permission routes). The list endpoints the admin SPA's mocks call exist
+since §12; wiring the screens to them is separate work (done: trade in §13, chat in §14).
+
+## 12. Admin lists in the order module (2026-10-10)
+
+The admin SPA's trade screens (auctions, orders, payouts) ran on mocks because the order module had no list
+endpoints. It has them now, "according to the backend": each context serves its own read-model rows, as the
+member endpoints return them, in the admin envelope `{items, page, size, total}` (1-based `page`, `size` capped
+at 100), newest first. Staff identity as in §11; a member gets 403.
+
+| Endpoint | Context | Filters | Answer |
+|---|---|---|---|
+| `GET /api/admin/auctions` | auction | `status`, `seller`, `q` (title) | page of `announce_auction` rows |
+| `GET /api/admin/auctions/{announceId}` | auction | | `{auction, bids}` with every bid, cancelled and retracted included |
+| `GET /api/admin/orders` | order | `status`, `seller`, `buyer`, `q` (title) | page of `announce_order` rows |
+| `GET /api/admin/orders/{id}` | order | | the row (existed) |
+| `GET /api/admin/orders/{id}/payment` | payment | | the `announce_payment` row |
+| `GET /api/admin/orders/{id}/shipment` | shipping | | the `announce_shipment` row |
+| `GET /api/admin/payouts` | order | `status` (payout status), `seller` | `{totals, page}` |
+
+**Payouts.** There is no payout table. The order row holds the money for the seller (`payout_amount`), the fee,
+the dispute state and every timestamp, and the order context has its own copy of the seller gate
+(`announce_order_seller`). `Payouts` derives one line per order that holds or held money:
+
+| Payout status | Order statuses | `releaseDueAt` |
+|---|---|---|
+| `PENDING_RELEASE` | PAID, SHIPPED, DELIVERED | delivered + delivery grace; shipped + dispatch grace (or + delivery grace when releasing on dispatch); none while only paid |
+| `BLOCKED_DISPUTE` | DISPUTED | none |
+| `RELEASING` | RELEASING | none |
+| `SENT` | SETTLED | none |
+| `REFUNDED` | REFUNDING, REFUNDED | none |
+
+Each line carries the amounts, `sellerAccountStatus` and `payoutsEnabled` from the gate, the order status, and
+the paid / released / settled / dispute timestamps. The totals cover every live order, not the page: pending,
+blocked, releasing, sent and refunded amounts with their counts, `feesCollected` (settled deals) and
+`feesPending`, from one hand-written aggregate query (`AnnounceOrderMapper.sumByStatus`, db-reactive). The
+provider's `payout_ref` is the payment context's and comes with the payment endpoint.
+
+**For the SPA wiring (done 2026-10-10, §13).** The mock types in `app/shared/api/{auctionsApi,ordersApi,payoutsApi}.ts`
+differed from the real rows: amounts are decimals (`agreedPrice: 95.00`), not cents; the auction row says `title`,
+`bidIncrement`, `autoExtendSec`, `startTime` / `endTime`, `closedTime` and the closed-by-buy-now status is
+`CLOSED_SNAGGED`; the order row says `title` and has no `payment` / `shipment` / `timeline` (two more calls, no
+timeline); the payouts answer is `{totals, page}` with the fields above (`feesCollected` means settled deals, the
+mock summed every row). Bid rows say `bidTime` and `cancelledBy`.
+
+**Tests.** `PayoutsTest` (derivation and totals), `AnnounceOrderTotalsTest` (the aggregate query, live MySQL),
+and `OrderModuleEndToEndTest` lists the auctions, orders and payouts the scenarios produced, with the filters,
+the paging guard, the payment and shipment details and the 403 for a member.
+
+
+## 13. Admin SPA on the order endpoints (2026-10-10)
+
+The trade screens of the admin SPA (`gateway-admin/src/main/webapp/app/modules/trade`) now read the order
+module's admin endpoints of §12 through the admin edge instead of the MSW sketch. "According to the backend":
+the SPA's types are the read-model rows as the contexts return them, nothing is reshaped on the way.
+
+**Clients (`app/shared/api`).** `auctionsApi.ts`: `AuctionRow` (`announce_auction`: `title`, `bidIncrement`,
+`autoExtendSec`, `startTime` / `endTime` / `closedTime`, decimal amounts, status `CLOSED_SNAGGED`), `BidRow`
+(`bidTime`, `cancelledBy`), `AuctionView {auction, bids}`. `ordersApi.ts`: `OrderRow` (`announce_order`, with
+`DECLINED`), `PaymentRow` and `ShipmentRow` behind their own queries (`GET /api/admin/orders/{id}/payment` and
+`/shipment`; a 404 means "none yet" and is not an error), `ResolutionRequest {resolution, note}` as
+`OrderController` takes it (the sketch sent `reason`). `payoutsApi.ts`: `PayoutOverview {totals, page}` with
+`Payouts.PayoutRow` and `Payouts.PayoutTotals` field for field. The two mutations answer the domain record (cents,
+other names); the SPA ignores the body and refetches through the RTK Query tags. Amounts go through
+`formatMoney` (decimal); `formatCents` is no longer used by these screens.
+
+**Screens.** One filter bar (`TradeFilterBar`) with the filters the endpoints accept: status plus seller id and
+title words on auctions, status plus seller id, buyer id and title words on orders, status plus seller id on
+payouts; the draft is applied on submit and kept in the URL (`usePaging.setFilters`). The auction panel shows the
+increment, reserve, buy-now price, auto-extend and close time, every bid with its max amount, the cancelling
+staff member, and lets staff cancel a bid only while the auction is OPEN. The order detail combines three calls and
+derives its timeline from the rows' timestamps (`app/shared/api/orderTimeline.ts`: agreed, paid, shipped,
+delivered, receipt confirmed, dispute opened, released, settled, closed, refund sent, last carrier event); there is
+no event-timeline endpoint and the screens never read the event store. The payouts page shows the five totals of
+`PayoutTotals` with their order counts, the fees collected and pending, and one line per order that holds or held
+money with the order status under the payout status and the seller gate (`payoutsDisabled`).
+
+**Flags and mocks (`app/config/features.ts`).** `trade` defaults on, `chat` stayed off until §14, and the MSW worker starts
+only with `features.mocks` (`?features=trade,mocks`); before, any phase-2 flag started it outside production,
+which would have hijacked the real trade calls in development. The fixtures (`app/mocks/tradeFixtures.ts`) are
+in the real shapes, the handlers apply the real filters and the 404 rule for payment and shipment, and the payout
+lines and totals are derived from the fixture orders the way `Payouts` does. The mock banner shows only with the
+flag.
+
+**Tests.** `npm test` runs 47 tests (28 before): `features.test.ts` (defaults, overrides, the mocks-only rule),
+`orderTimeline.test.ts`, `tradeFilters.test.ts`, and one rendering test file per page (`AuctionsPage`,
+`OrdersPage`, `OrderDetailPage`, `PayoutsPage`) over `msw/node` serving the same handlers and fixtures as the
+browser, through RTK Query and the real base query. For that, jest got `customExportConditions: ['']`, the
+polyfills borrow `fetch`, `Request`, `Response`, `Headers` and `FormData` from `undici` (new dev dependency) and
+the base query uses the page's origin as an absolute base URL (same-origin as before). `npm run i18n:check`
+passes with 457 keys in `en`, `da` and `sv`.
+
+### 13a. Checklist, executed 2026-10-10
+
+Setup: live MySQL, `docker/cqrs` (EventSourcingDB, Kafka 9094), the order service from its jar on 8083 (service
+token enforced, every call went through the edge), `gateway-admin` from `mvn -pl db-reactive,gateway-admin -P
+webapp -DskipTests package` with `--spring.profiles.active=dev` on 8081. The development database held one OPEN
+auction with one bid and one PROPOSED fixed-price order from the 27 September stack run, nothing else, so the
+rich states (disputes, payouts) were covered by the page tests over the fixtures. Automated first: `npm run
+typecheck`, `npm run i18n:check` (457 keys), `npm test` (47), the jar contains `static/index.html`,
+`static/assets/js/main.*.js` and `mockServiceWorker.js`.
+
+| Step | Result |
+|---|---|
+| `GET /api/admin/auctions` | 200, one row with `title`, status OPEN, `currentPrice 120.0`, `bidIncrement 10.0`, `autoExtendSec 120`; `status=CANCELLED` total 0; `size=500` capped, 200 |
+| `GET /api/admin/auctions/{announceId}` | 200, `{auction, bids}` with one ACTIVE bid (`bidTime`, `amount 120.0`) |
+| `GET /api/admin/orders` | 200, one PROPOSED fixed-price row at 1250.0 (buyer 14, seller 10); `status=DISPUTED` and `q=zzzz` total 0 |
+| `GET /api/admin/orders/{id}`, `/payment`, `/shipment` | row 200; payment 404, shipment 404 (none yet) |
+| `GET /api/admin/payouts` | 200, every total 0 with 0 orders, currency DKK, empty page; `status=FAILED` 400 |
+| Edge | no token 401; `GET /` and `GET /payouts` answer `index.html`; `main.*.js` 200 with the trade flag on and the body `{resolution, note}` |
+| Auctions screen (headless Chromium) | one row, no problem alert, no mock banner; the bids panel opens with the increment line and the bid |
+| Orders screen and detail | one row linking to its detail; summary, "No payment started", "No shipment requested", empty timeline (no timestamp on a PROPOSED order); no alert |
+| Payouts screen | five tiles at DKK 0.00 with 0 orders, the fees line, the empty state; no alert |
+| Filters | status DISPUTED on the orders screen writes `?status=DISPUTED&page=1` and shows the empty state |
+
+Observations: the payment and shipment 404s come as Spring's default JSON, not problem+json (the SPA only looks
+at the status). The browser console shows the expected 401 of the first silent refresh before login and the
+two 404s.
+
+## 14. Admin SPA on messaging's staff routes (2026-10-11)
+
+The two chat screens of the admin SPA (support queue at `/support`, bulletins at `/bulletins`) were built on a
+sketch of messaging written before the module existed and ran on the service worker's fixtures. Messaging ships
+the staff side (`AdminMessagingController`, `ConversationController` for what a staff member does inside a
+conversation, `/ws/staff` and `/ws/conversations/{id}`) and the admin edge routes it since §11. This round
+wires the screens to it, adds the screen that was missing, and keeps the mocks for `features.mocks` only. No
+edge or backend change.
+
+**Where the sketch and the backend disagreed, and what the SPA does now.**
+
+| Sketch | Backend | SPA now |
+|---|---|---|
+| conversation row with `openedBy`, `lastMessagePreview`, `staffId`, `participantIds` | `ConversationQueries.ConversationView`: `buyerId`, `subject`, `lastMessageSeq`, `lastMessageAt`, `messageCount`, `participants[{type,id,role,lastReadSeq,joinedAt}]`, `createdAt`, `closedAt`, `blockedReason`; no preview | types mirror the view; the queue shows subject, member, opened time, last activity with the count, the staff who joined |
+| status filter with "All" | one status per call, `WAITING` by default, oldest first | one status at a time, WAITING first; the page polls every 15 s (nothing pushes queue changes) |
+| page with `total` | `MessagingDtos.PageResponse {items, page, size}` | `Pagination` has an unknown-total mode: "Page n · k rows on this page", Next enabled while a full page came back |
+| bulletin with `title`, `clientType` ALL/WEB/MOBILE, `postedBy`, `postedAt` | `Bulletins.BulletinView {id, adminId, audience, clientType, content, expiresAt, createdAt}`; content up to 1023 chars; client type a free string, empty = every client; audience STAFF or MEMBERS | form: content (first line = heading), audience, client type every / web / mobile sent lowercase, optional expiry; list per audience, newest first |
+| join answers the list row | join, close and block answer the aggregate state (`ConversationResponse`); idempotent for a staff member already in; 409 `conversation-closed` / `conversation-blocked` | the answers are ignored, the row refetches through the query tag |
+| no conversation screen | staff may read any conversation, and post once joined (`not-participant` otherwise); live frames `message`, `status`, `ack`, `error`, `pong` | new `/support/:id` screen |
+
+**The conversation screen (`SupportThreadPage`).** Row from `GET /api/conversations/{id}`, history from
+`GET {id}/messages?after=`, then `/ws/conversations/{id}?access_token=` through the edge (`WebSocketTokenFilter`
+turns the query token into the bearer header). `message` frames are appended with the same de-duplication the
+customer screen uses (message id, then client message id), `status` frames refetch the row, `ack` catches up the
+history, `error` frames show in an alert. The composer posts a `post` frame and falls back to
+`POST {id}/messages` when the socket is not open; while the socket is not open the screen polls every 5 s. The
+read marker is raised with a `read` frame (REST fallback) once the staff member is a participant. Staff actions:
+join (shown while WAITING or OPEN and not yet a participant), close, block with a reason in a modal. Bubbles:
+member left, staff right (the signed-in admin in blue as "You"), SYSTEM centred. The hook `useSocket` is a port
+of the customer SPA's `useConversationSocket` (reconnect with backoff, `unavailable` after three failures) with
+the path and query parameters as arguments; the bulletins page uses it on `/ws/staff?clientType=web` and
+prepends a `bulletin` frame of the shown audience to the list.
+
+**Flags and mocks.** `chat` defaults on (`?features=trade,chat` is the way back to the defaults after a
+`?features=` reset). The chat fixtures (`app/mocks/chatFixtures.ts`) and handlers are in the real shapes with
+the real rules: one status per call, size capped at 200, no total, join idempotent, 409 on a closed or blocked
+row, 403 `not-participant` for a post before joining, duplicate `clientMsgId` answered as `duplicate: true`,
+`POST /read` 204, bulletins by audience and expiry. Join, close and block change the row only: the backend
+pushes a `status` frame and posts no message (SYSTEM messages come from order events through
+`OrderEventsSubscriber`); the first fixtures assumed otherwise and were corrected after the run against the
+backend. The live frames are not mocked in the browser; the screens poll.
+
+**Tests.** `SupportQueuePage`, `SupportThreadPage` and `BulletinsPage` page tests over msw/node (the trade
+test utilities moved to `app/test/testUtils.tsx`), a `FakeWebSocket` double in `app/test/fakeWebSocket.ts`
+(records the URL and the sent frames, opens on the next tick or never, lets a test push server frames), and
+`chatHelpers.test.ts` for the frame mappers, the socket URL and the bulletin helpers. The suite is 65 tests in
+17 files (47 before). `npm run typecheck`, `npm run lint` and `npm run i18n:check` (493 keys in en, da, sv)
+are clean.
+
+### 14a. Checklist, executed 2026-10-11
+
+Setup: live MySQL, `docker/cqrs` Kafka 9094, `gateway-admin` from `mvn -pl db-reactive,cqrs-reactive,gateway-admin
+-P webapp -DskipTests package` with `--spring.profiles.active=dev` on 8081, messaging from
+`mvn -pl messaging spring-boot:run` on 8086 after installing the sibling modules from this worktree. Two
+deviations from the plain recipe: the development EventSourcingDB on port 3000 still hangs on every streaming
+read (ping 200, `read-events` never answers; the state noted on 10 October), so messaging ran against a
+throwaway `eventsourcingdb:1.2.0` on port 3001 with `--data-directory-temporary`, its four read-side checkpoint
+rows (`conversation-read-model` 0 and 1, `messaging-live`, `messaging-public`, all at event 36) deleted before
+and restored after the run; and messaging ran with `--announce.service-token.mode=off` so the member side could
+be driven with curl directly (`X-User-Id` + `X-User-Type=MEMBER`) without the customer edge. Every staff call
+went through the admin edge. The three support conversations and two bulletins the run wrote were deleted from
+the development database afterwards, because their events live in the throwaway store.
+
+| Step | Result |
+|---|---|
+| Member 42 opens a support conversation and posts | 201 both; `GET /api/admin/conversations?status=WAITING` through the edge answers the row with `subject`, one USER participant, `{items, page, size}` without total |
+| Support queue screen | one WAITING row: subject, member `#88` linking to the member, opened time, "1 messages", Waiting badge, Join; "Page 1 · 1 rows on this page"; no alert, no mock banner |
+| Join from the queue | navigates to `/support/{id}`; header "Open · Member #88 · Staff #1 · Opened …", composer shown; the WAITING list is empty afterwards and the OPEN list holds the row |
+| Conversation screen | history rendered (member bubble left), socket badge "Live" on `ws://localhost:8081/ws/conversations/{id}?access_token=…`, `read` frame sent |
+| Staff reply through the socket | "Hello, I am looking at the payment now." appears as "You" (pushed back through `messaging.live`) |
+| Member reply over REST while the screen is open | arrives live in 66 ms; the member's `GET …/messages` lists all three messages |
+| Bulletins screen | socket "Live" on `/ws/staff?clientType=web`; posting content, client type web → "Bulletin posted.", one row with heading, body, "Web", author #1 |
+| Bulletin posted by another client (curl through the edge) | prepended live in 94 ms; list order newest first (New PostNord labels, Planned maintenance) |
+| Close from the screen | footer "This conversation is Closed.", badge Closed, Close and Block gone; `/support?status=CLOSED` lists it |
+| Block with a reason (edge) | 200; the row reads BLOCKED with `blockedReason` "Abusive language" |
+| Rules | join on the closed conversation 409 `conversation-closed` (problem+json); a member post into it 409 as well |
+| Console | one expected 401 (the silent refresh before login); nothing else |
+
+## 15. Customer SPA on messaging's member routes (2026-10-11)
+
+The customer SPA's chat (contact-seller button on an announce, inbox at `/messages`, thread at `/messages/:id`)
+was written on 26 September against the §9 sketch, before messaging existed, and ran on the service worker's
+fixtures. The customer edge already routes `/api/conversations/**` and `/ws/conversations/**` to messaging with
+the service token, and `WebSocketTokenFilter` turns the `access_token` query parameter into the bearer header.
+This round corrects the client to messaging as built, closes the gaps the comparison found, adds the way to reach
+support, and verifies the screens against the running service. No edge or backend change.
+
+**Where the sketch and the backend disagreed, and what the SPA does now.**
+
+| Sketch | Backend | SPA now |
+|---|---|---|
+| a `message` frame is the REST row (`id`, `offerAmount`, `offerCurrency`) | `MessageLive`: `messageId`, `offerAmountCents`, `currency` | `messageOfFrame` maps the frame before it is appended; de-duplication on message id, then client message id |
+| own messages recognised by `senderType === 'MEMBER'` | `SenderType` is `USER`, `ADMIN` or `SYSTEM` | `isMine`: `USER` plus the signed-in id; `ADMIN` lines carry a "Support" label, `SYSTEM` lines are centred |
+| open, accept, decline and close answer the row | they answer the aggregate (`ConversationResponse`: `lastSeq`, offers in cents, participants without read markers) | typed as such; used for the id (open) and for the status and offers (accept, decline), the row is refetched afterwards |
+| the composer only on OPEN | a member may post while WAITING (support, before staff joins); 409 `conversation-closed` / `conversation-blocked` otherwise | `isWritable`: OPEN or WAITING; closed and blocked rows show why |
+| no way to open a SUPPORT conversation | `POST /api/conversations {type: SUPPORT, subject}` opens WAITING; the first message is what the staff queue shows | the inbox has a "Contact support" form: subject and first message, then the thread |
+| row refetched on every frame | the live topic outruns the read-model projection by tens of milliseconds | the row is updated from the frame first (open offer from an OFFER message; status, joined staff, accepted offer, closed time from a `status` frame) and refetched once, one second later |
+| a just-opened conversation is read at once | the row appears a moment after the command | the first misses on `GET /api/conversations/{id}` are retried quietly every second; the alert shows after five |
+| `openOffer.amountCents` on the row | `OfferView {messageId, amount, currency, at}` with a decimal amount | the row's offers are decimals, the aggregate's cents; both typed |
+
+**Screens.** `Thread`: row and history over REST, `/ws/conversations/{id}?access_token=` through the edge,
+`post` and `offer` frames with the REST fallback, `read` frames as messages arrive, polling every 5 s while the
+socket is not open, the accept / decline box for the seller while an offer is open, the offer composer for the
+buyer of a listing while none is, and a notice for each `status` change (joined, offer accepted or declined,
+closed, blocked). The header links a listing conversation to its announce and names the other member or the
+support agents. `Inbox`: the member's conversations latest first (status, other member, open-offer badge, unread
+count), polled every 30 s, plus the support form. `ContactSeller`: the same button; a second click lands in the
+same conversation because messaging derives the id from the announce and the buyer; 409 `buyer-is-seller` and
+404 `announce-not-found` show as problem alerts.
+
+**Flags and mocks.** `chat` defaults on; `trade` stays off because the trade screens still code against §8 and
+were never checked against the order module. The chat fixtures moved to `app/mocks/chatData.ts` in messaging's
+shapes and rules (deterministic listing ids, WAITING support rows, 403 `not-participant`, 409 rules, duplicate
+client message ids, no message posted by open, accept, decline or close). The mock seller's auto-reply stays for
+the browser (`features.mocks`) and is off in the tests. The service worker script was regenerated for the pinned
+msw version.
+
+**Tests.** The customer SPA had unit specs only. The admin SPA's render helper (store signed in as member #1,
+router, msw/node over the same handlers) and `FakeWebSocket` double were ported to `app/test/`; axios goes
+through jsdom's `XMLHttpRequest`, which msw intercepts, so the handlers keep relative paths. Page specs for
+`Thread` (history and live frames, own bubbles, socket post with echo, REST fallback, buyer offer with the row
+update, seller accept, CLOSED status frame, WAITING support with a JOINED frame, closed support read-only, the
+quiet retry of a not-yet-projected row), `Inbox` (order, unread, support form, empty) and `ContactSeller`
+(request body and navigation, 409, 404), plus `chat.spec.ts` for the helpers and `features.spec.ts`. The suite is
+50 tests in 10 files (31 in 5 before). `npm run typecheck` and `npm run i18n:check` are clean (chat namespace
+rewritten in en, da, sv). Two dependency pins: `msw` 2.7.0 (2.15 pulls an ES-module dependency jest cannot load)
+and `undici` 6.21.0 (undici 7 opens a `MessagePort` at load time that keeps the jest worker alive).
+
+### 15a. Checklist, executed 2026-10-11
+
+Setup: live MySQL, `docker/cqrs` Kafka 9094, the customer edge jar (`mvn -pl gateway-api -P webapp -DskipTests
+package`) on 8090 with the route overrides to announce-management 8085 and messaging 8086, the admin edge jar
+with `--spring.profiles.active=dev` on 8081, messaging and announce-management from `spring-boot:run`. Service
+tokens stayed in `enforce` on both backends: every member call went through the customer edge, every staff
+call through the admin edge. Two deviations: the development EventSourcingDB on port 3000 still hangs on every
+streaming read, so both backends ran against a throwaway `eventsourcingdb:1.2.0` on port 3001
+(`--data-directory-temporary`), with the seven read-side checkpoint rows of messaging (`conversation-read-model`
+0 and 1, `messaging-live`, `messaging-public`, at 37) and announce-management (`announce-public`,
+`announce-read-model`, `announce-search`, at 2613) deleted before and restored after; and announce-management ran
+with `--announce.search.mode=noop` so the test announce never reached the search index. The two members, the
+announce and the two conversations the run wrote were deleted from the development database afterwards, because
+their events live in the throwaway store. One build gotcha on the way: the shared `~/.m2` held a `cqrs-reactive`
+jar without `security.Callers` (installed by another worktree), so the first announce POST failed with
+`NoClassDefFoundError` until `mvn -pl cqrs-reactive clean install` from this worktree.
+
+| Step | Result |
+|---|---|
+| Seller and buyer register through `/auth/register`; the seller posts a GOODS announce and publishes it | 201, 201, 201, 200; the row reads PUBLISHED with the seller's id |
+| The seller opens their own announce | no "Message the seller" button (owner sees Edit) |
+| The buyer clicks "Message the seller" | `POST /api/conversations {type: LISTING, announceId}` 201, lands on `/messages/{id}`, socket "live" on `ws://localhost:8090/ws/conversations/{id}?access_token=…`; a second click lands on the same id |
+| The buyer writes | `post` frame; the echo renders as an own bubble (right, blue) |
+| Seller's inbox | the row "Ad … · open · with member #37", unread badge 1, latest first |
+| Seller's thread | the buyer's line left, no offer composer for the seller; reply over the socket arrives on the buyer's screen in 157 ms |
+| The buyer offers 4 200 | `offer` frame in cents; the seller's Accept / Decline box appears in 137 ms (from the frame, before the row); the buyer sees "Your offer of 4.200 kr. is waiting for the seller" and no offer composer |
+| The seller accepts | the buyer gets the `OFFER_ACCEPTED` notice in 197 ms, the offer line reads "(accepted)", the seller's box is gone; messaging relays `OfferAcceptedV1` |
+| The buyer contacts support from the inbox | `POST /api/conversations {type: SUPPORT, subject}` then the first message; thread WAITING with the waiting hint, composer enabled, the row in the staff queue (`GET /api/admin/conversations?status=WAITING` through the admin edge) |
+| Staff joins, replies and closes through the admin edge | JOINED notice and "Support agent #1" in 105 ms, status open; the staff line with the "Support" label in 108 ms; the member's answer listed on the staff side; close in 121 ms, composer disabled, "This conversation is closed." |
+| Buyer's inbox afterwards | the support row closed, the listing row open with member #36 |
+| Rules | a post into the closed conversation 409 `conversation-closed`; the seller contacting their own announce 409 `buyer-is-seller` |
+| Console | the expected 401 (silent refresh before login) and one 404 on the buyer: the quiet row retry right after opening |
+
+Left open: an unread badge in the header, image attachments, the customer trade screens on the order module,
+push notifications.
+
+**Re-run on the development store (2026-10-11, evening).** After `docker restart announce_esdb` the same drive ran
+with messaging, announce-management and both edges on the real store (no throwaway store, no checkpoint reset, the
+members, the announce and the two conversations kept, the announce withdrawn through the edge afterwards). Every
+step above passed again; the live arrivals were faster (seller reply 125 ms, offer box 135 ms, offer accepted
+117 ms, staff joined 77 ms, staff reply 76 ms, close 70 ms) and the console showed only the expected 401, no 404:
+the rows were already projected when the screens read them. The store itself was never the problem: with no
+consumer attached, curl streams all 13 582 events in about a second, twice in a row. What wedges it is what the
+10 October note described from the other side: when the services' event processors replay a long stretch and the
+store's writes to a slow consumer time out (`write tcp … i/o timeout` in the container log), several broken
+streams in a row leave the store answering `ping` but never another `read-events`, for every client, including
+one inside the container. It happened again right after the first restart, when messaging and announce-management
+attached while the store was still reporting `health: starting` and replayed together; a second restart, waiting
+for `healthy`, then attaching messaging alone (its three processors replayed to the head in two and a half
+minutes with one broken stream that recovered) and announce-management afterwards, held. A workaround, not a
+fix; the store (eventsourcingdb 1.2.0, evaluation licence) or the framework's consumption pace is the place to
+look.
+
+## 16. Customer SPA on the order module's member routes (2026-10-11)
+
+The trade screens of the customer SPA (auction panel and buy box on the announce page, orders list, order detail)
+were written on 26 September against the §8 sketch and ran on the service worker's fixtures. The customer edge
+routes `/api/auctions/**`, `/api/orders/**`, `/api/sellers/**` and the provider webhooks to the order module with
+the service token. This round corrects the client to the module as built (the same rows the admin SPA reads since
+§13), adds the two pieces a member could not do, and verifies the screens against the running module. No edge or
+backend change.
+
+**Where the sketch and the backend disagreed, and what the SPA does now.**
+
+| Sketch | Backend | SPA now |
+|---|---|---|
+| cents and sketch names (`amountCents`, `announceTitle`, `currentBidCents`, `endsAt`) | the read-model rows: decimals, `title`, `agreedPrice`, `feeAmount`, `payoutAmount`, `currentPrice`, `bidIncrement`, `endTime`, timestamps per step | `app/shared/model/trade.ts` holds the rows field for field (same types as the admin SPA) and the request records in cents |
+| ten order statuses from REQUESTED | thirteen: PROPOSED, AGREED, PAYMENT_PENDING, PAID, SHIPPED, DELIVERED, RELEASING, SETTLED, DISPUTED, REFUNDING, REFUNDED, CANCELLED, DECLINED; auctions close as CLOSED_WON, CLOSED_UNSOLD, CLOSED_SNAGGED | every status named and coloured; actions keyed on the module's rules |
+| the auction read is the row | `{auction, bids}`; the row's `bidCount`, `currentPrice`, `bidIncrement` give the minimum next bid (`Auction.minimumNextBidCents`); the route needs a member token at the edge | panel on the row and the bids: minimum, countdown, own standing bid, retraction, outcome; a visitor sees the invitation to log in; a 404 means no auction is open yet (seller not payable) |
+| the orders list is a page with a timeline per order | a plain array, 0-based page, no timeline | list newest first; the detail combines the order, payment and shipment rows (404 = none yet) and derives the timeline from their timestamps (`orderTimeline`, ported from the admin SPA) |
+| commands answer the row | they answer the aggregate (cents) | typed as such; the screens refetch the rows |
+| no payout account | AcceptPurchase and OpenAuction refused with `seller-not-payable` until `POST /api/sellers/me/account` | `PayoutsCard` on the seller tab of the orders page and on the profile; the refusal links to it |
+| "Pay (fake provider)" posted the webhook from the browser | the webhook is HMAC-signed with the backend's secret; the real flow is the provider's checkout with the payment row's client secret | the detail shows "waiting for your payment through <provider>" and the payment row; nothing to click until a provider is wired |
+| an empty shipment request | `{service, parcelSize, fromAddress, toAddress}`; the row carries the label URL and the carrier's last event | a four-field form for the seller on PAID; the label link for the seller only |
+| the row read right after a command | the projection lands a moment after the aggregate answers (seen: 1 s for the seller account) | commands show the aggregate's answer where they can (payouts) and refetch once more a second later; a just-created order is retried quietly up to eight times |
+
+**Screens.** `AuctionPanel` (polls every 15 s while open), `BuyBox`, `Orders` (role in the URL, `?role=seller`
+with the payouts card), `OrderDetail` (polls every 5 s while the order moves, since payment and carrier facts
+arrive by webhook; seller accept / decline on PROPOSED, cancel before payment by either party, shipment form on
+PAID, confirm receipt on SHIPPED or DELIVERED, dispute while paid and not disputed; payment, shipment and timeline
+cards), `PayoutsCard`. The fee line shows once the deal is agreed (the row carries no fee before).
+
+**Flags and mocks.** `trade` defaults on (both phase-2 flags do now). The trade fixtures moved to
+`app/mocks/tradeData.ts` in the rows' shapes with the module's rules (409 `own-announce`, `not-proposed`,
+`already-paid`, `seller-not-payable`, `bid-below-minimum`, `seller-cannot-bid`, `auction-not-open`, `not-paid`;
+403 `not-seller`, `not-buyer`, `not-party`; 404 for a payment or shipment that does not exist yet; the fee computed
+at accept). The browser mock's carrier dispatches 1.5 s after booking; the tests switch that off.
+
+**Tests.** Page specs for `AuctionPanel` (row, minimum, refused and accepted bid with retraction, owner, not open
+yet, closed and won, visitor), `BuyBox`, `Orders` (both roles, payouts onboarding, empty), `OrderDetail` (buyer
+proposed and cancel, seller refused then accepted, carrier booking, pay hint and dispute form, receipt
+confirmation to settlement, dispute, settled read-only, quiet retry of a just-created order) and the timeline
+helper; the render helper can sign nobody in. The suite is 70 tests in 15 files (50 in 10 after §15).
+`npm run typecheck` and `npm run i18n:check` are clean (trade namespace rewritten in en, da, sv).
+
+### 16a. Checklist, executed 2026-10-11
+
+Setup: live MySQL, `docker/cqrs` Kafka 9094, the customer edge jar on **8092** (8090 and 8091 were taken by the
+achatglasses stack of another session that afternoon; the first attempt registered two members in that stack's
+database through its edge, which were removed there), announce-management and the order service from jars built
+with the framework in the same reactor (`mvn -pl db-reactive,cqrs-reactive,order,announce-management -P webapp
+-Dskip.npm=true -Dskip.installnodenpm=true -Dmaven.test.skip=true -DskipTests package`), because the shared
+`~/.m2` had received a `cqrs-reactive` without `security.Callers` from another worktree at 15:52 and both services
+started from it hung on their first member request (`NoClassDefFoundError` inside the handler; the edge then
+never answers). Service tokens in `enforce`; every member call through the customer edge; the provider and carrier
+webhooks posted by the driver, signed, through the edge's public webhook routes. Deviations as in §15a: the
+development EventSourcingDB on port 3000 still hangs on reads, so both backends ran against a throwaway store on
+port 3001 with the nine read-side checkpoint rows of announce-management and the order module deleted before and
+restored after (the order module's `AuctionClosingJob` logs an error every minute for the auction row of
+27 September whose events are not in that store); announce-management with the search indexer off. The members,
+announces, orders, auction, bids, payment, shipment, seller account and gate rows the runs wrote were deleted
+afterwards, as was the order the module created from the chat round's accepted offer when it caught up on
+`messaging.v1`, and the snapshot rows of today's deleted announces.
+
+| Step | Result |
+|---|---|
+| Seller sets up payouts on `/orders?role=seller` | "Payouts enabled · FAKE · VERIFIED · Account acct_fake_46" from the aggregate's answer; the row answers 200 a moment later; the order and auction gate rows followed within 18 ms this time (1 s and about 90 s in two earlier runs) |
+| Seller posts and publishes a fixed-price and an AUCTION announce | 201 / 200 ×2; the auction row is OPEN 1.3 s after publishing (start price 100, increment 10) |
+| Buyer clicks Buy | `POST /api/orders {announceId}` 201, lands on the PROPOSED order at the first attempt: "Waiting for the seller to accept", Cancel, no payment, no shipment |
+| Seller's orders list and detail | row "Trade run fixed · Fixed price · member #47 · 1.250 kr. · Proposed"; Accept → "Awaiting payment", payment card "awaiting payment · 1.250 kr. · FAKE · Reference pi_fake_1" |
+| Buyer's screen | picks the change up by polling in 5.8 s; "Waiting for your payment through FAKE." |
+| Provider webhook CONFIRMED (signed, through the edge) | 204; the buyer sees Paid in 9.9 s, the payment card "confirmed", the dispute form appears |
+| Seller books the carrier | form MyPack Collect / M / Vamdrup 6580 → København 2100; shipment card "FAKE · MyPack Collect FAKE00000001 · Booked" with the label link; the row REQUESTED |
+| Carrier webhooks DISPATCHED then DELIVERED | 204 ×2; the buyer sees Shipped in 8.9 s and Delivered in 9.9 s; no label link for the buyer |
+| Buyer confirms receipt | "Releasing payout"; the payment row RELEASING with `payoutRef tr_fake_2`; after the provider's PAYOUT_SENT webhook, Settled in 8.4 s; timeline Agreed, Paid, Shipped, Delivered, Receipt confirmed, Payout released, Settled; payment card "paid out"; no button left |
+| Auction, bid below the minimum (REST through the edge) | 409 `bid-below-minimum`, "The bid must be at least 10000 minor units (current price 10000)" |
+| Auction panel, buyer | "100 kr. · 0 bids · ends in 6d 23h · Minimum 100 kr. (increment 10 kr.)"; bid 100 → "Your bid: 100 kr. (leading)"; bid 110 → "110 kr. · 2 bids · Minimum 120 kr." with "Retract my bid"; the row holds both bids (110 ACTIVE, 100 OUTBID) |
+| Auction panel, owner | "This is your auction.", no bid input |
+| Seller buys their own announce (REST) | 409 (`announce-not-available` from the snapshot rule, ahead of `own-announce`) |
+| Buyer's orders list | one row, Settled |
+| Console | the expected 401 of the silent refresh before login, and the 404s of the payment and shipment reads before they exist and of the quiet row retries |
+
+Observations: the trade screens poll, so a change made by the other party or by a webhook shows within the poll
+interval (5 s on the detail, 15 s on the auction panel); the live push the chat has would need the order module to
+expose one. `GET /api/auctions/{id}` needs a member token at the edge, so visitors do not see the auction's state
+on the announce page; opening that read in `PublicPaths` is a one-line edge change for a later round.
+
+Left open: a real payment provider and its checkout, carrier booking beyond the fake, proxy bidding, auction
+closing from the SPA (the end time is days away), refund and dispute resolution screens on the customer side.
+
+## 17. Profile editing at the customer edge (2026-10-11)
+
+The last open item of the §9 follow-ups. The edge owns member identity (`/auth/login|register|refresh|logout|me`
+over `announce_user`), and until now `GET /auth/me` was the only read of a member's own row and nothing wrote it;
+the SPA's profile page printed the row and said editing would come later. This round adds the two routes and the
+screen. The edge is the only module touched.
+
+**Routes (member token).**
+
+| Route | Body | Answer |
+|---|---|---|
+| `PUT /auth/me` | `ProfileUpdateRequest {nickname ≤63, mobile ≤20 digits/+/space, avatar ≤255 (a URL), gender 0..2, birthday (past or today)}`; blank mobile and null birthday clear them, a blank nickname falls back to the username | `UserResponse`, now with `gender` and `birthday`; 400 with `errors` on invalid values, 409 when another member holds the mobile, 401 without a token |
+| `POST /auth/password` | `PasswordChangeRequest {currentPassword, newPassword ≥8}` | `TokenResponse` with a fresh access token and a fresh refresh cookie; 401 `current password does not match` (BCrypt off the event loop as at login); every other refresh token of the member is revoked first, so other devices must log in again while this one carries on |
+
+The username stays the login and the unique key (announces, orders and conversations refer to the member by id);
+changing it is out of scope. `UserAccounts` gained `updateProfile` (uniqueness check on the mobile against the other
+rows, then a full-row update so a cleared birthday is written as null) and `changePassword`; `RefreshTokenStore`
+gained `revokeAllForUser`; `RefreshTokenService.replaceAll` revokes and issues. `Account` carries `gender` and
+`birthday` (the old seven-argument shape remains for the token issuer and the tests).
+
+**Screen (`app/modules/auth/Profile.tsx`).** Two forms. Profile: picture (uploaded through the edge's storage route
+like the announce gallery, previewed, removable), username read-only with the member id, display name, mobile,
+gender, birthday; save updates the signed-in user in the store, so the header shows the new name and the avatar at
+once. Password: current, new, repeated; the client refuses a short or mismatching pair before the call; success
+stores the new access token, replaces the user in the store and clears the fields. The payouts card of §16 sits
+below. Strings in en, da, sv (`auth:profile.*`).
+
+**Tests.** `EdgeRoutesTest.memberEditsProfileAndChangesPassword` over the in-memory stores: the update and its
+echo on `GET /auth/me`, 401 without a token, 400 on gender 7 and a future birthday, 409 on another member's mobile,
+clearing mobile and birthday, 401 on a wrong current password, 400 on a short new one, and a change that keeps the
+caller's new cookie, kills both earlier cookies, refuses the old password and accepts the new one.
+`AuthPersistenceTest` gained the update (with the 409 and the clearing) and the password change against the live
+MySQL, and the revocation of every token of a member. The edge suite is 24 tests (20 before). SPA:
+`Profile.spec.tsx` (4) over msw handlers declared in the spec, the storage client stubbed because multipart through
+jsdom's `XMLHttpRequest` does not reach msw; the suite is 74 tests in 16 files. Typecheck and i18n clean.
+
+### 17a. Checklist, executed 2026-10-11
+
+Setup: the customer edge jar on 8092 and the live MySQL only (no backend needed; the throwaway event store was not
+involved). A member registered through the edge, logged in in a headless browser and once more over REST as a
+second device; a second member registered with a mobile. Both members, their tokens, the storage record and the
+uploaded file were deleted afterwards.
+
+| Step | Result |
+|---|---|
+| `/me` after login | username shown read-only with "the username is your login", display name "Before", header "Before" |
+| Save with the other member's mobile | alert "mobile already registered" (409 problem detail), nothing saved |
+| Picture, display name, mobile, gender, birthday, Save | upload answered `/api/storage/fetch/<key>.png` and the preview showed it; "Profile saved."; the header reads "After Name" with the avatar image; `GET /auth/me` over REST answers the five fields; the avatar URL serves `image/png` |
+| Wrong current password | alert "current password does not match" (401) |
+| Password change | "Password changed. Your other devices were signed out."; the second device's refresh cookie answers 401; login with the old password 401, with the new one 200; the browser's own session survives a full reload and shows "After Name" |
+| Console | the expected 401 of the silent refresh before login, the 409 and the 401 the two refused calls produced |
+
+Left open: username change, e-mail with verification, password reset by mail, account deletion.
+

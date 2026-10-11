@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.linlinjava.announce.cqrs.messaging.PublicEventSubscribers;
+import org.linlinjava.announce.cqrs.security.Callers;
 import org.linlinjava.announce.cqrs.security.ServiceTokenWebFilter;
 import org.linlinjava.announce.cqrs.security.ServiceTokens;
 import org.linlinjava.announce.cqrs.test.EdgeRequests;
@@ -166,9 +167,19 @@ class OrderModuleEndToEndTest {
                 "http://x/1.jpg", priceCents, "DKK", saleType, 1005007, now(), now().plusDays(60)));
     }
 
+    /** What the customer edge forwards for a signed-in member. */
     private WebTestClient.ResponseSpec as(int user, String method, String uri, Object body) {
+        return with(Callers.MEMBER, user, method, uri, body);
+    }
+
+    /** What the admin edge forwards for staff member {@link #ADMIN}. */
+    private WebTestClient.ResponseSpec staff(String method, String uri, Object body) {
+        return with(Callers.ADMIN, ADMIN, method, uri, body);
+    }
+
+    private WebTestClient.ResponseSpec with(String type, int id, String method, String uri, Object body) {
         WebTestClient.RequestBodySpec spec = client.method(org.springframework.http.HttpMethod.valueOf(method)).uri(uri)
-                .header("X-User-Id", String.valueOf(user)).header("X-Admin-Id", String.valueOf(ADMIN));
+                .header(Callers.USER_HEADER, String.valueOf(id)).header(Callers.TYPE_HEADER, type);
         return (body == null ? spec : spec.contentType(MediaType.APPLICATION_JSON).bodyValue(body)).exchange();
     }
 
@@ -214,7 +225,7 @@ class OrderModuleEndToEndTest {
                 .expectStatus().isUnauthorized()
                 .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
                 .expectBody().jsonPath("$.type").isEqualTo(ServiceTokenWebFilter.PROBLEM_TYPE_MISSING);
-        direct.post().uri("/api/admin/auctions/close-due").header("X-Admin-Id", String.valueOf(ADMIN)).exchange()
+        direct.post().uri("/api/admin/auctions/close-due").header(Callers.USER_HEADER, String.valueOf(ADMIN)).header(Callers.TYPE_HEADER, Callers.ADMIN).exchange()
                 .expectStatus().isUnauthorized();
         direct.post().uri("/api/payments/webhook/fake").contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange()
                 .expectStatus().isUnauthorized();
@@ -226,6 +237,15 @@ class OrderModuleEndToEndTest {
         direct.get().uri("/actuator/health").exchange().expectStatus().value(status -> assertThat(status).isNotEqualTo(401));
 
         as(ALICE, "GET", "/api/orders?role=buyer", null).expectStatus().isOk();
+        // one caller convention: a member is refused on the staff routes and staff on the member routes
+        as(ALICE, "POST", "/api/admin/auctions/close-due", null).expectStatus().isForbidden()
+                .expectBody().jsonPath("$.code").isEqualTo(Callers.NOT_STAFF);
+        staff("GET", "/api/orders?role=buyer", null).expectStatus().isForbidden()
+                .expectBody().jsonPath("$.code").isEqualTo(Callers.NOT_A_MEMBER);
+        client.get().uri("/api/orders?role=buyer").exchange().expectStatus().isUnauthorized()
+                .expectBody().jsonPath("$.code").isEqualTo(Callers.NO_PRINCIPAL);
+        // the former staff header is not an identity
+        client.post().uri("/api/admin/auctions/close-due").header("X-Admin-Id", String.valueOf(ADMIN)).exchange().expectStatus().isUnauthorized();
     }
 
     @Test
@@ -265,7 +285,7 @@ class OrderModuleEndToEndTest {
 
         // the end passes: the closing job closes it won, the order context opens the deal with the winner
         CLOCK.advance(Duration.ofDays(8));
-        as(SELLER, "POST", "/api/admin/auctions/close-due", null).expectStatus().isOk().expectBody().jsonPath("$.closed").isEqualTo(1);
+        staff("POST", "/api/admin/auctions/close-due", null).expectStatus().isOk().expectBody().jsonPath("$.closed").isEqualTo(1);
         await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/auctions/" + auctionAnnounce).exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.auction.status").isEqualTo("CLOSED_WON").jsonPath("$.auction.winnerId").isEqualTo(BOB));
         await().atMost(WAIT).untilAsserted(() -> assertThat(Probes.orderEvents).filteredOn(e -> e instanceof OrderAgreedV1 a && a.announceId().equals(auctionAnnounce)).hasSize(1));
@@ -297,7 +317,7 @@ class OrderModuleEndToEndTest {
                 .expectStatus().isCreated().expectBody().jsonPath("$.trackingNumber").isNotEmpty().jsonPath("$.labelUrl").isNotEmpty();
         carrierWebhook(auctionOrderId, "DISPATCHED", "c-a-1");
         awaitOrderStatus(auctionOrderId, BOB, "SHIPPED");
-        as(SELLER, "POST", "/api/admin/orders/" + auctionOrderId + "/release", null).expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("not-delivered");
+        staff("POST", "/api/admin/orders/" + auctionOrderId + "/release", null).expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("not-delivered");
 
         // delivered, grace elapses (clock), the release job asks the payout, the provider pays out: SETTLED
         carrierWebhook(auctionOrderId, "DELIVERED", "c-a-2");
@@ -385,8 +405,8 @@ class OrderModuleEndToEndTest {
 
         // a dispute blocks the payout even for staff
         as(BOB, "POST", "/api/orders/" + orderId + "/dispute", "{\"reason\":\"seller silent\"}").expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("DISPUTED");
-        as(SELLER, "POST", "/api/admin/orders/" + orderId + "/release", null).expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("dispute-open");
-        as(SELLER, "POST", "/api/admin/orders/" + orderId + "/resolve-dispute", "{\"resolution\":\"REFUND\",\"note\":\"never shipped\"}").expectStatus().isOk()
+        staff("POST", "/api/admin/orders/" + orderId + "/release", null).expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("dispute-open");
+        staff("POST", "/api/admin/orders/" + orderId + "/resolve-dispute", "{\"resolution\":\"REFUND\",\"note\":\"never shipped\"}").expectStatus().isOk()
                 .expectBody().jsonPath("$.status").isEqualTo("REFUNDING");
         await().atMost(WAIT).untilAsserted(() -> as(BOB, "GET", "/api/orders/" + orderId + "/payment", null).expectStatus().isOk()
                 .expectBody().jsonPath("$.status").isEqualTo("REFUNDING").jsonPath("$.refundRef").isNotEmpty());
@@ -421,5 +441,61 @@ class OrderModuleEndToEndTest {
         await().atMost(WAIT).untilAsserted(() -> as(SELLER, "GET", "/api/orders/" + order2 + "/shipment", null).expectStatus().isOk()
                 .expectBody().jsonPath("$.status").isEqualTo("CANCELLED"));
         assertThat(now()).isAfter(LocalDateTime.ofInstant(START, ZoneId.systemDefault()).truncatedTo(ChronoUnit.DAYS));
+    }
+
+    @Test
+    @Order(6)
+    void staffListAuctionsOrdersAndPayoutsWithTheirFiltersAndDetails() {
+        // auctions: every status, the status filter, the title search, and the detail with every bid
+        staff("GET", "/api/admin/auctions?size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page").isEqualTo(1).jsonPath("$.size").isEqualTo(100)
+                .jsonPath("$.items[?(@.announceId == '" + auctionAnnounce + "')].status").isEqualTo("CLOSED_WON");
+        staff("GET", "/api/admin/auctions?status=closed_won&seller=" + SELLER + "&q=" + auctionAnnounce, null).expectStatus().isOk()
+                .expectBody().jsonPath("$.total").isEqualTo(1).jsonPath("$.items[0].announceId").isEqualTo(auctionAnnounce)
+                .jsonPath("$.items[0].winnerId").isEqualTo(BOB).jsonPath("$.items[0].bidCount").isEqualTo(2);
+        staff("GET", "/api/admin/auctions?status=OPEN&q=" + auctionAnnounce, null).expectStatus().isOk().expectBody().jsonPath("$.total").isEqualTo(0);
+        staff("GET", "/api/admin/auctions/" + auctionAnnounce, null).expectStatus().isOk()
+                .expectBody().jsonPath("$.auction.status").isEqualTo("CLOSED_WON").jsonPath("$.bids.length()").isEqualTo(2)
+                .jsonPath("$.bids[0].status").isEqualTo("WON").jsonPath("$.bids[1].status").isEqualTo("OUTBID");
+        staff("GET", "/api/admin/auctions/nope", null).expectStatus().isNotFound();
+
+        // orders: both settled deals, the filters, and the payment and shipment of one of them
+        staff("GET", "/api/admin/orders?status=SETTLED&size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.items[?(@.id == '" + auctionOrderId + "')].door").isEqualTo("AUCTION")
+                .jsonPath("$.items[?(@.id == '" + fixedOrderId + "')].door").isEqualTo("FIXED_PRICE");
+        staff("GET", "/api/admin/orders?buyer=" + BOB + "&seller=" + SELLER + "&q=" + auctionAnnounce, null).expectStatus().isOk()
+                .expectBody().jsonPath("$.total").isEqualTo(1).jsonPath("$.items[0].id").isEqualTo(auctionOrderId);
+        staff("GET", "/api/admin/orders?page=0&size=1000", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page").isEqualTo(1).jsonPath("$.size").isEqualTo(100);
+        staff("GET", "/api/admin/orders/" + fixedOrderId + "/payment", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.status").isEqualTo("PAID_OUT").jsonPath("$.payoutRef").isNotEmpty();
+        staff("GET", "/api/admin/orders/" + fixedOrderId + "/shipment", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.status").isEqualTo("DELIVERED");
+        staff("GET", "/api/admin/orders/nope/payment", null).expectStatus().isNotFound();
+
+        // payouts: the two settled deals were sent, the late deal was refunded, and the totals cover all of them
+        staff("GET", "/api/admin/payouts?status=SENT&size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page.items[?(@.orderId == '" + auctionOrderId + "')].status").isEqualTo("SENT")
+                .jsonPath("$.page.items[?(@.orderId == '" + auctionOrderId + "')].sellerAccountStatus").isEqualTo("VERIFIED")
+                .jsonPath("$.page.items[?(@.orderId == '" + auctionOrderId + "')].payoutsEnabled").isEqualTo(true)
+                .jsonPath("$.page.items[?(@.orderId == '" + fixedOrderId + "')].releasedAt").isNotEmpty()
+                .jsonPath("$.totals.currency").isEqualTo("DKK")
+                .jsonPath("$.totals.sentOrders").value(n -> assertThat(((Number) n).longValue()).isGreaterThanOrEqualTo(2L))
+                .jsonPath("$.totals.sentAmount").value(n -> assertThat(new java.math.BigDecimal(String.valueOf(n))).isGreaterThan(java.math.BigDecimal.ZERO))
+                .jsonPath("$.totals.feesCollected").value(n -> assertThat(new java.math.BigDecimal(String.valueOf(n))).isGreaterThan(java.math.BigDecimal.ZERO));
+        staff("GET", "/api/admin/payouts?status=REFUNDED&size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page.items[?(@.announceId == '" + lateAnnounce + "')].status").isEqualTo("REFUNDED")
+                .jsonPath("$.totals.refundedOrders").value(n -> assertThat(((Number) n).longValue()).isGreaterThanOrEqualTo(1L));
+        staff("GET", "/api/admin/payouts?size=100", null).expectStatus().isOk()
+                .expectBody().jsonPath("$.page.items[?(@.orderId == '" + auctionOrderId + "')]").exists()
+                .jsonPath("$.page.items[?(@.status == 'PENDING_RELEASE' || @.status == 'SENT' || @.status == 'REFUNDED' || @.status == 'BLOCKED_DISPUTE' || @.status == 'RELEASING')]").exists();
+        staff("GET", "/api/admin/payouts?status=nonsense", null).expectStatus().isBadRequest();
+
+        // members get none of this
+        as(ALICE, "GET", "/api/admin/auctions", null).expectStatus().isForbidden();
+        as(ALICE, "GET", "/api/admin/orders", null).expectStatus().isForbidden();
+        as(ALICE, "GET", "/api/admin/payouts", null).expectStatus().isForbidden();
+        as(ALICE, "GET", "/api/admin/orders/" + fixedOrderId + "/payment", null).expectStatus().isForbidden();
+        as(ALICE, "GET", "/api/admin/orders/" + fixedOrderId + "/shipment", null).expectStatus().isForbidden();
     }
 }

@@ -81,12 +81,12 @@ public final class InboxLoadDriver {
         System.out.printf("base=%s conversations=%d duration=%s threads=%d%n", base, conversations, duration, threads);
         List<String> ids = new ArrayList<>();
         for (int i = 0; i < conversations; i++) {
-            Map<String, Object> opened = http.post().uri("/api/conversations").header("X-User-Id", String.valueOf(MEMBER))
+            Map<String, Object> opened = http.post().uri("/api/conversations").headers(h -> identity(h, "MEMBER", MEMBER))
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(Map.of("type", "SUPPORT", "subject", "load inbox " + i + " " + UUID.randomUUID().toString().substring(0, 8)))
                     .retrieve().bodyToMono(BODY).block(Duration.ofSeconds(30));
             String id = String.valueOf(opened.get("id"));
-            http.post().uri("/api/admin/conversations/" + id + "/join").header("X-Staff-Id", String.valueOf(STAFF))
+            http.post().uri("/api/admin/conversations/" + id + "/join").headers(h -> identity(h, "ADMIN", STAFF))
                     .retrieve().toBodilessEntity().block(Duration.ofSeconds(30));
             ids.add(id);
         }
@@ -103,9 +103,9 @@ public final class InboxLoadDriver {
                 while (System.nanoTime() < end) {
                     int size = PAGE_SIZES[turn % PAGE_SIZES.length];
                     switch ((turn / PAGE_SIZES.length) % 3) {
-                        case 0 -> fetch("member inbox", size, "/api/conversations", "X-User-Id", MEMBER);
-                        case 1 -> fetch("staff inbox", size, "/api/conversations", "X-Staff-Id", STAFF);
-                        default -> fetch("staff queue", size, "/api/admin/conversations?status=OPEN", "X-Staff-Id", STAFF);
+                        case 0 -> fetch("member inbox", size, "/api/conversations", "MEMBER", MEMBER);
+                        case 1 -> fetch("staff inbox", size, "/api/conversations", "ADMIN", STAFF);
+                        default -> fetch("staff queue", size, "/api/admin/conversations?status=OPEN", "ADMIN", STAFF);
                     }
                     turn++;
                 }
@@ -132,18 +132,18 @@ public final class InboxLoadDriver {
     /** Each thread fetches every query once before the clock starts, so connection set-up is not in the samples. */
     void warmUp() {
         for (int size : PAGE_SIZES) {
-            fetch("member inbox", size, "/api/conversations", "X-User-Id", MEMBER);
-            fetch("staff inbox", size, "/api/conversations", "X-Staff-Id", STAFF);
-            fetch("staff queue", size, "/api/admin/conversations?status=OPEN", "X-Staff-Id", STAFF);
+            fetch("member inbox", size, "/api/conversations", "MEMBER", MEMBER);
+            fetch("staff inbox", size, "/api/conversations", "ADMIN", STAFF);
+            fetch("staff queue", size, "/api/admin/conversations?status=OPEN", "ADMIN", STAFF);
         }
         samples.values().forEach(List::clear);
     }
 
-    void fetch(String query, int size, String path, String header, int principal) {
+    void fetch(String query, int size, String path, String type, int principal) {
         String uri = path + (path.contains("?") ? "&" : "?") + "page=1&size=" + size;
         long start = System.nanoTime();
         try {
-            Map<String, Object> page = http.get().uri(uri).header(header, String.valueOf(principal))
+            Map<String, Object> page = http.get().uri(uri).headers(h -> identity(h, type, principal))
                     .retrieve().bodyToMono(BODY).block(Duration.ofSeconds(30));
             long elapsed = System.nanoTime() - start;
             int items = page == null ? -1 : ((List<?>) page.get("items")).size();
@@ -165,11 +165,17 @@ public final class InboxLoadDriver {
         }
     }
 
+    /** The caller as an edge forwards it: {@code X-User-Id} and {@code X-User-Type} (MEMBER or ADMIN). */
+    static void identity(org.springframework.http.HttpHeaders headers, String type, int principal) {
+        headers.set("X-User-Id", String.valueOf(principal));
+        headers.set("X-User-Type", type);
+    }
+
     /** Waits until the read model shows the last conversation OPEN (the staff join has been projected). */
     void awaitProjected(String id) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
         while (System.nanoTime() < deadline) {
-            Map<String, Object> view = http.get().uri("/api/conversations/" + id).header("X-User-Id", String.valueOf(MEMBER))
+            Map<String, Object> view = http.get().uri("/api/conversations/" + id).headers(h -> identity(h, "MEMBER", MEMBER))
                     .retrieve().bodyToMono(BODY).onErrorResume(e -> Mono.empty()).block(Duration.ofSeconds(30));
             if (view != null && "OPEN".equals(view.get("status"))) {
                 return;

@@ -346,7 +346,14 @@ announce:
 - A new service: set the block above in `config/application.yml`, `mode: "off"` in the `test` profile, and let
   the end-to-end suite run with `enforce` through `EdgeRequests` (§6). Read the caller from the headers in one
   place (announce-management: `interfaces.rest.Callers`), checking `X-User-Type` as well as the id.
-- Design and rollout: `doc/frontend-edges.md` §10.
+- `Callers` reads the caller the edges forward, in one convention for every service: `X-User-Id` with
+  `X-User-Type` (`MEMBER` from the customer edge, `ADMIN` from the admin edge) and `X-User-Roles`, into a
+  `Caller` record. A member route calls `Callers.member(headers)`, a staff route `Callers.staff(headers)`, a
+  route open to both `Callers.any(headers)`, a public route that behaves differently for a signed-in member
+  `Callers.memberIfAny(headers)`. Failures are problem details: 401 `no-principal`, 403 `not-a-member` /
+  `not-staff` / `unknown-caller-type`, 400 for a non-numeric id. No service reads `X-Seller-Id`,
+  `X-Staff-Id` or `X-Admin-Id` any more.
+- Design and rollout: `doc/frontend-edges.md` §10 and §11.
 
 ## 6. `cqrs-reactive-test`: the test kit
 

@@ -12,8 +12,9 @@ import reactor.core.publisher.Mono;
 
 /**
  * Anti-spoofing plus identity forwarding. Every request loses any client-supplied {@code X-User-*},
- * {@code X-Seller-Id} and {@code X-Service-Token}; when the bearer token is a valid staff token the edge injects
- * {@code X-User-Id}, {@code X-User-Type=ADMIN} and {@code X-User-Roles} for the backends. Runs before Spring
+ * {@code X-Seller-Id}, the former staff headers {@code X-Staff-Id} / {@code X-Admin-Id} and {@code X-Service-Token};
+ * when the bearer token is a valid staff token the edge injects {@code X-User-Id}, {@code X-User-Type=ADMIN} and
+ * {@code X-User-Roles}, which is how every backend identifies staff (the framework's {@code Callers}). Runs before Spring
  * Security, so the header set is fixed whatever happens later in the chain.
  */
 @Component
@@ -25,7 +26,7 @@ public class IdentityForwardingFilter implements WebFilter, Ordered {
     public static final String USER_ROLES = "X-User-Roles";
     public static final String SELLER_ID = "X-Seller-Id";
     public static final String SERVICE_TOKEN = "X-Service-Token";
-    static final String[] STRIPPED = {USER_ID, USER_TYPE, USER_ROLES, SELLER_ID, SERVICE_TOKEN};
+    static final String[] STRIPPED = {USER_ID, USER_TYPE, USER_ROLES, SELLER_ID, "X-Staff-Id", "X-Admin-Id", SERVICE_TOKEN};
 
     private final AdminJwtService jwt;
 

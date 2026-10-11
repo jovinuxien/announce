@@ -12,6 +12,7 @@ announce:
     announce-management: http://localhost:1
     order: http://localhost:1
     messaging: http://localhost:1
+    messaging-ws: ws://localhost:1
 logging:
   level:
     root: WARN

@@ -57,6 +57,11 @@ public class RefreshTokenService {
         return store.findByHash(hash(presented)).flatMap(r -> store.revoke(r.id()));
     }
 
+    /** Revokes every live token of the member, then issues a fresh one for the current session (password change). */
+    public Mono<Issued> replaceAll(int userId) {
+        return store.revokeAllForUser(USER_TYPE_MEMBER, userId).then(issue(userId));
+    }
+
     private Mono<RefreshTokenRecord> valid(String presented) {
         if (presented == null || presented.isBlank()) return Mono.error(AuthException.unauthorized("missing refresh token"));
         return store.findByHash(hash(presented))

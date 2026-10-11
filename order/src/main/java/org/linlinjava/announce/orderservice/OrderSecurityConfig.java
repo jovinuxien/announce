@@ -8,7 +8,7 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 
 /**
  * Same stance as announce-management: authentication happens at the edges, which inject the member as
- * {@code X-User-Id} (staff as {@code X-Admin-Id}) and sign every proxied request with {@code X-Service-Token}.
+ * {@code X-User-Id} + {@code X-User-Type} (MEMBER or ADMIN) and sign every proxied request with {@code X-Service-Token}.
  * The framework's {@code ServiceTokenWebFilter} ({@code announce.service-token.mode=enforce}) answers 401 to a
  * request without a valid token before this chain runs, so this service has no login of its own and disables CSRF
  * for the stateless JSON API. Provider and carrier webhooks arrive through the customer edge too and are

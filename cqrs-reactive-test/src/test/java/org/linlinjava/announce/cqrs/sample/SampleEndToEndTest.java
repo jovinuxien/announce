@@ -94,9 +94,11 @@ class SampleEndToEndTest {
         assertThat(created.headers().correlationId()).contains("corr-e2e");
         assertThat(created.headers().eventId()).isPresent();
 
-        Map<String, Object> progress = summaries.progress().block(WAIT);
-        assertThat(progress).isNotNull().containsEntry("group", ListingSummaryProjection.GROUP);
-        assertThat(progress.get("eventId")).isNotNull();
+        await().atMost(WAIT).untilAsserted(() -> {   // the checkpoint row follows within the tracker's flush interval
+            Map<String, Object> progress = summaries.progress().block(WAIT);
+            assertThat(progress).isNotNull().containsEntry("group", ListingSummaryProjection.GROUP);
+            assertThat(progress.get("eventId")).isNotNull();
+        });
     }
 
     @Test
@@ -165,7 +167,9 @@ class SampleEndToEndTest {
             assertThat(summary.priceCents()).isEqualTo(9900L);
             assertThat(summary.lastEventId()).isEqualTo(lastEventBefore);
         });
-        assertThat(summaries.progress().block(WAIT)).isNotNull().containsEntry("eventId", lastEventBefore);
+        // the checkpoint row is written by the tracker's flusher, within cqrs.readside.progress.flush-interval
+        await().atMost(WAIT).untilAsserted(() ->
+                assertThat(summaries.progress().block(WAIT)).isNotNull().containsEntry("eventId", lastEventBefore));
     }
 
     @Test

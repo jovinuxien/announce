@@ -284,6 +284,70 @@ class EdgeRoutesTest {
     }
 
     @Test
+    void memberEditsProfileAndChangesPassword() {
+        var login = client.post().uri("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"username\":\"alice\",\"password\":\"secret123\"}")
+                .exchange().expectStatus().isOk().expectBody().returnResult();
+        String access = com.jayway.jsonpath.JsonPath.read(new String(login.getResponseBody()), "$.accessToken");
+        ResponseCookie firstDevice = login.getResponseCookies().getFirst("announce_refresh");
+        assertNotNull(firstDevice);
+        // a second device
+        var other = client.post().uri("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"username\":\"alice\",\"password\":\"secret123\"}")
+                .exchange().expectStatus().isOk().expectBody().returnResult();
+        ResponseCookie otherDevice = other.getResponseCookies().getFirst("announce_refresh");
+        assertNotNull(otherDevice);
+
+        // profile: nickname, mobile, avatar, gender, birthday; the answer and GET /auth/me carry them
+        client.put().uri("/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + access).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"nickname\":\"Alice B.\",\"mobile\":\"+4512345678\",\"avatar\":\"/api/storage/fetch/k1\",\"gender\":2,\"birthday\":\"1990-05-01\"}")
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.nickname").isEqualTo("Alice B.").jsonPath("$.mobile").isEqualTo("+4512345678")
+                .jsonPath("$.avatar").isEqualTo("/api/storage/fetch/k1").jsonPath("$.gender").isEqualTo(2).jsonPath("$.birthday").isEqualTo("1990-05-01")
+                .jsonPath("$.username").isEqualTo("alice");
+        client.get().uri("/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + access)
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.nickname").isEqualTo("Alice B.").jsonPath("$.birthday").isEqualTo("1990-05-01");
+        // without a token: 401; invalid values: 400 with errors; a mobile another member holds: 409
+        client.put().uri("/auth/me").contentType(MediaType.APPLICATION_JSON).bodyValue("{\"nickname\":\"x\"}").exchange().expectStatus().isUnauthorized();
+        client.put().uri("/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + access).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"gender\":7,\"birthday\":\"2999-01-01\"}")
+                .exchange().expectStatus().isBadRequest().expectBody().jsonPath("$.errors").isArray();
+        client.post().uri("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"username\":\"carol\",\"password\":\"another-secret\",\"mobile\":\"+4500000001\"}")
+                .exchange().expectStatus().isCreated();
+        client.put().uri("/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + access).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"nickname\":\"Alice B.\",\"mobile\":\"+4500000001\"}")
+                .exchange().expectStatus().isEqualTo(409).expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON);
+        // clearing the mobile and the birthday
+        client.put().uri("/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + access).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"nickname\":\"Alice B.\",\"mobile\":\"\"}")
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.mobile").isEqualTo("").jsonPath("$.birthday").doesNotExist();
+
+        // password: wrong current 401, too short 400, then a change that keeps this session and drops the other device
+        client.post().uri("/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + access).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"currentPassword\":\"nope\",\"newPassword\":\"brand-new-secret\"}")
+                .exchange().expectStatus().isUnauthorized().expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON);
+        client.post().uri("/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + access).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"currentPassword\":\"secret123\",\"newPassword\":\"short\"}")
+                .exchange().expectStatus().isBadRequest();
+        var changed = client.post().uri("/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + access).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"currentPassword\":\"secret123\",\"newPassword\":\"brand-new-secret\"}")
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.accessToken").exists().returnResult();
+        ResponseCookie renewed = changed.getResponseCookies().getFirst("announce_refresh");
+        assertNotNull(renewed);
+        client.post().uri("/auth/refresh").cookie("announce_refresh", otherDevice.getValue()).exchange().expectStatus().isUnauthorized();
+        client.post().uri("/auth/refresh").cookie("announce_refresh", firstDevice.getValue()).exchange().expectStatus().isUnauthorized();
+        client.post().uri("/auth/refresh").cookie("announce_refresh", renewed.getValue()).exchange().expectStatus().isOk();
+        client.post().uri("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"username\":\"alice\",\"password\":\"secret123\"}").exchange().expectStatus().isUnauthorized();
+        client.post().uri("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"username\":\"alice\",\"password\":\"brand-new-secret\"}").exchange().expectStatus().isOk();
+        // back to the known password for the other tests of this context
+        client.post().uri("/auth/password").header(HttpHeaders.AUTHORIZATION, "Bearer " + access).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"currentPassword\":\"brand-new-secret\",\"newPassword\":\"secret123\"}").exchange().expectStatus().isOk();
+    }
+
+    @Test
     void badCredentialsAndInvalidBodiesAreProblemDetails() {
         client.post().uri("/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{\"username\":\"alice\",\"password\":\"wrong\"}")

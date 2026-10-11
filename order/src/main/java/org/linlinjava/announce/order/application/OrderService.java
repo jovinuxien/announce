@@ -183,6 +183,40 @@ public class OrderService {
         return orders.selectPageByExample(e, offset, limit);
     }
 
+    /** Staff listing filter: every field optional; {@code statuses} are order statuses, {@code q} matches the title. */
+    public record OrderFilter(java.util.List<String> statuses, Integer sellerId, Integer buyerId, String q) {
+        AnnounceOrderExample toExample() {
+            AnnounceOrderExample example = new AnnounceOrderExample();
+            var c = example.or().andDeletedEqualTo(false);
+            if (statuses != null && !statuses.isEmpty()) c.andStatusIn(statuses);
+            if (sellerId != null) c.andSellerIdEqualTo(sellerId);
+            if (buyerId != null) c.andBuyerIdEqualTo(buyerId);
+            if (q != null && !q.isBlank()) c.andTitleLike("%" + q.trim() + "%");
+            example.setOrderByClause("update_time desc, id");
+            return example;
+        }
+    }
+
+    public Mono<Long> countOrders(OrderFilter filter) {
+        return orders.countByExample(filter.toExample());
+    }
+
+    public Flux<AnnounceOrder> findOrders(OrderFilter filter, long offset, int limit) {
+        return orders.selectPageByExample(filter.toExample(), offset, limit);
+    }
+
+    /** The payout line of an order: its money, the seller gate and when the release rule fires ({@link Payouts}). */
+    public Mono<Payouts.PayoutRow> payoutRow(AnnounceOrder order) {
+        return sellers.selectByPrimaryKey(order.getSellerId())
+                .map(gate -> Payouts.row(order, gate, properties.toPolicies()))
+                .defaultIfEmpty(Payouts.row(order, null, properties.toPolicies()));
+    }
+
+    /** Sums over every live order that holds or held money. */
+    public Mono<Payouts.PayoutTotals> payoutTotals() {
+        return orders.sumByStatus().collectList().map(rows -> Payouts.totals(rows, properties.getCurrency()));
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private Mono<AnnounceOrderSnapshot> snapshot(String announceId) {

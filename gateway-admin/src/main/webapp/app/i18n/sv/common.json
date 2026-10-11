@@ -7,7 +7,7 @@
   "statusLabel": "Status",
   "language": "Språk",
   "menu": "Meny",
-  "mocked": "Den här sidan visas med lokala testdata (MSW) tills backend-modulen är kopplad via gatewayen.",
+  "mocked": "Den här skärmen visas från lokala testdata (MSW, features.mocks), inte från en backend.",
   "forbidden": {
     "title": "Åtkomst nekad",
     "detail": "Den här sidan är reserverad för superadministratörer."
@@ -19,7 +19,8 @@
   "pagination": {
     "summary": "Sida {{page}} av {{pages}} · {{total}} rader",
     "size": "Rader per sida",
-    "perPage": "{{size}} / sida"
+    "perPage": "{{size}} / sida",
+    "summaryMore": "Sida {{page}} · {{count}} rader på denna sida"
   },
   "actions": {
     "cancel": "Avbryt",

@@ -34,5 +34,18 @@ export function usePaging(defaultSize = DEFAULT_PAGE_SIZE) {
     },
     [params, setParams],
   );
-  return { params, page, size, setPage, setSize, setParam };
+  /** Several filter keys in one URL update (a value of '' or null removes the key); the page goes back to 1. */
+  const setFilters = useCallback(
+    (entries: Record<string, string | null | undefined>) => {
+      const next = new URLSearchParams(params);
+      Object.entries(entries).forEach(([key, value]) => {
+        if (value === null || value === undefined || value === '') next.delete(key);
+        else next.set(key, value);
+      });
+      next.set('page', '1');
+      setParams(next);
+    },
+    [params, setParams],
+  );
+  return { params, page, size, setPage, setSize, setParam, setFilters };
 }

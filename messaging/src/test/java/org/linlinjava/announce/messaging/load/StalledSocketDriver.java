@@ -64,7 +64,7 @@ public final class StalledSocketDriver {
         AtomicLong posted = new AtomicLong();
         AtomicLong failed = new AtomicLong();
         Flux.range(0, bulletins)
-                .flatMap(i -> http.post().uri("/api/admin/bulletins").header("X-Staff-Id", "9900")
+                .flatMap(i -> http.post().uri("/api/admin/bulletins").headers(h -> { h.set("X-User-Id", "9900"); h.set("X-User-Type", "ADMIN"); })
                         .contentType(MediaType.APPLICATION_JSON)
                         .bodyValue(Map.of("audience", "STAFF", "content", content))
                         .retrieve().toBodilessEntity().timeout(Duration.ofSeconds(30))
@@ -96,7 +96,8 @@ public final class StalledSocketDriver {
 
     static Disposable socket(String base, int staffId, boolean reads, AtomicLong readerFrames) throws InterruptedException {
         HttpHeaders headers = new HttpHeaders();
-        headers.add("X-Staff-Id", String.valueOf(staffId));
+        headers.add("X-User-Id", String.valueOf(staffId));
+        headers.add("X-User-Type", "ADMIN");
         CountDownLatch open = new CountDownLatch(1);
         String ws = base.replaceFirst("^http", "ws") + "/ws/staff?clientType=desktop";
         ReactorNettyWebSocketClient client = reads ? new ReactorNettyWebSocketClient()

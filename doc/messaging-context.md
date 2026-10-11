@@ -49,10 +49,11 @@ then `reactify_mapper.py`; the hand-written statements (`upsert`, `updateOffers`
 
 ## 4. REST (`interfaces.rest`)
 
-Headers: `X-User-Id` (member), `X-Staff-Id` (staff), optional `X-Command-Id` for idempotent writes.
-An edge sets them after authenticating the caller; the service refuses requests and WebSocket handshakes without
-a valid `X-Service-Token` (`announce.service-token.mode=enforce`, `doc/frontend-edges.md` §10), and the customer
-edge strips a client-supplied `X-Staff-Id`.
+Headers: `X-User-Id` with `X-User-Type` (`MEMBER` from the customer edge, `ADMIN` from the admin edge; read
+through the framework's `Callers`, `X-Staff-Id` was dropped on 2026-10-10, `doc/frontend-edges.md` §11), optional
+`X-Command-Id` for idempotent writes. An edge sets them after authenticating the caller; the service refuses
+requests and WebSocket handshakes without a valid `X-Service-Token` (`announce.service-token.mode=enforce`,
+`doc/frontend-edges.md` §10), and both edges strip whatever a client sent under these names.
 
 | Route | Body / params | Answer |
 |---|---|---|
@@ -106,7 +107,7 @@ Frames the client receives:
   BLOCKED, `status`, `messageId`, `amountCents`, `currency`, `participantType`, `participantId`, `at`);
 - `pong`.
 
-`ws://host/ws/staff?clientType=desktop` with `X-Staff-Id` receives `bulletin` frames for its client type
+`ws://host/ws/staff?clientType=desktop` with a staff identity (`X-User-Id` + `X-User-Type=ADMIN`) receives `bulletin` frames for its client type
 (a bulletin without a client type reaches every staff socket).
 
 **What the node does to every socket** (`messaging.socket`, `SocketLifecycle`): it sends a WebSocket

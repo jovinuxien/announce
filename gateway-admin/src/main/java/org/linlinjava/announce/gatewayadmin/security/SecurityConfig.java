@@ -19,8 +19,9 @@ import org.springframework.security.web.server.header.XFrameOptionsServerHttpHea
 import reactor.core.publisher.Mono;
 
 /**
- * Deny by default. Public: {@link PublicPaths}. {@code /api/**} needs {@code ROLE_ADMIN}; administrators, roles and
- * permissions need {@code ROLE_SUPER}; {@code /auth/me} needs any valid staff token. Stateless: no session, no CSRF
+ * Deny by default. Public: {@link PublicPaths}. {@code /api/**} and the WebSocket handshakes under {@code /ws/**}
+ * (token from the {@code access_token} query parameter, {@link WebSocketTokenFilter}) need {@code ROLE_ADMIN};
+ * administrators, roles and permissions need {@code ROLE_SUPER}; {@code /auth/me} needs any valid staff token. Stateless: no session, no CSRF
  * (JSON with a bearer token), the refresh cookie is only read by {@code /auth/refresh} and {@code /auth/logout}.
  * The edge's own 401 / 403 are RFC 7807 problems like the backends'.
  */
@@ -58,7 +59,7 @@ public class SecurityConfig {
                         .pathMatchers(PublicPaths.ALL).permitAll()
                         .pathMatchers("/auth/me").hasAuthority(AdminPrincipal.ROLE_ADMIN)
                         .pathMatchers(SUPER_PATHS).hasAuthority(AdminPrincipal.ROLE_SUPER)
-                        .pathMatchers("/api/**").hasAuthority(AdminPrincipal.ROLE_ADMIN)
+                        .pathMatchers("/api/**", "/ws/**").hasAuthority(AdminPrincipal.ROLE_ADMIN)
                         .anyExchange().denyAll())
                 .build();
     }

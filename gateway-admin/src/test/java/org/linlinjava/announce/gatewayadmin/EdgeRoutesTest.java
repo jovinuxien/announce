@@ -1,5 +1,8 @@
 package org.linlinjava.announce.gatewayadmin;
 
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -11,14 +14,19 @@ import org.linlinjava.announce.gatewayadmin.jwt.AdminJwtService;
 import org.linlinjava.announce.gatewayadmin.machine.MachineTokens;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
+import reactor.core.publisher.Mono;
 
 import java.io.IOException;
+import java.net.URI;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -26,32 +34,60 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The edge in front of a MockWebServer standing in for announce-management: the authorisation matrix, identity
- * forwarding and anti-spoofing, the machine token, the SPA fallback and the public surface.
+ * The edge in front of two MockWebServers, one standing in for announce-management (scripted answers) and one for
+ * order and messaging (echoes the path, upgrades WebSockets): the authorisation matrix, identity forwarding and
+ * anti-spoofing, the machine token, the staff chat routes and handshake, the SPA fallback and the public surface.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 class EdgeRoutesTest {
 
     static MockWebServer backend;
+    static MockWebServer messaging;
 
     @BeforeAll
     static void startBackend() throws IOException {
         backend = new MockWebServer();
         backend.start();
+        messaging = new MockWebServer();
+        messaging.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(okhttp3.mockwebserver.RecordedRequest request) {
+                if (request.getPath().startsWith("/ws/")) {
+                    return new MockResponse().withWebSocketUpgrade(new WebSocketListener() {
+                        @Override
+                        public void onOpen(WebSocket webSocket, okhttp3.Response response) {
+                            webSocket.send("{\"type\":\"bulletin\"}");
+                        }
+                    });
+                }
+                return new MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json")
+                        .setBody("{\"path\":\"" + request.getPath() + "\"}");
+            }
+        });
+        messaging.start();
     }
 
     @AfterAll
     static void stopBackend() throws IOException {
         backend.shutdown();
+        try {
+            messaging.shutdown();
+        } catch (IOException e) {
+            // the gateway keeps the proxied WebSocket pooled; MockWebServer gives up after a few seconds, which is fine
+        }
     }
 
     @DynamicPropertySource
     static void routes(DynamicPropertyRegistry registry) {
         registry.add("announce.routes.announce-management", () -> "http://localhost:" + backend.getPort());
+        registry.add("announce.routes.order", () -> "http://localhost:" + messaging.getPort());
+        registry.add("announce.routes.messaging", () -> "http://localhost:" + messaging.getPort());
+        registry.add("announce.routes.messaging-ws", () -> "ws://localhost:" + messaging.getPort());
     }
 
     @Autowired WebTestClient client;
+    @LocalServerPort int port;
     @Autowired AdminJwtService jwt;
     @Autowired MachineTokens machineTokens;
 
@@ -72,6 +108,68 @@ class EdgeRoutesTest {
         RecordedRequest request = backend.takeRequest(5, TimeUnit.SECONDS);
         assertThat(request).as("the backend received the proxied request").isNotNull();
         return request;
+    }
+
+    private RecordedRequest lastMessagingRequest() throws InterruptedException {
+        RecordedRequest request = messaging.takeRequest(5, TimeUnit.SECONDS);
+        assertThat(request).as("order/messaging received the proxied request").isNotNull();
+        return request;
+    }
+
+    @Test
+    void staffIdentityReachesTheOrderAndMessagingRoutesAndTheFormerStaffHeadersAreDropped() throws InterruptedException {
+        // the support queue and a staff action in a conversation the staff member joined
+        client.get().uri("/api/admin/conversations?status=WAITING").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())
+                .header("X-Staff-Id", "1").header("X-Admin-Id", "1")
+                .exchange().expectStatus().isOk().expectBody().jsonPath("$.path").isEqualTo("/api/admin/conversations?status=WAITING");
+        RecordedRequest queue = lastMessagingRequest();
+        assertThat(queue.getHeader("X-User-Id")).isEqualTo("42");
+        assertThat(queue.getHeader("X-User-Type")).isEqualTo("ADMIN");
+        assertThat(queue.getHeader("X-User-Roles")).isEqualTo("ROLE_ADMIN");
+        assertThat(queue.getHeader("X-Staff-Id")).as("the backends read staff from X-User-Id + X-User-Type").isNull();
+        assertThat(queue.getHeader("X-Admin-Id")).isNull();
+        assertThat(machineTokens.verify(queue.getHeader("X-Service-Token"), 60)).isTrue();
+
+        client.post().uri("/api/conversations/c1/messages").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())
+                .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"clientMsgId\":\"m1\",\"content\":\"hello\"}")
+                .exchange().expectStatus().isOk();
+        RecordedRequest post = lastMessagingRequest();
+        assertThat(post.getPath()).isEqualTo("/api/conversations/c1/messages");
+        assertThat(post.getHeader("X-User-Id")).isEqualTo("42");
+        assertThat(post.getHeader("X-User-Type")).isEqualTo("ADMIN");
+
+        client.post().uri("/api/admin/orders/o-1/release").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())
+                .exchange().expectStatus().isOk();
+        RecordedRequest release = lastMessagingRequest();
+        assertThat(release.getPath()).isEqualTo("/api/admin/orders/o-1/release");
+        assertThat(release.getHeader("X-User-Id")).isEqualTo("42");
+        assertThat(release.getHeader("X-User-Type")).isEqualTo("ADMIN");
+
+        // the staff conversation routes need a staff token like the rest of the API
+        client.get().uri("/api/conversations").exchange().expectStatus().isUnauthorized();
+        client.get().uri("/api/conversations").header(HttpHeaders.AUTHORIZATION, "Bearer " + memberToken()).exchange().expectStatus().isForbidden();
+    }
+
+    @Test
+    void theStaffWebSocketHandshakeCarriesTheIdentityFromTheQueryToken() throws InterruptedException {
+        ReactorNettyWebSocketClient ws = new ReactorNettyWebSocketClient();
+        URI uri = URI.create("ws://localhost:" + port + "/ws/staff?clientType=desktop&access_token=" + adminToken());
+        String outcome = ws.execute(uri, session -> session.receive().map(m -> m.getPayloadAsText()).next()
+                        .flatMap(frame -> session.close().thenReturn(frame)).then())
+                .then(Mono.just("connected"))
+                .block(Duration.ofSeconds(10));
+        assertThat(outcome).isEqualTo("connected");
+        RecordedRequest handshake = lastMessagingRequest();
+        assertThat(handshake.getPath()).as("the access_token parameter is stripped").isEqualTo("/ws/staff?clientType=desktop");
+        assertThat(handshake.getHeader("Upgrade")).isEqualToIgnoringCase("websocket");
+        assertThat(handshake.getHeader("X-User-Id")).isEqualTo("42");
+        assertThat(handshake.getHeader("X-User-Type")).isEqualTo("ADMIN");
+        assertThat(handshake.getHeader(HttpHeaders.AUTHORIZATION)).as("the staff JWT is never relayed").isNull();
+        assertThat(machineTokens.verify(handshake.getHeader("X-Service-Token"), 60)).isTrue();
+
+        // no token, a member token: the handshake is refused at the edge
+        client.get().uri("/ws/staff?clientType=desktop").exchange().expectStatus().isUnauthorized();
+        client.get().uri("/ws/conversations/c1?access_token=" + memberToken()).exchange().expectStatus().isForbidden();
     }
 
     @Test

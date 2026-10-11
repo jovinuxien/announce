@@ -4,8 +4,10 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import org.linlinjava.announce.auction.application.AuctionService;
 import org.linlinjava.announce.auction.domain.Auction;
+import org.linlinjava.announce.cqrs.security.Callers;
 import org.linlinjava.announce.db.domain.AnnounceAuction;
 import org.linlinjava.announce.db.domain.AnnounceBid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,14 +28,13 @@ import java.util.Map;
 /**
  * {@code /api/auctions/{announceId}}: reads come from the read model, writes are commands and answer with the
  * aggregate state the command produced. The member comes from {@code X-User-Id} (set by the gateway), staff from
- * {@code X-Admin-Id}; {@code X-Command-Id} makes a write idempotent and also fixes the bid id of a retried bid.
+ * {@code X-User-Id} with {@code X-User-Type=ADMIN} (see {@code Callers}); {@code X-Command-Id} makes a write idempotent and also fixes the bid id of a retried bid.
  */
 @RestController
 @Validated
 public class AuctionController {
 
-    public static final String USER_HEADER = "X-User-Id";
-    public static final String ADMIN_HEADER = "X-Admin-Id";
+    public static final String USER_HEADER = Callers.USER_HEADER;
     public static final String COMMAND_ID_HEADER = "X-Command-Id";
 
     private final AuctionService auctions;
@@ -44,6 +46,8 @@ public class AuctionController {
     public record BidRequest(@NotNull @Positive Long amountCents, Long maxAmountCents) {}
     public record ReasonRequest(String reason) {}
     public record AuctionView(AnnounceAuction auction, List<AnnounceBid> bids) {}
+    /** The admin page envelope ({@code page} is 1-based), as the admin edge and announce-management answer it. */
+    public record PageResponse<T>(List<T> items, int page, int size, long total) {}
 
     @GetMapping("/api/auctions/{announceId}")
     public Mono<AuctionView> get(@PathVariable String announceId) {
@@ -54,47 +58,77 @@ public class AuctionController {
 
     @PostMapping("/api/auctions/{announceId}/bids")
     @ResponseStatus(HttpStatus.CREATED)
-    public Mono<Auction> bid(@PathVariable String announceId, @RequestHeader(USER_HEADER) Integer user,
+    public Mono<Auction> bid(@PathVariable String announceId, @RequestHeader HttpHeaders headers,
                              @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId, @RequestBody BidRequest body) {
+        Integer user = Callers.member(headers);
         return auctions.placeBid(announceId, user, body.amountCents(), body.maxAmountCents(), commandId);
     }
 
     @PostMapping("/api/auctions/{announceId}/snag")
-    public Mono<Auction> snag(@PathVariable String announceId, @RequestHeader(USER_HEADER) Integer user,
+    public Mono<Auction> snag(@PathVariable String announceId, @RequestHeader HttpHeaders headers,
                               @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId) {
+        Integer user = Callers.member(headers);
         return auctions.snagIt(announceId, user, commandId);
     }
 
     @PostMapping("/api/auctions/{announceId}/cancel")
-    public Mono<Auction> cancel(@PathVariable String announceId, @RequestHeader(USER_HEADER) Integer user,
+    public Mono<Auction> cancel(@PathVariable String announceId, @RequestHeader HttpHeaders headers,
                                 @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId,
                                 @RequestBody(required = false) ReasonRequest body) {
+        Integer user = Callers.member(headers);
         return auctions.cancelBySeller(announceId, user, body == null ? null : body.reason(), commandId);
     }
 
     @DeleteMapping("/api/auctions/{announceId}/bids/{bidId}")
-    public Mono<Auction> retract(@PathVariable String announceId, @PathVariable String bidId, @RequestHeader(USER_HEADER) Integer user,
+    public Mono<Auction> retract(@PathVariable String announceId, @PathVariable String bidId, @RequestHeader HttpHeaders headers,
                                  @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId) {
+        Integer user = Callers.member(headers);
         return auctions.retractBid(announceId, bidId, user, commandId);
     }
 
+    /** Staff: every auction in any status, newest end first; filters {@code status}, {@code seller}, {@code q} (title). */
+    @GetMapping("/api/admin/auctions")
+    public Mono<PageResponse<AnnounceAuction>> adminList(@RequestHeader HttpHeaders headers,
+                                                         @RequestParam(required = false) String status,
+                                                         @RequestParam(required = false) Integer seller,
+                                                         @RequestParam(required = false) String q,
+                                                         @RequestParam(defaultValue = "1") int page,
+                                                         @RequestParam(defaultValue = "20") int size) {
+        Callers.staff(headers);
+        int p = Math.max(1, page);
+        int s = Math.min(Math.max(1, size), 100);
+        AuctionService.AuctionFilter filter = new AuctionService.AuctionFilter(status, seller, q);
+        return auctions.countAuctions(filter).flatMap(total -> auctions.findAuctions(filter, (long) (p - 1) * s, s).collectList()
+                .map(items -> new PageResponse<>(items, p, s, total)));
+    }
+
+    /** Staff: one auction with every bid, cancelled and retracted ones included. */
+    @GetMapping("/api/admin/auctions/{announceId}")
+    public Mono<AuctionView> adminGet(@PathVariable String announceId, @RequestHeader HttpHeaders headers) {
+        Callers.staff(headers);
+        return get(announceId);
+    }
+
     @PostMapping("/api/admin/bids/{bidId}/cancel")
-    public Mono<Auction> cancelBid(@PathVariable String bidId, @RequestHeader(ADMIN_HEADER) Integer admin,
+    public Mono<Auction> cancelBid(@PathVariable String bidId, @RequestHeader HttpHeaders headers,
                                    @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId,
                                    @RequestBody(required = false) ReasonRequest body) {
+        Integer admin = Callers.staff(headers);
         return auctions.cancelBid(bidId, admin, body == null ? null : body.reason(), commandId);
     }
 
     @PostMapping("/api/admin/auctions/{announceId}/cancel")
-    public Mono<Auction> cancelByStaff(@PathVariable String announceId, @RequestHeader(ADMIN_HEADER) Integer admin,
+    public Mono<Auction> cancelByStaff(@PathVariable String announceId, @RequestHeader HttpHeaders headers,
                                        @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId,
                                        @RequestBody(required = false) ReasonRequest body) {
+        Integer admin = Callers.staff(headers);
         return auctions.cancelByStaff(announceId, admin, body == null ? null : body.reason(), commandId);
     }
 
     /** Runs the closing job once; for operators and tests. */
     @PostMapping("/api/admin/auctions/close-due")
-    public Mono<Map<String, Long>> closeDue(@RequestHeader(ADMIN_HEADER) Integer admin) {
+    public Mono<Map<String, Long>> closeDue(@RequestHeader HttpHeaders headers) {
+        Integer admin = Callers.staff(headers);
         return auctions.closeDue(200).map(n -> Map.of("closed", n));
     }
 

@@ -1,56 +1,105 @@
 import { useEffect, useState } from 'react';
-import { Badge, Nav, Table } from 'react-bootstrap';
+import { Badge, Col, Nav, Row, Table } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useAppSelector } from 'app/config/store';
 import { tradeApi } from 'app/shared/api/tradeApi';
 import ProblemAlert from 'app/shared/components/ProblemAlert';
-import { OrderView } from 'app/shared/model/trade';
+import { OrderRow, OrderStatus } from 'app/shared/model/trade';
 import { formatDateTime } from 'app/shared/util/dates';
-import { centsToAmount, formatMoney } from 'app/shared/util/money';
+import { formatMoney } from 'app/shared/util/money';
 import { describeError } from 'app/shared/util/problem';
+import PayoutsCard from './PayoutsCard';
 
-export const STATUS_VARIANT: Record<string, string> = {
-  REQUESTED: 'secondary', AGREED: 'info', PAID: 'primary', SHIPPED: 'primary', DELIVERED: 'primary', SETTLED: 'success',
-  DISPUTED: 'danger', CANCELLED: 'dark', REFUNDED: 'warning', EXPIRED: 'dark',
+export const STATUS_VARIANT: Record<OrderStatus, string> = {
+  PROPOSED: 'secondary',
+  AGREED: 'info',
+  PAYMENT_PENDING: 'info',
+  PAID: 'primary',
+  SHIPPED: 'primary',
+  DELIVERED: 'primary',
+  RELEASING: 'primary',
+  SETTLED: 'success',
+  DISPUTED: 'danger',
+  REFUNDING: 'warning',
+  REFUNDED: 'warning',
+  CANCELLED: 'dark',
+  DECLINED: 'dark',
 };
+export const ORDERS_PAGE_SIZE = 50;
 
+/**
+ * The member's orders as buyer or as seller (`GET /api/orders?role=&page=&size=`: `announce_order` rows, newest
+ * first, a plain array with a 0-based page). The seller tab carries the payout account card, since nothing can be
+ * accepted without it. doc/frontend-edges.md §16.
+ */
 export default function Orders() {
   const { t, i18n } = useTranslation('trade');
-  const [role, setRole] = useState<'buyer' | 'seller'>('buyer');
-  const [orders, setOrders] = useState<OrderView[]>([]);
+  const [params, setParams] = useSearchParams();
+  const role = params.get('role') === 'seller' ? 'seller' : 'buyer';
+  const me = useAppSelector(s => s.auth.user?.id);
+  const [orders, setOrders] = useState<OrderRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    tradeApi.orders(role).then(setOrders).catch(e => setError(describeError(e, t('orders.loadFailed'))));
+    setOrders(null);
+    tradeApi
+      .orders(role, 0, ORDERS_PAGE_SIZE)
+      .then(setOrders)
+      .catch(e => setError(describeError(e, t('orders.loadFailed'))));
   }, [role, t]);
 
   return (
     <div>
       <h1 className="h4">{t('orders.title')}</h1>
-      <Nav variant="tabs" activeKey={role} onSelect={k => k && setRole(k as 'buyer' | 'seller')} className="mb-3">
-        <Nav.Item><Nav.Link eventKey="buyer">{t('orders.asBuyer')}</Nav.Link></Nav.Item>
-        <Nav.Item><Nav.Link eventKey="seller">{t('orders.asSeller')}</Nav.Link></Nav.Item>
+      <Nav variant="tabs" activeKey={role} onSelect={k => k && setParams(k === 'seller' ? { role: 'seller' } : {})} className="mb-3">
+        <Nav.Item>
+          <Nav.Link eventKey="buyer">{t('orders.asBuyer')}</Nav.Link>
+        </Nav.Item>
+        <Nav.Item>
+          <Nav.Link eventKey="seller">{t('orders.asSeller')}</Nav.Link>
+        </Nav.Item>
       </Nav>
-      <ProblemAlert message={error} />
-      {orders.length === 0 ? (
-        <p className="text-muted">{t('orders.empty')}</p>
-      ) : (
-        <Table hover size="sm" responsive className="bg-white">
-          <thead>
-            <tr><th>{t('orders.col.announce')}</th><th>{t('orders.col.amount')}</th><th>{t('orders.col.status')}</th><th>{t('orders.col.created')}</th></tr>
-          </thead>
-          <tbody>
-            {orders.map(o => (
-              <tr key={o.id}>
-                <td><Link to={`/orders/${encodeURIComponent(o.id)}`}>{o.announceTitle}</Link></td>
-                <td>{formatMoney(centsToAmount(o.amountCents), o.currency, i18n.language)}</td>
-                <td><Badge bg={STATUS_VARIANT[o.status] ?? 'secondary'}>{t(`orderStatus.${o.status}`)}</Badge></td>
-                <td>{formatDateTime(o.createdAt, i18n.language)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
+      <Row className="g-3">
+        <Col lg={role === 'seller' ? 8 : 12}>
+          <ProblemAlert message={error} />
+          {orders && orders.length === 0 && <p className="text-muted">{t('orders.empty')}</p>}
+          {orders && orders.length > 0 && (
+            <Table hover size="sm" responsive className="bg-white" data-testid="orders-table">
+              <thead>
+                <tr>
+                  <th>{t('orders.col.announce')}</th>
+                  <th>{t('orders.col.other')}</th>
+                  <th>{t('orders.col.amount')}</th>
+                  <th>{t('orders.col.status')}</th>
+                  <th>{t('orders.col.created')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map(o => (
+                  <tr key={o.id}>
+                    <td>
+                      <Link to={`/orders/${encodeURIComponent(o.id)}`}>{o.title || o.announceId}</Link>
+                      <div className="text-muted small">{t(`door.${o.door}`)}</div>
+                    </td>
+                    <td className="small">{t('orders.member', { id: me === o.buyerId ? o.sellerId : o.buyerId })}</td>
+                    <td>{formatMoney(o.agreedPrice, o.currency, i18n.language)}</td>
+                    <td>
+                      <Badge bg={STATUS_VARIANT[o.status] ?? 'secondary'}>{t(`orderStatus.${o.status}`)}</Badge>
+                    </td>
+                    <td className="small">{formatDateTime(o.agreedAt ?? o.addTime, i18n.language)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Col>
+        {role === 'seller' && (
+          <Col lg={4}>
+            <PayoutsCard />
+          </Col>
+        )}
+      </Row>
     </div>
   );
 }

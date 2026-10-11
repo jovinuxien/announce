@@ -49,15 +49,20 @@ class ConversationControllerTest {
     }
 
     @Test
-    void openingNeedsTheUserHeader() {
+    void openingNeedsAMember() {
         client.post().uri("/api/conversations").contentType(MediaType.APPLICATION_JSON).bodyValue("{\"type\":\"LISTING\",\"announceId\":\"a1\"}")
-                .exchange().expectStatus().isBadRequest();
+                .exchange().expectStatus().isUnauthorized().expectBody().jsonPath("$.code").isEqualTo(Principals.NO_PRINCIPAL);
+        // staff open no listing conversations, and the former staff header is not an identity
+        client.post().uri("/api/conversations").headers(h -> { h.set(Principals.USER_HEADER, "3"); h.set(Principals.TYPE_HEADER, "ADMIN"); })
+                .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"type\":\"LISTING\",\"announceId\":\"a1\"}")
+                .exchange().expectStatus().isForbidden();
+        client.get().uri("/api/conversations/c1").header("X-Staff-Id", "3").exchange().expectStatus().isUnauthorized();
     }
 
     @Test
     void openingAListingConversationAnswersWithTheState() {
         when(conversations.openListing(7, "a1", "cmd-1")).thenReturn(Mono.just(listing()));
-        client.post().uri("/api/conversations").header(Principals.USER_HEADER, "7").header(Principals.COMMAND_ID_HEADER, "cmd-1")
+        client.post().uri("/api/conversations").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf("7")); h.set(Principals.TYPE_HEADER, "MEMBER"); }).header(Principals.COMMAND_ID_HEADER, "cmd-1")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{\"type\":\"LISTING\",\"announceId\":\"a1\"}")
                 .exchange().expectStatus().isCreated()
                 .expectBody().jsonPath("$.id").isEqualTo("c1").jsonPath("$.status").isEqualTo("OPEN").jsonPath("$.participants[1].role").isEqualTo("SELLER")
@@ -68,13 +73,13 @@ class ConversationControllerTest {
     void postingMapsTheBodyToACommandAndRejectionsToProblemDetails() {
         when(conversations.post(eq("c1"), eq(Sender.user(7)), eq(ContentType.OFFER), isNull(), isNull(), eq(90000L), eq("SEK"), eq("m1"), isNull()))
                 .thenReturn(Mono.just(new PostResult("c1", "msg-1", 3, "m1", false, NOW)));
-        client.post().uri("/api/conversations/c1/messages").header(Principals.USER_HEADER, "7").contentType(MediaType.APPLICATION_JSON)
+        client.post().uri("/api/conversations/c1/messages").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf("7")); h.set(Principals.TYPE_HEADER, "MEMBER"); }).contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{\"clientMsgId\":\"m1\",\"contentType\":\"offer\",\"amountCents\":90000,\"currency\":\"SEK\"}")
                 .exchange().expectStatus().isCreated().expectBody().jsonPath("$.seq").isEqualTo(3).jsonPath("$.messageId").isEqualTo("msg-1");
 
         when(conversations.post(eq("c1"), eq(Sender.user(9)), eq(ContentType.TEXT), eq("hi"), isNull(), isNull(), isNull(), eq("m2"), isNull()))
                 .thenReturn(Mono.error(new CommandRejectedException(HttpStatus.FORBIDDEN, "not-participant", "Only participants may act on this conversation")));
-        client.post().uri("/api/conversations/c1/messages").header(Principals.USER_HEADER, "9").contentType(MediaType.APPLICATION_JSON)
+        client.post().uri("/api/conversations/c1/messages").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf("9")); h.set(Principals.TYPE_HEADER, "MEMBER"); }).contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{\"clientMsgId\":\"m2\",\"content\":\"hi\"}")
                 .exchange().expectStatus().isForbidden().expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
                 .expectBody().jsonPath("$.code").isEqualTo("not-participant");
@@ -83,10 +88,10 @@ class ConversationControllerTest {
     @Test
     void readsNeedAPrincipalAndStaffCountsAsOne() {
         client.get().uri("/api/conversations/c1").exchange().expectStatus().isUnauthorized().expectBody().jsonPath("$.code").isEqualTo("no-principal");
-        client.get().uri("/api/conversations/c1").header(Principals.USER_HEADER, "abc").exchange().expectStatus().isBadRequest();
+        client.get().uri("/api/conversations/c1").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf("abc")); h.set(Principals.TYPE_HEADER, "MEMBER"); }).exchange().expectStatus().isBadRequest();
 
         when(queries.messages(eq("c1"), any(), eq(5), eq(10))).thenReturn(reactor.core.publisher.Flux.empty());
-        client.get().uri("/api/conversations/c1/messages?after=5&limit=10").header(Principals.STAFF_HEADER, "3").exchange().expectStatus().isOk()
+        client.get().uri("/api/conversations/c1/messages?after=5&limit=10").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf("3")); h.set(Principals.TYPE_HEADER, "ADMIN"); }).exchange().expectStatus().isOk()
                 .expectBody().json("[]");
         verify(queries).messages(eq("c1"), eq(new ConversationQueries.Viewer(org.linlinjava.announce.messaging.domain.conversation.ParticipantType.ADMIN, 3)), eq(5), eq(10));
     }
@@ -94,7 +99,7 @@ class ConversationControllerTest {
     @Test
     void readMarkerIsANoContentWrite() {
         when(conversations.markRead("c1", org.linlinjava.announce.messaging.domain.conversation.ParticipantType.USER, 7, 4)).thenReturn(Mono.empty());
-        client.post().uri("/api/conversations/c1/read").header(Principals.USER_HEADER, "7").contentType(MediaType.APPLICATION_JSON)
+        client.post().uri("/api/conversations/c1/read").headers(h -> { h.set(Principals.USER_HEADER, String.valueOf("7")); h.set(Principals.TYPE_HEADER, "MEMBER"); }).contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{\"seq\":4}").exchange().expectStatus().isNoContent();
     }
 }

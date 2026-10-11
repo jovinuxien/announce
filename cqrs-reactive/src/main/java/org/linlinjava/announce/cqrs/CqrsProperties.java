@@ -114,6 +114,19 @@ public class CqrsProperties {
              * from the first event, which for a relay group republishes everything).
              */
             private boolean seedPartitions = true;
+            /**
+             * How often pending checkpoints are written to the table; zero writes every checkpoint on the processor
+             * thread as it is reported. With an interval a crash replays at most that much of the stream.
+             */
+            private java.time.Duration flushInterval = java.time.Duration.ofMillis(250);
+
+            public java.time.Duration getFlushInterval() {
+                return flushInterval;
+            }
+
+            public void setFlushInterval(java.time.Duration flushInterval) {
+                this.flushInterval = flushInterval;
+            }
 
             public boolean isSeedPartitions() {
                 return seedPartitions;

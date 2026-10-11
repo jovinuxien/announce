@@ -69,7 +69,7 @@ public class ReadSideAutoConfiguration {
                                                          Environment environment) {
             CqrsProperties.ReadSide.Progress settings = properties.getReadside().getProgress();
             R2dbcProgressTracker tracker = new R2dbcProgressTracker(DatabaseClient.create(connectionFactory),
-                    settings.getTable(), properties.getReadside().getHandlerTimeout());
+                    settings.getTable(), properties.getReadside().getHandlerTimeout(), settings.getFlushInterval());
             if (settings.isCreateTable()) {
                 tracker.createTableIfMissing().block();
             }

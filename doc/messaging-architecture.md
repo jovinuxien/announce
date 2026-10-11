@@ -128,9 +128,12 @@ Mechanics that matter for tuning:
   checkpoint table holds one row per partition. Changing the count is an administrative step with every node
   stopped; the framework seeds new partitions from the lowest existing checkpoint
   (`cqrs.readside.progress.seed-partitions`).
-- `R2dbcProgressTracker.proceed` writes the checkpoint after every event: read-model write and
-  checkpoint are two round trips to MySQL per event per group, so three groups cost roughly four
-  MySQL statements plus two Kafka sends per `MessagePosted`.
+- `R2dbcProgressTracker.proceed` used to write the checkpoint after every event, for every event of the
+  observed stream (OpenCQRS proceeds on the events of other partitions too), so the three groups and four
+  read-model partitions cost six checkpoint round trips per event on the processor threads. Since
+  2026-10-11 (step 10) the tracker records the latest id in memory and a flusher writes the pending
+  checkpoints every `cqrs.readside.progress.flush-interval` (250 ms; zero restores the write per event):
+  a crash replays at most one interval, the same at-least-once contract. Section 7h.
 - `life-cycle.controller=leader_election` since 2026-10-10 (section 7c): each group and partition runs on
   the one node that holds its lease in `cqrs_readside_lock` (`cqrs.readside.leader-election`, the R2DBC lock
   registry of `cqrs-reactive`), renewed every 500 ms, taken over by another node 10 s after the holder stops
@@ -243,7 +246,7 @@ Grouped by what they buy. "Knob" means it exists today; "change" means code.
 | Leader-election lifecycle controller with the R2DBC lock registry (on since 2026-10-10) | knob + bean | one active copy of each group per partition across nodes; removes N-fold duplicate projection and N copies on the live topic; `ttl` bounds the failover gap |
 | Retry policy `max-elapsed-time` and alerting on a stopped processor | knob | today a group silently stalls after 1 h of failures |
 | `cqrs.readside.handler-timeout` | knob | lower for the projection (should be milliseconds), keep higher for relays |
-| Checkpoint every N events or every T ms instead of per event | change (framework) | halves MySQL statements per event; widens the at-least-once replay window |
+| Checkpoint every T ms instead of per event (done 2026-10-11, step 10: `cqrs.readside.progress.flush-interval` 250 ms, section 7h) | change (framework) | no MySQL round trip per observed event on the processor threads; a crash replays at most one interval |
 | Projection: drop `selectByPrimaryKey` before `updateOffers` on OFFER (one conditional update) | change | fewer round trips on offer messages |
 
 ### 4.3 Fan-out (delivery latency, socket safety)
@@ -400,11 +403,10 @@ Two defects the baseline run found, both fixed on 2026-10-01:
    3.1.3 in db-reactive, a mapper call from 19.5 to 8.7 ms alone and from 39.5 to 7.8 ms with four callers;
    section 7f.
 
-10. Read-side throughput at the command side's new ceiling (found by step 8, section 7g): at 133 posts/s on a
-    tmpfs store the command side keeps up (p50 267 ms with the queue) but the relay `messaging-live` (one
-    partition, one Kafka send per event) lags 19 s and `conversation-read-model` (four partitions) 31 s; measure
-    `messaging.projection.delay` per group against the event rate, then partition the relays or push live
-    frames to local sockets straight from the command side (the follow-up of step 4).
+10. Read-side throughput at the command side's new ceiling (found by step 8, section 7g). Done 2026-10-11:
+    the processor threads spent their time in the checkpoint write, one MySQL round trip per observed event
+    per partition; `R2dbcProgressTracker` now coalesces checkpoints (`cqrs.readside.progress.flush-interval`
+    250 ms); section 7h.
 
 Each step is small, independently revertable, and has one metric that tells whether it helped.
 
@@ -905,3 +907,54 @@ At 133 posts/s the read side on one node is the next ceiling: the relay `messagi
 runs took the three groups' checkpoints with them as usual; set partition 0 to the development store's head
 before the next development start.
 
+
+## 7h. Coalesced checkpoints, 2026-10-11
+
+Step 8 left the read side lagging at 133 posts/s on a tmpfs store (section 7g). A Flight Recorder run on the
+node during that burst (`spring-boot.run.jvmArguments` with `settings=profile` and `jdk.ThreadPark#threshold=1ms`)
+shows where the processor threads spent the 60 s run plus its catch-up:
+
+| Processor threads | parked in `R2dbcProgressTracker.proceed` (the checkpoint write) | parked in the handler |
+|---|---|---|
+| `conversation-read-model`, four partitions summed | 330 s | 137 s |
+| `messaging-live`, one partition | 85 s | under 1 s |
+| `messaging-public`, one partition (handled 20 events) | 82 s | under 1 s |
+
+OpenCQRS calls `proceed` on every event it observes, the events of other partitions included, and the
+tracker wrote the checkpoint row each time: one MySQL round trip of about 3 ms on the processor thread per
+event of the whole stream, for every partition of every group. A burst of 7,500 events was about 45,000
+round trips, and the relay that handles a `MessagePosted` in 0.6 ms paid 3 ms of checkpoint for it.
+
+`R2dbcProgressTracker` now records the latest id per group and partition in memory and a flusher thread
+writes the pending ids every `cqrs.readside.progress.flush-interval` (250 ms; zero restores the write per
+event). `current` and `checkpoints` answer with the pending id, a reset forgets it, the tracker flushes when
+the context closes. The contract is unchanged, at-least-once: after a crash a group replays at most one
+interval of events, which the projections (upserts) and the relays (consumers de-duplicate on the event id)
+already tolerate. The framework's test kit covers the coalescing (pending visible at once, written within
+the interval, reset, flush on close).
+
+| 133 posts/s on a tmpfs store (one post per socket every 300 ms), 7,992 posts | checkpoint per event | coalesced, 250 ms |
+|---|---|---|
+| posts acknowledged / refused | 6,887 / 0 (the rest timed out on the driver) | 7,992 / 0 |
+| ack latency p50 / p95 (driver) | 41 ms / 14.0 s | 366 ms / 1.57 s |
+| fan-out latency p50 / p95 (driver, send to the peer's frame) | 12.2 / 23.9 s | 368 ms / 1.57 s |
+| `messaging.command.latency{PostMessage}` p50 / p95 | 301 / 502 ms | 302 / 386 ms |
+| `messaging.live.latency{message}` p50 (event time to push) | 19.9 s | 142 ms |
+| `messaging.projection.delay{messaging-live}` p50 / p95 | 19.9 / 24.2 s | 7.7 / 14.0 ms |
+| `messaging.projection.delay{conversation-read-model}` p50 / p95 | 30.6 / 40.3 s | 20 / 41 ms |
+| `messaging.projection.handler{conversation-read-model}` p50 | 12.8 ms | 11.8 ms |
+| events the read model handled during the run | 5,981 (still catching up at the scrape) | 8,032 (caught up) |
+
+| Standard load, 13 posts/s, 800 posts | before (section 7g) | coalesced |
+|---|---|---|
+| acknowledged, ack p50 / p95 | 800, 53 / 149 ms | 800, 49 / 130 ms |
+| `messaging.projection.delay{conversation-read-model}` p50 / p95 | 59 / 86 ms | 48 / 78 ms |
+
+At 133 posts/s the read side now trails the command side by 20 ms instead of 31 s, the relay by 8 ms instead
+of 20 s, and a post reaches the other participant in 368 ms at the median instead of 12 s; every post of the
+burst was acknowledged. The ack p50 rose from 41 ms to 366 ms because the previous run's node was so far
+behind that the driver's acks came from a command side with nothing else to do; with the read side keeping
+up the node does all the work in the same 60 s, and the command latency inside the facade is the same 300
+ms either way (the store's queue at this rate, section 7g). At 13 posts/s nothing changes. The read model's
+handler at 12 ms per event per partition is now the read side's limit: about 330 events/s with four
+partitions, above the command side's 133 posts/s on tmpfs and ten times the disk store's 30.

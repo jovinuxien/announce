@@ -178,6 +178,14 @@ Ordering per subject is guaranteed by OpenCQRS sequencing (`per_second_level_sub
 aggregate under the first path segment, so `/conversation/{id}`). The DDL of the framework's three tables is in
 `cqrs-reactive/src/main/resources/cqrs-schema-mysql.sql`; they are created on start-up when missing.
 
+The tracker coalesces checkpoints (since 2026-10-11): `proceed` only records the latest event id of the partition in
+memory and a flusher thread writes the pending ids every `cqrs.readside.progress.flush-interval` (250 ms by
+default; zero writes every checkpoint on the processor thread as before). OpenCQRS proceeds on every observed
+event, the events of other partitions included, so without the interval a processor paid one MySQL round trip per
+event of the whole stream and under load spent most of its time there (`doc/messaging-architecture.md` section
+7h). `current` and `checkpoints` answer with the pending id, a reset forgets it, and the tracker flushes when the
+context closes; after a crash a group replays at most one interval of events, the same at-least-once contract.
+
 **Retries.** A handler error or timeout does not advance the checkpoint; the processor retries with the
 group's `retry` policy. When the policy is exhausted the processor stops and logs "giving up"; it restarts
 with the service. Give production groups a long `max-elapsed-time`.

@@ -63,6 +63,44 @@ class R2dbcStoresTest {
         assertThat(tracker.current("g1", 0)).isInstanceOf(Progress.None.class);
     }
 
+    /**
+     * With a flush interval the processor thread only records the checkpoint; a flusher writes it within the
+     * interval, readers see the pending id at once, a reset forgets it, and close writes what is left.
+     */
+    @Test
+    void progressTrackerCoalescesCheckpointsWhenGivenAFlushInterval() throws Exception {
+        R2dbcProgressTracker direct = new R2dbcProgressTracker(client, "cqrs_readside_progress", Duration.ofSeconds(10));
+        direct.createTableIfMissing().block();
+        R2dbcProgressTracker tracker = new R2dbcProgressTracker(client, "cqrs_readside_progress", Duration.ofSeconds(10), Duration.ofMillis(200));
+        try {
+            for (int i = 1; i <= 50; i++) {
+                tracker.proceed("g3", 0, () -> new Progress.Success("ev-" + 0));
+                int n = i;
+                tracker.proceed("g3", 0, () -> new Progress.Success("ev-" + n));
+            }
+            tracker.proceed("g3", 1, () -> new Progress.Success("ev-7"));
+
+            assertThat(tracker.current("g3", 0)).as("the pending id is visible at once").isEqualTo(new Progress.Success("ev-50"));
+            assertThat(tracker.checkpoints("g3").block()).containsEntry(0L, "ev-50").containsEntry(1L, "ev-7");
+            assertThat(direct.current("g3", 0)).as("nothing written yet, or at most one flush").isIn(new Progress.None(), new Progress.Success("ev-50"));
+
+            Thread.sleep(600);
+            assertThat(direct.current("g3", 0)).as("written by the flusher within the interval").isEqualTo(new Progress.Success("ev-50"));
+            assertThat(direct.current("g3", 1)).isEqualTo(new Progress.Success("ev-7"));
+            assertThat(tracker.pendingCount()).isZero();
+
+            tracker.proceed("g3", 0, () -> new Progress.Success("ev-51"));
+            StepVerifier.create(tracker.reset("g3")).verifyComplete();
+            assertThat(tracker.current("g3", 0)).as("a reset forgets the pending id too").isInstanceOf(Progress.None.class);
+
+            tracker.proceed("g3", 2, () -> new Progress.Success("ev-9"));
+        } finally {
+            tracker.close();
+        }
+        assertThat(direct.current("g3", 2)).as("close writes what was pending").isEqualTo(new Progress.Success("ev-9"));
+        StepVerifier.create(direct.reset("g3")).verifyComplete();
+    }
+
     @Test
     void commandLogClaimsOnceAndReplaysCompletedResults() {
         R2dbcCommandIdStore store = new R2dbcCommandIdStore(client, "cqrs_command_log");

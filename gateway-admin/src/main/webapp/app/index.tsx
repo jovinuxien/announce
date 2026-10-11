@@ -11,8 +11,8 @@ import { shouldStartMocks } from './config/features';
 async function bootstrap() {
   await initI18n();
   if (shouldStartMocks()) {
-    // features.mocks only: MSW serves the phase-2 admin paths from app/mocks/handlers.ts (the chat screens have no
-    // backend wiring yet; the trade screens read the order module otherwise). Everything else passes through.
+    // features.mocks only: MSW serves the phase-2 admin paths from app/mocks/handlers.ts (otherwise the trade screens
+    // read the order module and the chat screens messaging, through the edge). Everything else passes through.
     const { startMocks } = await import('./mocks/browser');
     await startMocks();
   }

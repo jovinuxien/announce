@@ -1,13 +1,13 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import OrderDetailPage from './OrderDetailPage';
-import { renderTradePage, server, useTradeServer } from './testUtils';
+import { renderPage, server, useMockServer } from 'app/test/testUtils';
 
-useTradeServer();
+useMockServer();
 
 describe('OrderDetailPage', () => {
   it('combines the order, payment and shipment rows and derives the timeline', async () => {
-    renderTradePage(<OrderDetailPage />, '/orders/:id', '/orders/ord-3001');
+    renderPage(<OrderDetailPage />, '/orders/:id', '/orders/ord-3001');
     expect(await screen.findByText('Brompton M6L 2019')).toBeInTheDocument();
     expect((await screen.findAllByText('pi_fake_3001')).length).toBeGreaterThan(0); // payment row (and the timeline's detail)
     expect((await screen.findAllByText('PN123456789DK')).length).toBeGreaterThan(0); // shipment row
@@ -20,7 +20,7 @@ describe('OrderDetailPage', () => {
   });
 
   it('treats a missing payment and shipment as none, not as an error', async () => {
-    renderTradePage(<OrderDetailPage />, '/orders/:id', '/orders/ord-3006');
+    renderPage(<OrderDetailPage />, '/orders/:id', '/orders/ord-3006');
     expect(await screen.findByText('Standing desk 120 cm')).toBeInTheDocument();
     expect(await screen.findByText('No payment started')).toBeInTheDocument();
     expect(await screen.findByText('No shipment requested')).toBeInTheDocument();
@@ -41,7 +41,7 @@ describe('OrderDetailPage', () => {
         return HttpResponse.json(sent ? { ...base, status: 'RELEASING', disputeReason: null } : { ...base, status: 'DISPUTED', disputeReason: 'Crack' });
       }),
     );
-    renderTradePage(<OrderDetailPage />, '/orders/:id', '/orders/ord-3001');
+    renderPage(<OrderDetailPage />, '/orders/:id', '/orders/ord-3001');
     fireEvent.click(await screen.findByRole('button', { name: 'Release payout' }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText(/Note/), { target: { value: 'Buyer withdrew the complaint' } });

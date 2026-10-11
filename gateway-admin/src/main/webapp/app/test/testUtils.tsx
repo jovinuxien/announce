@@ -8,20 +8,20 @@ import { signedIn } from 'app/shared/auth/authSlice';
 import { handlers } from 'app/mocks/handlers';
 
 /**
- * The trade page tests run against the same MSW handlers and fixtures as `features.mocks` in the browser
- * (app/mocks/handlers.ts, app/mocks/tradeFixtures.ts), served by msw/node over the undici fetch polyfilled in
- * scripts/jest.polyfills.js. The fixtures are in the order module's real shapes (doc/frontend-edges.md §12), so
+ * The page tests (trade, chat) run against the same MSW handlers and fixtures as `features.mocks` in the browser
+ * (app/mocks/handlers.ts, app/mocks/tradeFixtures.ts, app/mocks/chatFixtures.ts), served by msw/node over the undici fetch polyfilled in
+ * scripts/jest.polyfills.js. The fixtures are in the backends' real shapes (doc/frontend-edges.md §12, §14), so
  * what passes here renders the same against the backend.
  */
 export const server = setupServer(...handlers);
 
-export function useTradeServer() {
+export function useMockServer() {
   beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
   afterEach(() => server.resetHandlers());
   afterAll(() => server.close());
 }
 
-export function renderTradePage(ui: ReactElement, path: string, initialEntry: string = path) {
+export function renderPage(ui: ReactElement, path: string, initialEntry: string = path) {
   const store = makeStore();
   store.dispatch(signedIn({ accessToken: 't', tokenType: 'Bearer', expiresIn: 7200, admin: { id: 1, username: 'root', avatar: null, roleIds: [1], roles: ['ROLE_ADMIN'] } }));
   return render(

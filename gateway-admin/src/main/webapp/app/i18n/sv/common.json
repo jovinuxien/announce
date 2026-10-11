@@ -19,7 +19,8 @@
   "pagination": {
     "summary": "Sida {{page}} av {{pages}} · {{total}} rader",
     "size": "Rader per sida",
-    "perPage": "{{size}} / sida"
+    "perPage": "{{size}} / sida",
+    "summaryMore": "Sida {{page}} · {{count}} rader på denna sida"
   },
   "actions": {
     "cancel": "Avbryt",

@@ -1,14 +1,16 @@
 import { HttpResponse, delay, http } from 'msw';
 import type { AuctionView } from 'app/shared/api/auctionsApi';
-import type { Bulletin, ConversationSummary } from 'app/shared/api/supportApi';
+import type { BulletinView, ConversationView, MessageView } from 'app/shared/api/supportApi';
 import { auctions, bids, iso, orders, pageOf, payments, payoutOverview, shipments } from './tradeFixtures';
+import { bulletins, chatPageOf, conversations, currentBulletins, messages, refreshCounters } from './chatFixtures';
 
 /**
  * MSW handlers for the phase-2 admin paths, started only with `features.mocks` (app/config/features.ts).
  *  - trade (auctions, bids, orders, payment, shipment, payouts): the order module's admin endpoints in their real
  *    shapes (doc/frontend-edges.md §12), fixtures in ./tradeFixtures.ts. Without the flag these calls reach the
  *    order module through the edge.
- *  - support queue and bulletins: doc/order-context.md §9 sketch; the chat screens are not wired to messaging yet.
+ *  - chat (support queue, conversation, bulletins): messaging's staff routes in their real shapes (doc/frontend-edges.md
+ *    §14), fixtures in ./chatFixtures.ts; the live frames of the WebSockets are not mocked (the screens poll instead).
  * Only the paths below are intercepted; everything else (auth, phase-1 API) passes through to the edge.
  */
 
@@ -16,17 +18,16 @@ function problem(status: number, detail: string, code?: string) {
   return HttpResponse.json({ type: 'about:blank', title: 'Error', status, detail, code }, { status, headers: { 'content-type': 'application/problem+json' } });
 }
 
-// ---- support (§9) ----
-const conversations: ConversationSummary[] = [
-  { id: 'conv-sup-1', type: 'SUPPORT', status: 'WAITING', announceId: null, openedBy: 42, openedAt: iso(-45), lastMessageAt: iso(-45), lastMessagePreview: 'I paid but the order still says pending', lastMessageSeq: 1, participantIds: [42], staffId: null },
-  { id: 'conv-sup-2', type: 'SUPPORT', status: 'WAITING', announceId: 'ann-fixed-9', openedBy: 7, openedAt: iso(-20), lastMessageAt: iso(-18), lastMessagePreview: 'Buyer opened a dispute, what happens now?', lastMessageSeq: 2, participantIds: [7], staffId: null },
-  { id: 'conv-sup-3', type: 'SUPPORT', status: 'OPEN', announceId: null, openedBy: 88, openedAt: iso(-3 * 60), lastMessageAt: iso(-10), lastMessagePreview: 'Thanks, that solved it', lastMessageSeq: 6, participantIds: [88, 1], staffId: 1 },
-  { id: 'conv-sup-4', type: 'SUPPORT', status: 'CLOSED', announceId: null, openedBy: 61, openedAt: iso(-2 * 24 * 60), lastMessageAt: iso(-2 * 24 * 60 + 30), lastMessagePreview: 'Closed by staff', lastMessageSeq: 4, participantIds: [61, 1], staffId: 1 },
-];
-const bulletins: Bulletin[] = [
-  { id: 1, title: 'Planned maintenance', content: 'The marketplace is read-only on Sunday 02:00-03:00 CET.', clientType: 'ALL', postedBy: 1, postedAt: iso(-3 * 24 * 60) },
-  { id: 2, title: 'New PostNord labels', content: 'Sellers in SE can now buy MyPack Collect labels at checkout.', clientType: 'WEB', postedBy: 1, postedAt: iso(-24 * 60) },
-];
+// ---- chat: messaging's staff routes (doc/frontend-edges.md §14). Join, close and block change the row only: the
+// backend pushes a `status` frame, it posts no message (SYSTEM messages come from order events). ----
+const STAFF_ID = 1; // the mocked session's admin
+const conv = (id: string | readonly string[] | undefined) => conversations.find((x) => x.id === id);
+const notWritable = (c: ConversationView) =>
+  c.status === 'CLOSED' ? problem(409, 'The conversation is closed', 'conversation-closed')
+    : c.status === 'BLOCKED' ? problem(409, 'The conversation is blocked', 'conversation-blocked') : null;
+// the aggregate state a command answers (ConversationResponse); the SPA ignores it and refetches the view
+const response = (c: ConversationView) => ({ id: c.id, type: c.type, announceId: c.announceId, buyerId: c.buyerId, sellerId: c.sellerId, subject: c.subject, status: c.status, lastSeq: c.lastMessageSeq, participants: c.participants.map((p) => ({ type: p.type, id: p.id, role: p.role })), openOffer: null, acceptedOffer: null, createdAt: c.createdAt, updatedAt: iso(0) });
+
 
 export const handlers = [
   // auction context
@@ -121,32 +122,99 @@ export const handlers = [
     return HttpResponse.json(payoutOverview(url));
   }),
 
-  // support (§9)
+  // chat (§14)
+  // GET /api/admin/conversations?status=WAITING&page&size: one status, oldest first, {items,page,size} without total
   http.get('/api/admin/conversations', async ({ request }) => {
     await delay(120);
     const url = new URL(request.url);
-    const status = url.searchParams.get('status');
-    return HttpResponse.json(pageOf(conversations.filter((c) => !status || c.status === status), url));
+    const status = url.searchParams.get('status') ?? 'WAITING';
+    if (!['WAITING', 'OPEN', 'CLOSED', 'BLOCKED'].includes(status)) return problem(400, `No enum constant ConversationStatus.${status}`);
+    const rows = conversations.filter((c) => c.status === status).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    return HttpResponse.json(chatPageOf(rows, url));
   }),
   http.post('/api/admin/conversations/:id/join', async ({ params }) => {
     await delay(200);
-    const c = conversations.find((x) => x.id === params.id);
-    if (!c) return problem(404, `Unknown conversation ${params.id}`);
-    if (c.status !== 'WAITING') return problem(409, 'Conversation is not waiting for staff', 'conversation-not-waiting');
-    c.status = 'OPEN';
-    c.staffId = 1;
-    c.participantIds = [...c.participantIds, 1];
-    return HttpResponse.json(c);
+    const c = conv(params.id);
+    if (!c) return problem(404, `Conversation ${params.id} does not exist`, 'conversation-not-found');
+    const blocked = notWritable(c);
+    if (blocked) return blocked;
+    if (!c.participants.some((p) => p.type === 'ADMIN' && p.id === STAFF_ID)) {
+      c.participants = [...c.participants, { type: 'ADMIN', id: STAFF_ID, role: 'CSR', lastReadSeq: 0, joinedAt: iso(0) }];
+      if (c.status === 'WAITING') c.status = 'OPEN';
+    }
+    return HttpResponse.json(response(c));
   }),
-  http.get('/api/admin/bulletins', async () => {
+  http.post('/api/admin/conversations/:id/close', async ({ params }) => {
+    await delay(200);
+    const c = conv(params.id);
+    if (!c) return problem(404, `Conversation ${params.id} does not exist`, 'conversation-not-found');
+    const blocked = notWritable(c);
+    if (blocked) return blocked;
+    c.status = 'CLOSED';
+    c.closedAt = iso(0);
+    return HttpResponse.json(response(c));
+  }),
+  http.post('/api/admin/conversations/:id/block', async ({ params, request }) => {
+    await delay(200);
+    const c = conv(params.id);
+    if (!c) return problem(404, `Conversation ${params.id} does not exist`, 'conversation-not-found');
+    const blocked = notWritable(c);
+    if (blocked) return blocked;
+    const body = ((await request.json().catch(() => null)) ?? {}) as { reason?: string };
+    c.status = 'BLOCKED';
+    c.blockedReason = body.reason ?? null;
+    return HttpResponse.json(response(c));
+  }),
+  // the member routes staff may use: view, history, post, read marker
+  http.get('/api/conversations/:id', async ({ params }) => {
     await delay(100);
-    return HttpResponse.json([...bulletins].sort((a, b) => b.postedAt.localeCompare(a.postedAt)));
+    const c = conv(params.id);
+    return c ? HttpResponse.json({ ...c, unread: c.participants.some((p) => p.type === 'ADMIN' && p.id === STAFF_ID) ? 0 : null }) : problem(404, `Conversation ${params.id} does not exist`, 'conversation-not-found');
+  }),
+  http.get('/api/conversations/:id/messages', async ({ params, request }) => {
+    await delay(100);
+    const c = conv(params.id);
+    if (!c) return problem(404, `Conversation ${params.id} does not exist`, 'conversation-not-found');
+    const url = new URL(request.url);
+    const after = Number(url.searchParams.get('after') ?? 0) || 0;
+    const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? 50) || 50));
+    return HttpResponse.json(messages.filter((m) => m.conversationId === c.id && m.seq > after).sort((a, b) => a.seq - b.seq).slice(0, limit));
+  }),
+  http.post('/api/conversations/:id/messages', async ({ params, request }) => {
+    await delay(150);
+    const c = conv(params.id);
+    if (!c) return problem(404, `Conversation ${params.id} does not exist`, 'conversation-not-found');
+    if (!c.participants.some((p) => p.type === 'ADMIN' && p.id === STAFF_ID)) return problem(403, `Not a participant of conversation ${c.id}`, 'not-participant');
+    const blocked = notWritable(c);
+    if (blocked) return blocked;
+    const body = (await request.json()) as { clientMsgId?: string; contentType?: MessageView['contentType']; content?: string };
+    if (!body.content?.trim()) return problem(400, 'The message text is required');
+    const duplicate = body.clientMsgId ? messages.find((m) => m.conversationId === c.id && m.clientMsgId === body.clientMsgId) : undefined;
+    if (duplicate) return HttpResponse.json({ conversationId: c.id, messageId: duplicate.id, seq: duplicate.seq, clientMsgId: duplicate.clientMsgId, duplicate: true, at: duplicate.sentAt }, { status: 201 });
+    const seq = c.lastMessageSeq + 1;
+    const m: MessageView = { id: `${c.id}-m${seq}`, conversationId: c.id, seq, senderType: 'ADMIN', senderId: STAFF_ID, contentType: body.contentType ?? 'TEXT', content: body.content, attachmentUrl: null, offerAmount: null, offerCurrency: null, offerStatus: null, clientMsgId: body.clientMsgId ?? null, sentAt: iso(0) };
+    messages.push(m);
+    refreshCounters();
+    return HttpResponse.json({ conversationId: c.id, messageId: m.id, seq, clientMsgId: m.clientMsgId, duplicate: false, at: m.sentAt }, { status: 201 });
+  }),
+  http.post('/api/conversations/:id/read', async ({ params, request }) => {
+    const c = conv(params.id);
+    if (!c) return problem(404, `Conversation ${params.id} does not exist`, 'conversation-not-found');
+    const body = (await request.json()) as { seq?: number };
+    const me = c.participants.find((p) => p.type === 'ADMIN' && p.id === STAFF_ID);
+    if (me && body.seq != null) me.lastReadSeq = Math.max(me.lastReadSeq, body.seq);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  // bulletins: GET ?audience=STAFF (current, newest first), POST {audience, clientType, content, expiresAt}
+  http.get('/api/admin/bulletins', async ({ request }) => {
+    await delay(100);
+    return HttpResponse.json(currentBulletins(new URL(request.url).searchParams.get('audience') ?? 'STAFF'));
   }),
   http.post('/api/admin/bulletins', async ({ request }) => {
     await delay(200);
-    const body = (await request.json()) as { title?: string; content?: string; clientType?: Bulletin['clientType'] };
-    if (!body.title?.trim() || !body.content?.trim()) return problem(400, 'title and content are required', 'bulletin-invalid');
-    const b: Bulletin = { id: bulletins.length + 1, title: body.title.trim(), content: body.content.trim(), clientType: body.clientType ?? 'ALL', postedBy: 1, postedAt: new Date().toISOString() };
+    const body = (await request.json()) as { audience?: string; clientType?: string | null; content?: string; expiresAt?: string | null };
+    if (!body.content?.trim() || body.content.length > 1023) return problem(400, 'The bulletin text is required and at most 1023 characters');
+    const b: BulletinView = { id: Math.max(0, ...bulletins.map((x) => x.id)) + 1, adminId: STAFF_ID, audience: (body.audience?.toUpperCase() as BulletinView['audience']) || 'STAFF', clientType: body.clientType || null, content: body.content, expiresAt: body.expiresAt ?? null, createdAt: iso(0) };
     bulletins.push(b);
     return HttpResponse.json(b, { status: 201 });
   }),

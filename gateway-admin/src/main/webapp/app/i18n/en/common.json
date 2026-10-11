@@ -19,7 +19,8 @@
   "pagination": {
     "summary": "Page {{page}} of {{pages}} · {{total}} rows",
     "size": "Rows per page",
-    "perPage": "{{size}} / page"
+    "perPage": "{{size}} / page",
+    "summaryMore": "Page {{page}} · {{count}} rows on this page"
   },
   "actions": {
     "cancel": "Cancel",

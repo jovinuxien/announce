@@ -1,12 +1,12 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import OrdersPage from './OrdersPage';
-import { renderTradePage, useTradeServer } from './testUtils';
+import { renderPage, useMockServer } from 'app/test/testUtils';
 
-useTradeServer();
+useMockServer();
 
 describe('OrdersPage', () => {
   it('lists the order rows by title with decimal amounts, the dispute reason and the DECLINED status', async () => {
-    renderTradePage(<OrdersPage />, '/orders');
+    renderPage(<OrdersPage />, '/orders');
     expect(await screen.findByText('Brompton M6L 2019')).toBeInTheDocument();
     const row = screen.getByText('Brompton M6L 2019').closest('tr')!;
     expect(within(row).getByText('Disputed')).toBeInTheDocument();
@@ -17,7 +17,7 @@ describe('OrdersPage', () => {
   });
 
   it('applies the seller, buyer and title filters on submit', async () => {
-    renderTradePage(<OrdersPage />, '/orders');
+    renderPage(<OrdersPage />, '/orders');
     await screen.findByText('Brompton M6L 2019');
     fireEvent.change(screen.getByLabelText('Buyer id'), { target: { value: '42' } });
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'bike' } });

@@ -1,14 +1,18 @@
 {
   "support": {
     "title": "Supportkø",
-    "subtitle": "Supportsamtaler venter, indtil en medarbejder deltager.",
+    "subtitle": "Supportsamtaler venter, indtil en medarbejder deltager. Én status ad gangen, ældste først; listen opdateres hvert 15. sekund.",
     "emptyHint": "Ingen venter.",
+    "emptyStatus": "Ingen samtale med denne status.",
     "conversation": "Samtale",
-    "openedBy": "Åbnet af",
+    "member": "Medlem",
     "openedAt": "Åbnet",
     "lastMessage": "Seneste besked",
+    "messages": "{{count}} beskeder",
     "staff": "Medarbejder",
-    "join": "Deltag"
+    "join": "Deltag",
+    "open": "Åbn",
+    "noSubject": "Intet emne"
   },
   "conversationStatus": {
     "WAITING": "Venter",
@@ -20,22 +24,59 @@
     "LISTING": "Annonce",
     "SUPPORT": "Support"
   },
+  "thread": {
+    "title": "Samtale",
+    "back": "Tilbage til køen",
+    "member": "Medlem",
+    "opened": "Åbnet",
+    "closedAt": "Lukket",
+    "blockedReason": "Blokeret",
+    "noMessages": "Ingen beskeder endnu.",
+    "system": "System",
+    "you": "Dig",
+    "offer": "Bud {{amount}}",
+    "image": "Billede",
+    "placeholder": "Skriv et svar…",
+    "reply": "Svar",
+    "send": "Send",
+    "close": "Luk",
+    "block": "Bloker",
+    "blockTitle": "Bloker samtalen",
+    "blockHint": "Ingen kan skrive i en blokeret samtale længere. Begrundelsen gemmes på samtalen.",
+    "blockReason": "Begrundelse",
+    "joinFirst": "Deltag i samtalen for at svare.",
+    "notWritable": "Denne samtale er {{status}}.",
+    "frameError": "Serveren afviste en ramme"
+  },
+  "socket": {
+    "connecting": "Forbinder…",
+    "open": "Live",
+    "closed": "Forbinder igen…",
+    "unavailable": "Ikke live, henter løbende"
+  },
   "bulletins": {
     "title": "Meddelelser",
-    "subtitle": "Meddelelser sendes live til tilsluttede medarbejderklienter af den valgte type.",
+    "subtitle": "En meddelelse gemmes og sendes live til de tilsluttede medarbejderskærme af den valgte klienttype.",
     "post": "Send en meddelelse",
     "posted": "Meddelelsen er sendt.",
     "send": "Send",
-    "recent": "Seneste meddelelser",
+    "current": "Aktuelle meddelelser",
+    "contentHelp": "Højst {{max}} tegn, {{left}} tilbage. Første linje vises som overskrift.",
+    "expires": "Udløber {{at}}",
     "fields": {
-      "title": "Titel",
       "content": "Indhold",
-      "clientType": "Klienttype"
+      "audience": "Målgruppe",
+      "clientType": "Klienttype",
+      "expiresAt": "Udløber (valgfrit)"
     }
   },
+  "audience": {
+    "STAFF": "Medarbejdere",
+    "MEMBERS": "Medlemmer"
+  },
   "clientType": {
-    "ALL": "Alle klienter",
-    "WEB": "Web",
-    "MOBILE": "Mobil"
+    "all": "Alle klienter",
+    "web": "Web",
+    "mobile": "Mobil"
   }
 }

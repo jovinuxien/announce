@@ -21,6 +21,7 @@ import OrdersPage from 'app/modules/trade/OrdersPage';
 import OrderDetailPage from 'app/modules/trade/OrderDetailPage';
 import PayoutsPage from 'app/modules/trade/PayoutsPage';
 import SupportQueuePage from 'app/modules/chat/SupportQueuePage';
+import SupportThreadPage from 'app/modules/chat/SupportThreadPage';
 import BulletinsPage from 'app/modules/chat/BulletinsPage';
 import NotFoundPage from 'app/modules/NotFoundPage';
 
@@ -66,6 +67,7 @@ export default function AppRoutes() {
           {features.chat && (
             <>
               <Route path="/support" element={<SupportQueuePage />} />
+              <Route path="/support/:id" element={<SupportThreadPage />} />
               <Route path="/bulletins" element={<BulletinsPage />} />
             </>
           )}

@@ -172,8 +172,9 @@ search, status); admins, roles and permissions; regions.
 Phase 2: auctions (list, bids, cancel a bid with reason), orders (list, detail with the
 payment and shipment rows and a derived timeline, resolve dispute to release or refund) and
 payouts overview read the order module through the edge since 2026-10-10 (§13; `features.trade`
-defaults on). The support queue (WAITING conversations, join, bulletins) stays behind
-`features.chat` on MSW fixtures; `features.mocks` puts every phase-2 screen on the fixtures.
+defaults on). The support queue, the staff conversation screen and the bulletins read messaging's staff
+routes and WebSockets through the edge since 2026-10-11 (§14, `features.chat` defaults on); `features.mocks`
+puts every phase-2 screen on the fixtures.
 
 ## 7. Tests and acceptance
 
@@ -485,7 +486,7 @@ suite had reset; it passed as soon as the instance stopped. Run the suite when n
 
 **Still open.** Roles are forwarded but not checked inside the backends (the edge enforces `ROLE_ADMIN`, and
 `ROLE_SUPER` on its own admin, role and permission routes). The list endpoints the admin SPA's mocks call exist
-since §12; wiring the screens to them is separate work.
+since §12; wiring the screens to them is separate work (done: trade in §13, chat in §14).
 
 ## 12. Admin lists in the order module (2026-10-10)
 
@@ -561,7 +562,7 @@ no event-timeline endpoint and the screens never read the event store. The payou
 `PayoutTotals` with their order counts, the fees collected and pending, and one line per order that holds or held
 money with the order status under the payout status and the seller gate (`payoutsDisabled`).
 
-**Flags and mocks (`app/config/features.ts`).** `trade` defaults on, `chat` stays off, and the MSW worker starts
+**Flags and mocks (`app/config/features.ts`).** `trade` defaults on, `chat` stayed off until §14, and the MSW worker starts
 only with `features.mocks` (`?features=trade,mocks`); before, any phase-2 flag started it outside production,
 which would have hijacked the real trade calls in development. The fixtures (`app/mocks/tradeFixtures.ts`) are
 in the real shapes, the handlers apply the real filters and the 404 rule for payment and shipment, and the payout
@@ -602,3 +603,82 @@ typecheck`, `npm run i18n:check` (457 keys), `npm test` (47), the jar contains `
 Observations: the payment and shipment 404s come as Spring's default JSON, not problem+json (the SPA only looks
 at the status). The browser console shows the expected 401 of the first silent refresh before login and the
 two 404s.
+
+## 14. Admin SPA on messaging's staff routes (2026-10-11)
+
+The two chat screens of the admin SPA (support queue at `/support`, bulletins at `/bulletins`) were built on a
+sketch of messaging written before the module existed and ran on the service worker's fixtures. Messaging ships
+the staff side (`AdminMessagingController`, `ConversationController` for what a staff member does inside a
+conversation, `/ws/staff` and `/ws/conversations/{id}`) and the admin edge routes it since §11. This round
+wires the screens to it, adds the screen that was missing, and keeps the mocks for `features.mocks` only. No
+edge or backend change.
+
+**Where the sketch and the backend disagreed, and what the SPA does now.**
+
+| Sketch | Backend | SPA now |
+|---|---|---|
+| conversation row with `openedBy`, `lastMessagePreview`, `staffId`, `participantIds` | `ConversationQueries.ConversationView`: `buyerId`, `subject`, `lastMessageSeq`, `lastMessageAt`, `messageCount`, `participants[{type,id,role,lastReadSeq,joinedAt}]`, `createdAt`, `closedAt`, `blockedReason`; no preview | types mirror the view; the queue shows subject, member, opened time, last activity with the count, the staff who joined |
+| status filter with "All" | one status per call, `WAITING` by default, oldest first | one status at a time, WAITING first; the page polls every 15 s (nothing pushes queue changes) |
+| page with `total` | `MessagingDtos.PageResponse {items, page, size}` | `Pagination` has an unknown-total mode: "Page n · k rows on this page", Next enabled while a full page came back |
+| bulletin with `title`, `clientType` ALL/WEB/MOBILE, `postedBy`, `postedAt` | `Bulletins.BulletinView {id, adminId, audience, clientType, content, expiresAt, createdAt}`; content up to 1023 chars; client type a free string, empty = every client; audience STAFF or MEMBERS | form: content (first line = heading), audience, client type every / web / mobile sent lowercase, optional expiry; list per audience, newest first |
+| join answers the list row | join, close and block answer the aggregate state (`ConversationResponse`); idempotent for a staff member already in; 409 `conversation-closed` / `conversation-blocked` | the answers are ignored, the row refetches through the query tag |
+| no conversation screen | staff may read any conversation, and post once joined (`not-participant` otherwise); live frames `message`, `status`, `ack`, `error`, `pong` | new `/support/:id` screen |
+
+**The conversation screen (`SupportThreadPage`).** Row from `GET /api/conversations/{id}`, history from
+`GET {id}/messages?after=`, then `/ws/conversations/{id}?access_token=` through the edge (`WebSocketTokenFilter`
+turns the query token into the bearer header). `message` frames are appended with the same de-duplication the
+customer screen uses (message id, then client message id), `status` frames refetch the row, `ack` catches up the
+history, `error` frames show in an alert. The composer posts a `post` frame and falls back to
+`POST {id}/messages` when the socket is not open; while the socket is not open the screen polls every 5 s. The
+read marker is raised with a `read` frame (REST fallback) once the staff member is a participant. Staff actions:
+join (shown while WAITING or OPEN and not yet a participant), close, block with a reason in a modal. Bubbles:
+member left, staff right (the signed-in admin in blue as "You"), SYSTEM centred. The hook `useSocket` is a port
+of the customer SPA's `useConversationSocket` (reconnect with backoff, `unavailable` after three failures) with
+the path and query parameters as arguments; the bulletins page uses it on `/ws/staff?clientType=web` and
+prepends a `bulletin` frame of the shown audience to the list.
+
+**Flags and mocks.** `chat` defaults on (`?features=trade,chat` is the way back to the defaults after a
+`?features=` reset). The chat fixtures (`app/mocks/chatFixtures.ts`) and handlers are in the real shapes with
+the real rules: one status per call, size capped at 200, no total, join idempotent, 409 on a closed or blocked
+row, 403 `not-participant` for a post before joining, duplicate `clientMsgId` answered as `duplicate: true`,
+`POST /read` 204, bulletins by audience and expiry. Join, close and block change the row only: the backend
+pushes a `status` frame and posts no message (SYSTEM messages come from order events through
+`OrderEventsSubscriber`); the first fixtures assumed otherwise and were corrected after the run against the
+backend. The live frames are not mocked in the browser; the screens poll.
+
+**Tests.** `SupportQueuePage`, `SupportThreadPage` and `BulletinsPage` page tests over msw/node (the trade
+test utilities moved to `app/test/testUtils.tsx`), a `FakeWebSocket` double in `app/test/fakeWebSocket.ts`
+(records the URL and the sent frames, opens on the next tick or never, lets a test push server frames), and
+`chatHelpers.test.ts` for the frame mappers, the socket URL and the bulletin helpers. The suite is 65 tests in
+17 files (47 before). `npm run typecheck`, `npm run lint` and `npm run i18n:check` (493 keys in en, da, sv)
+are clean.
+
+### 14a. Checklist, executed 2026-10-11
+
+Setup: live MySQL, `docker/cqrs` Kafka 9094, `gateway-admin` from `mvn -pl db-reactive,cqrs-reactive,gateway-admin
+-P webapp -DskipTests package` with `--spring.profiles.active=dev` on 8081, messaging from
+`mvn -pl messaging spring-boot:run` on 8086 after installing the sibling modules from this worktree. Two
+deviations from the plain recipe: the development EventSourcingDB on port 3000 still hangs on every streaming
+read (ping 200, `read-events` never answers; the state noted on 10 October), so messaging ran against a
+throwaway `eventsourcingdb:1.2.0` on port 3001 with `--data-directory-temporary`, its four read-side checkpoint
+rows (`conversation-read-model` 0 and 1, `messaging-live`, `messaging-public`, all at event 36) deleted before
+and restored after the run; and messaging ran with `--announce.service-token.mode=off` so the member side could
+be driven with curl directly (`X-User-Id` + `X-User-Type=MEMBER`) without the customer edge. Every staff call
+went through the admin edge. The three support conversations and two bulletins the run wrote were deleted from
+the development database afterwards, because their events live in the throwaway store.
+
+| Step | Result |
+|---|---|
+| Member 42 opens a support conversation and posts | 201 both; `GET /api/admin/conversations?status=WAITING` through the edge answers the row with `subject`, one USER participant, `{items, page, size}` without total |
+| Support queue screen | one WAITING row: subject, member `#88` linking to the member, opened time, "1 messages", Waiting badge, Join; "Page 1 · 1 rows on this page"; no alert, no mock banner |
+| Join from the queue | navigates to `/support/{id}`; header "Open · Member #88 · Staff #1 · Opened …", composer shown; the WAITING list is empty afterwards and the OPEN list holds the row |
+| Conversation screen | history rendered (member bubble left), socket badge "Live" on `ws://localhost:8081/ws/conversations/{id}?access_token=…`, `read` frame sent |
+| Staff reply through the socket | "Hello, I am looking at the payment now." appears as "You" (pushed back through `messaging.live`) |
+| Member reply over REST while the screen is open | arrives live in 66 ms; the member's `GET …/messages` lists all three messages |
+| Bulletins screen | socket "Live" on `/ws/staff?clientType=web`; posting content, client type web → "Bulletin posted.", one row with heading, body, "Web", author #1 |
+| Bulletin posted by another client (curl through the edge) | prepended live in 94 ms; list order newest first (New PostNord labels, Planned maintenance) |
+| Close from the screen | footer "This conversation is Closed.", badge Closed, Close and Block gone; `/support?status=CLOSED` lists it |
+| Block with a reason (edge) | 200; the row reads BLOCKED with `blockedReason` "Abusive language" |
+| Rules | join on the closed conversation 409 `conversation-closed` (problem+json); a member post into it 409 as well |
+| Console | one expected 401 (the silent refresh before login); nothing else |
+

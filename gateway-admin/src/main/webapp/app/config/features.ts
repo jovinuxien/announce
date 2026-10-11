@@ -4,14 +4,15 @@ import { FEATURES_KEY } from './constants';
  * Feature flags.
  *  - `trade` (auctions, orders, payouts): ON by default since 2026-10-10. The screens read the order module's admin
  *    endpoints through the edge (doc/frontend-edges.md §12); when the module is down they show the problem alert.
- *  - `chat` (support queue, bulletins): off; still served by the MSW fixtures until that wiring is done.
+ *  - `chat` (support queue, conversations, bulletins): ON by default since 2026-10-11. The screens read messaging's
+ *    staff routes and WebSockets through the edge (doc/frontend-edges.md §14).
  *  - `mocks`: starts the MSW worker so every phase-2 screen (trade included) is fed by app/mocks/handlers.ts. The
  *    worker never starts on its own any more, otherwise it would hijack the real trade endpoints in development.
  *
  * Override without a rebuild:
  *  - localStorage key `announce.features` = {"trade":true,"chat":true,"mocks":true}
  *  - query string `?features=trade,chat,mocks` at load (persisted to localStorage; `?features=` clears them, which
- *    also turns the defaults off: `?features=trade` is the way back to the defaults).
+ *    also turns the defaults off: `?features=trade,chat` is the way back to the defaults).
  */
 export interface Features {
   trade: boolean;
@@ -19,7 +20,7 @@ export interface Features {
   mocks: boolean;
 }
 
-export const DEFAULT_FEATURES: Features = { trade: true, chat: false, mocks: false };
+export const DEFAULT_FEATURES: Features = { trade: true, chat: true, mocks: false };
 
 export function parseFeatureList(list: string | null): Partial<Features> | undefined {
   if (list === null) return undefined;

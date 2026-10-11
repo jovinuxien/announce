@@ -1,12 +1,12 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import AuctionsPage from './AuctionsPage';
-import { renderTradePage, useTradeServer } from './testUtils';
+import { renderPage, useMockServer } from 'app/test/testUtils';
 
-useTradeServer();
+useMockServer();
 
 describe('AuctionsPage', () => {
   it('lists the auction rows with decimal prices, the real status names and the bids of the selected one', async () => {
-    renderTradePage(<AuctionsPage />, '/auctions');
+    renderPage(<AuctionsPage />, '/auctions');
     expect(await screen.findByText('Vintage Ercol armchair')).toBeInTheDocument();
     expect(within(screen.getByRole('table')).getByText('Closed, bought now')).toBeInTheDocument(); // CLOSED_SNAGGED
     const row = screen.getByText('Vintage Ercol armchair').closest('tr')!;
@@ -19,12 +19,12 @@ describe('AuctionsPage', () => {
   });
 
   it('filters by status through the URL and shows the empty state when nothing matches', async () => {
-    renderTradePage(<AuctionsPage />, '/auctions', '/auctions?status=CANCELLED');
+    renderPage(<AuctionsPage />, '/auctions', '/auctions?status=CANCELLED');
     expect(await screen.findByTestId('empty-state')).toBeInTheDocument();
   });
 
   it('cancels a bid with a reason and refetches the auction', async () => {
-    renderTradePage(<AuctionsPage />, '/auctions');
+    renderPage(<AuctionsPage />, '/auctions');
     fireEvent.click(await screen.findByText('Vintage Ercol armchair'));
     const leading = await screen.findByText('Leading');
     const bidRow = leading.closest('tr')!;

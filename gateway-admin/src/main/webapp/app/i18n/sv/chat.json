@@ -1,14 +1,18 @@
 {
   "support": {
     "title": "Supportkö",
-    "subtitle": "Supportsamtal väntar tills en medarbetare ansluter.",
+    "subtitle": "Supportsamtal väntar tills en medarbetare ansluter. En status i taget, äldst först; listan uppdateras var 15:e sekund.",
     "emptyHint": "Ingen väntar.",
+    "emptyStatus": "Inget samtal med denna status.",
     "conversation": "Samtal",
-    "openedBy": "Öppnat av",
+    "member": "Medlem",
     "openedAt": "Öppnat",
     "lastMessage": "Senaste meddelande",
+    "messages": "{{count}} meddelanden",
     "staff": "Medarbetare",
-    "join": "Anslut"
+    "join": "Anslut",
+    "open": "Öppna",
+    "noSubject": "Inget ämne"
   },
   "conversationStatus": {
     "WAITING": "Väntar",
@@ -20,22 +24,59 @@
     "LISTING": "Annons",
     "SUPPORT": "Support"
   },
+  "thread": {
+    "title": "Samtal",
+    "back": "Tillbaka till kön",
+    "member": "Medlem",
+    "opened": "Öppnat",
+    "closedAt": "Stängt",
+    "blockedReason": "Blockerat",
+    "noMessages": "Inga meddelanden ännu.",
+    "system": "System",
+    "you": "Du",
+    "offer": "Bud {{amount}}",
+    "image": "Bild",
+    "placeholder": "Skriv ett svar…",
+    "reply": "Svar",
+    "send": "Skicka",
+    "close": "Stäng",
+    "block": "Blockera",
+    "blockTitle": "Blockera samtalet",
+    "blockHint": "Ingen kan skriva i ett blockerat samtal längre. Orsaken sparas på samtalet.",
+    "blockReason": "Orsak",
+    "joinFirst": "Anslut till samtalet för att svara.",
+    "notWritable": "Detta samtal är {{status}}.",
+    "frameError": "Servern avvisade en ram"
+  },
+  "socket": {
+    "connecting": "Ansluter…",
+    "open": "Live",
+    "closed": "Återansluter…",
+    "unavailable": "Inte live, hämtar löpande"
+  },
   "bulletins": {
     "title": "Meddelanden",
-    "subtitle": "Meddelanden skickas live till anslutna personalklienter av den valda typen.",
+    "subtitle": "Ett meddelande sparas och skickas live till de anslutna personalskärmarna av den valda klienttypen.",
     "post": "Skicka ett meddelande",
     "posted": "Meddelandet har skickats.",
     "send": "Skicka",
-    "recent": "Senaste meddelanden",
+    "current": "Aktuella meddelanden",
+    "contentHelp": "Högst {{max}} tecken, {{left}} kvar. Första raden visas som rubrik.",
+    "expires": "Går ut {{at}}",
     "fields": {
-      "title": "Rubrik",
       "content": "Innehåll",
-      "clientType": "Klienttyp"
+      "audience": "Målgrupp",
+      "clientType": "Klienttyp",
+      "expiresAt": "Går ut (valfritt)"
     }
   },
+  "audience": {
+    "STAFF": "Personal",
+    "MEMBERS": "Medlemmar"
+  },
   "clientType": {
-    "ALL": "Alla klienter",
-    "WEB": "Webb",
-    "MOBILE": "Mobil"
+    "all": "Alla klienter",
+    "web": "Webb",
+    "mobile": "Mobil"
   }
 }

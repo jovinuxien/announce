@@ -1,12 +1,12 @@
 import { screen, within } from '@testing-library/react';
 import PayoutsPage from './PayoutsPage';
-import { renderTradePage, useTradeServer } from './testUtils';
+import { renderPage, useMockServer } from 'app/test/testUtils';
 
-useTradeServer();
+useMockServer();
 
 describe('PayoutsPage', () => {
   it('shows the five totals with their order counts and one line per order that holds money', async () => {
-    renderTradePage(<PayoutsPage />, '/payouts');
+    renderPage(<PayoutsPage />, '/payouts');
     expect(await screen.findByText('Brompton M6L 2019')).toBeInTheDocument();
     const tiles = document.querySelectorAll('.stat-tile');
     expect(tiles).toHaveLength(5);
@@ -24,7 +24,7 @@ describe('PayoutsPage', () => {
   });
 
   it('filters by payout status while the totals stay global', async () => {
-    renderTradePage(<PayoutsPage />, '/payouts', '/payouts?status=SENT');
+    renderPage(<PayoutsPage />, '/payouts', '/payouts?status=SENT');
     expect(await screen.findByText('IKEA Poäng + footstool')).toBeInTheDocument();
     expect(screen.queryByText('Brompton M6L 2019')).not.toBeInTheDocument();
     expect(document.querySelectorAll('.stat-tile')[1]).toHaveTextContent(/8[,.]?930/);

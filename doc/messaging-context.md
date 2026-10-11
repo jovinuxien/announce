@@ -160,7 +160,9 @@ mvn -pl messaging spring-boot:run
 
 `mvn -pl messaging test`: `ConversationTest` (aggregate through `CommandFixture`),
 `ConversationControllerTest` (REST slice), `ConversationsRetryTest`, `ConversationQueriesAttachTest` and
-`ConversationQueriesInboxTest` (the retry, the handshake re-check and the one-query page against mocks) and `MessagingEndToEndTest` (EventSourcingDB and Kafka
+`ConversationQueriesInboxTest` (the retry, the handshake re-check and the one-query page against mocks),
+`StatementCostProbeTest` (only with `-Dprobe=true`: the latency of one statement at every layer of the reactive
+MySQL path, printed as a table; the instrument of tuning step 9) and `MessagingEndToEndTest` (EventSourcingDB and Kafka
 from Testcontainers, the read model in the live `announce_reactive_db`; the class removes the rows it writes
 and clears the three groups' checkpoints and the test lock table `cqrs_readside_lock_test` before it starts).
 The test profile runs the processors under leader election with the read model in two partitions, as in
@@ -170,7 +172,10 @@ drives a client that stops reading (closed 4408 once it reads again, every accep
 that never reads (reclaimed by the write timeout) and one that answers no ping (closed 4409 while a normal
 client stays open). `LiveSinkTest` and `SocketLifecycleOverNettyTest` cover the sink and the socket policy
 without the application context. Several worktrees share `~/.m2`, so build with `-am` when another session
-may have installed an older `db-reactive`.
+may have installed an older `db-reactive`. The reactive MyBatis library comes from `db-reactive`
+(`mybatis-r2dbc-spring` 3.1.3 since 2026-10-11; 3.0.6 generated a ByteBuddy class for every statement, which cost
+about 15 ms of CPU per statement in every service: `doc/messaging-architecture.md` section 7f, and
+`ReactiveMybatisProxyTest` in db-reactive pins the fixed behaviour).
 
 The command side keeps the state of recently used conversations in an in-memory LRU cache
 (`opencqrs.command-handling.cache.type=in_memory`, `capacity` 1000 conversations per node, set in both

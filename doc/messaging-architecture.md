@@ -188,7 +188,7 @@ server (`write-timeout`, 30 s) ends it.
 
 | Resource | Client | Used by | Setting today |
 |---|---|---|---|
-| MySQL `announce_reactive_db` | R2DBC pool from reactive-mybatis-support, shared with Spring Data R2DBC | read model, checkpoints, command log, read markers, bulletins | `initial-size 2`, `max-size 20` |
+| MySQL `announce_reactive_db` | R2DBC pool from reactive-mybatis-support (`mybatis-r2dbc-spring` 3.1.3, set in `db-reactive`; 3.0.6 generated a ByteBuddy class per statement, section 7f), shared with Spring Data R2DBC | read model, checkpoints, command log, read markers, bulletins | `initial-size 2`, `max-size 40` |
 | EventSourcingDB | OpenCQRS blocking HTTP client | every command; three observe streams | `esdb.server.uri`, token |
 | Kafka | Spring Cloud Stream Kafka binder | one producer (two output bindings), two consumer bindings | `auto-create-topics`, replication 1 |
 
@@ -388,11 +388,10 @@ Two defects the baseline run found, both fixed on 2026-10-01:
    flight a post takes about a second inside the facade and the acks queue up; find what serialises the
    command path (the EventSourcingDB client's connection pool, the store itself, the bounded-elastic hop)
    and measure `messaging.command.latency` against the number of commands in flight.
-9. The per-statement cost of the reactive MySQL path (found by step 7, section 7e): a statement MySQL
-   executes in under a millisecond costs the service about 30 ms alone and 80 ms under four concurrent
-   readers, in neither TLS nor TCP; find where it goes (reactive-mybatis-support's execution and mapping,
-   the pool's acquire, a scheduler hop) and measure `messaging.query.latency{conversation}` (two
-   statements) and `messaging.projection.handler` against it.
+9. The per-statement cost of the reactive MySQL path (found by step 7, section 7e). Done 2026-10-11:
+   reactive-mybatis-support 3.0.6 generated a ByteBuddy class on every statement; `mybatis-r2dbc-spring`
+   3.1.3 in db-reactive, a mapper call from 19.5 to 8.7 ms alone and from 39.5 to 7.8 ms with four callers;
+   section 7f.
 
 Each step is small, independently revertable, and has one metric that tells whether it helped.
 
@@ -757,3 +756,55 @@ service's own path from the mapper call to the mapped row: reactive-mybatis-supp
 and result mapping over the pooled connection. Finding where those 30 ms go (a thread hop per statement,
 a connection acquire with validation, the result mapping, logging) is step 9 of section 6; it would pay on
 every read and on every event the projections handle.
+
+## 7f. The per-statement cost: a class generated per statement, 2026-10-11
+
+Step 7 left the question of where 30 ms per statement go when MySQL executes the statement in under a
+millisecond. The `announce` user may not read the performance schema, so the measurement is client-side
+and layered: `StatementCostProbeTest` (runs only with `-Dprobe=true`, under the test profile with the
+containers of the end-to-end suite and the live read model) runs the same point query on one conversation
+row 400 times in sequence at each layer of the path and reports the latency of one call as the caller
+sees it, p50 (p95). Same host, development stack up.
+
+| Layer | 3.0.6 | 3.1.3 |
+|---|---|---|
+| r2dbc-mysql driver, one connection, no pool | 1.8 (3.2) ms | 2.7 (9.0) ms |
+| pooled connection factory: acquire, statement, release | 2.1 (3.6) ms | 3.5 (13.7) ms |
+| mapper `selectByPrimaryKey` | 19.5 (39.0) ms | 8.7 (28.4) ms |
+| mapper, 400 calls on one transaction's connection, mean per call | 13.5 ms | 3.6 ms |
+| mapper `selectByExample`, two participant rows | 13.9 (20.9) ms | 5.1 (13.3) ms |
+| pooled factory, bare `select 1` | 1.0 (4.5) ms | 1.3 (5.8) ms |
+| mapper, four callers at once | 39.5 (81.4) ms | 7.8 (23.8) ms |
+| pooled factory, four callers at once | 1.6 (5.5) ms | 2.1 (9.6) ms |
+
+(The 3.1.3 column was taken while other builds ran on the host, which the driver and pool rows show; the
+mapper rows fell regardless. A quieter rerun is in the report.)
+
+With 3.0.6 the driver and the pool answered in one to two milliseconds and stayed there with four callers,
+while the mapper call cost 19.5 ms, 39.5 ms with four callers, and still 13.5 ms per call when every call
+ran on the one connection of a transaction: not the database, not the driver, not the pool, not the
+connection bookkeeping. A Flight Recorder profile of the probe (surefire `argLine`
+`-XX:StartFlightRecording=settings=profile`) put 769 of the 924 CPU samples inside the library in one
+method, `ProxyInstanceFactory.newInstanceOfInterfaces`, under ByteBuddy's class generation. Its bytecode:
+on every call, `new ByteBuddy().subclass(Object).implement(interfaces).method(isPublic())
+.intercept(InvocationHandlerAdapter.of(handler)).make().load(loader).getLoaded()`, then a constructor
+call; no cache, and none possible since the handler instance is baked into the generated class. It is
+called for the parameter handler of every statement, for the type-handler context of every result handler
+and for every connection acquired: two generated and loaded classes per query, a third per acquire, each
+five to ten milliseconds of CPU on this host, and CPU work scales with concurrency, which is the 80 ms of
+section 7e.
+
+The library fixed exactly this in its release 3.1.2 of 2026-07-07 ("memory leak in ProxyInstanceFactory,
+Byte Buddy removed", issue 178): the factory now calls `java.lang.reflect.Proxy.newProxyInstance`, and the
+JDK keeps one proxy class per class loader and interface set. `mybatis-r2dbc.version` in `db-reactive`
+went from `3.0.6.RELEASE` to `3.1.3.RELEASE` (the latest 3.x; built against Boot 3.5.16, MyBatis 3.5.19,
+Java 17; the 3.1.x notes list no breaking change or renamed property; ByteBuddy left the compile
+classpath). Every service that uses db-reactive gets it on its next build: announce-management, order,
+gateway-api and gateway-admin compile against it; db-reactive's suite (70 tests) and the messaging suite
+pass. `ReactiveMybatisProxyTest` in db-reactive pins the behaviour (a JDK proxy, one class per interface
+set), so a downgrade fails a test instead of showing up as latency.
+
+The service under the inbox load of section 7e (four readers, 60 s), 3.0.6 against 3.1.3: a page of 20
+from 165 (222) ms to 47 (138) ms, a page of 50 from 182 (257) ms to 77 (210) ms, 20 to 50 pages per second
+on one node, `messaging.query.latency{inbox}` p50 from 180 to 67 ms. The chat load (the projection's cost
+per event) is measured in the report of this step.

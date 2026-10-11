@@ -108,11 +108,25 @@ Frames the client receives:
 `ws://host/ws/staff?clientType=desktop` with `X-Staff-Id` receives `bulletin` frames for its client type
 (a bulletin without a client type reaches every staff socket).
 
+**What the node does to every socket** (`messaging.socket`, `SocketLifecycle`): it sends a WebSocket
+protocol ping every `ping-interval` (30 s), which browsers and client libraries answer by themselves; it
+closes with **4409** a socket from which nothing arrived (the pong counts) for `idle-timeout` (75 s); and it
+queues at most `buffer-frames` (256) frames for a socket whose connection is not taking them, after which the
+frames it holds are still delivered and the socket is closed with **4408** (slow consumer). On 4408 and
+4409 the client reconnects and reloads the messages after the last `seq` it has over REST; it has missed
+nothing else, because a message is only ever lost from the socket, never from the conversation. A peer whose
+connection stopped taking bytes altogether cannot receive the close frame either; the server-wide write
+timeout (`write-timeout`, 30 s) ends that connection. Binary frames from the client are ignored; a text
+frame that is not JSON gets `error` 400 `bad-frame`.
+
 **Fan-out across nodes.** A message is a command; the aggregate writes the event; the relay group
 `messaging-live` maps it to a live record on topic `messaging.live` (key = the conversation subject);
-every node consumes the topic with its own consumer group (`messaging-live-${random.uuid}`, start
-offset latest) and pushes to the sockets it holds (`LiveSessions`). Delivery is at least once: clients
-de-duplicate on `messageId`. Bulletins reach the same topic through `StreamBridgeLiveFeed`.
+every node consumes the topic with its own consumer group, named after the node
+(`messaging-live-${ANNOUNCE_NODE}`, falling back to host and port) and reset to the latest offset at every
+start, and pushes to the sockets it holds (`LiveSessions`). Delivery is at least once: clients
+de-duplicate on `messageId`. Bulletins reach the same topic through `StreamBridgeLiveFeed`. The live
+topic is produced and consumed for latency, not durability (`acks=1`, no idempotence, no lingering, fetch
+of one record): a lost live record costs a push the client recovers over REST, nothing more.
 
 **Posts at the same moment.** Two commands on one conversation that are handled together read the same
 state; EventSourcingDB accepts the first write and refuses the second, and nothing of the second is written.
@@ -150,8 +164,13 @@ mvn -pl messaging spring-boot:run
 from Testcontainers, the read model in the live `announce_reactive_db`; the class removes the rows it writes
 and clears the three groups' checkpoints and the test lock table `cqrs_readside_lock_test` before it starts).
 The test profile runs the processors under leader election with the read model in two partitions, as in
-production, and asserts the leases and the controllers. Several worktrees share `~/.m2`, so build
-with `-am` when another session may have installed an older `db-reactive`.
+production, and asserts the leases and the controllers. It also runs the sockets with a small outbound bound
+(`messaging.socket.buffer-frames` 64), a 1 s ping, a 4 s idle timeout and a 10 s write timeout, and the suite
+drives a client that stops reading (closed 4408 once it reads again, every accepted frame delivered first), one
+that never reads (reclaimed by the write timeout) and one that answers no ping (closed 4409 while a normal
+client stays open). `LiveSinkTest` and `SocketLifecycleOverNettyTest` cover the sink and the socket policy
+without the application context. Several worktrees share `~/.m2`, so build with `-am` when another session
+may have installed an older `db-reactive`.
 
 The command side keeps the state of recently used conversations in an in-memory LRU cache
 (`opencqrs.command-handling.cache.type=in_memory`, `capacity` 1000 conversations per node, set in both

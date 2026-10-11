@@ -18,6 +18,8 @@ import java.time.Duration;
  *       changed the conversation first, per command type;</li>
  *   <li>{@link #LIVE_LATENCY}: end-to-end fan-out delay, from the event's own timestamp to the moment this
  *       node pushes it to its sockets, per record type;</li>
+ *   <li>{@link #LIVE_TRANSPORT}: the Kafka leg of that path alone, from the relay's send (the record's own
+ *       timestamp) to the receipt by this node's consumer, per record type;</li>
  *   <li>{@link #LIVE_DELIVERED}: frames pushed to local sockets from the live topic;</li>
  *   <li>{@link #PROJECTION_DELAY}: event written in EventSourcingDB to handled by the group on this node
  *       (the lag of the group, one sample per event);</li>
@@ -32,6 +34,7 @@ public final class MessagingMeters {
     public static final String COMMAND_LATENCY = "messaging.command.latency";
     public static final String COMMAND_RETRIES = "messaging.command.retries";
     public static final String LIVE_LATENCY = "messaging.live.latency";
+    public static final String LIVE_TRANSPORT = "messaging.live.transport";
     public static final String LIVE_DELIVERED = "messaging.live.delivered";
     public static final String PROJECTION_DELAY = "messaging.projection.delay";
     public static final String PROJECTION_HANDLER = "messaging.projection.handler";
@@ -67,6 +70,11 @@ public final class MessagingMeters {
 
     public static Timer liveLatency(MeterRegistry registry, String record) {
         return Timer.builder(LIVE_LATENCY).description("Event time to push on this node's sockets (fan-out delay)")
+                .tag(TAG_RECORD, record).register(registry);
+    }
+
+    public static Timer liveTransport(MeterRegistry registry, String record) {
+        return Timer.builder(LIVE_TRANSPORT).description("Kafka send by the relay to receipt by this node's live consumer")
                 .tag(TAG_RECORD, record).register(registry);
     }
 

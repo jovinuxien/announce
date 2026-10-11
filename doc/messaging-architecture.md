@@ -152,14 +152,29 @@ Sequence for one text message from client A to client B on another node:
 Delivery latency is the sum of: EventSourcingDB commit, processor pick-up (the observe stream),
 Kafka produce (producer `linger.ms`/batching), Kafka consume (`fetch.min.bytes`, poll interval), and
 the socket write. The sender's own `message` frame also travels this whole loop; the `ack` is the only
-thing answered locally.
+thing answered locally. `messaging.live.transport` measures the Kafka leg alone (record timestamp to
+receipt), `messaging.live.latency` the whole path (section 7d has the split).
 
 Bulletins skip the event store: `StreamBridgeLiveFeed` publishes `BulletinLive` directly on the same
 binding, from a bounded-elastic thread.
 
-Per-node random consumer groups are simple, but each restart leaves a dead group in Kafka until
-`offsets.retention.minutes` expires it, and a node that restarts misses records published while it was
-down (correct, since it holds no sockets then).
+The live binding is configured for latency (tuning step 4, 2026-10-11): producer `linger.ms=0`, `acks=1`,
+idempotence off, no compression; consumer `fetch.min.bytes=1`, `fetch.max.wait.ms=100`,
+`max.poll.records=100`. A lost live record costs one push that the client recovers over REST, so the
+durability of `acks=all` buys nothing here; the public topic `messaging.v1` keeps the durable defaults.
+The consumer group is named after the node (`messaging-live-${ANNOUNCE_NODE}`, host and port as the
+fallback) with `reset-offsets=true`, so a restart leaves no dead group behind and still starts at the
+latest offset: a node that restarts holds no sockets, so the records published while it was down are of
+no use to it.
+
+Every socket is run by `SocketLifecycle` (tuning step 5, 2026-10-11): a protocol ping every
+`messaging.socket.ping-interval` (30 s); close 4409 when nothing arrived for `idle-timeout` (75 s); the
+`LiveSink` behind the socket holds at most `buffer-frames` (256) frames and, once it overflowed, delivers
+what it holds and closes the socket with 4408 (slow consumer). The idle check is a watchdog, not a
+`timeout` operator on the inbound: cancelling the inbound makes Reactor Netty send an empty close frame of
+its own, and the client would see 1005 instead of the reason. A connection that stopped taking bytes
+altogether cannot even receive a close frame; Netty's `WriteTimeoutHandler` on every connection of the
+server (`write-timeout`, 30 s) ends it.
 
 ### 2.7 Public events and subscriptions
 
@@ -231,13 +246,13 @@ Grouped by what they buy. "Knob" means it exists today; "change" means code.
 
 | Item | Kind | Effect |
 |---|---|---|
-| Kafka producer `linger.ms` (0 for latency), `acks`, `compression` on `messaging-live-out-0` | knob | produce latency; the live topic can use `acks=1` because loss only costs a push clients can recover by `GET .../messages?after=` |
-| Consumer `fetch.min.bytes=1`, `fetch.max.wait.ms`, `max.poll.records` on `liveEvents-in-0` | knob | consume latency |
+| Kafka producer `linger.ms` (0 for latency), `acks`, `compression` on `messaging-live-out-0` (set 2026-10-11, section 7d) | knob | produce latency; the live topic uses `acks=1` because loss only costs a push clients can recover by `GET .../messages?after=` |
+| Consumer `fetch.min.bytes=1`, `fetch.max.wait.ms`, `max.poll.records` on `liveEvents-in-0` (set 2026-10-11) | knob | consume latency |
 | Partitions of `messaging.live` | knob (topic) | parallelism of the fan-out consumer (with `concurrency`) |
-| `LiveSink` bounded buffer (`onBackpressureBuffer(n, drop-oldest)` or close the socket on overflow) | change | protects heap from slow clients; clients catch up over REST |
-| Direct local push: the live relay also pushes to `LiveSessions` before Kafka | change | removes Kafka from the latency path for sockets on the publishing node; duplicates on that node must be suppressed by `messageId` |
-| Stable per-node consumer group name (`messaging-live-${HOSTNAME}`) | knob | no dead groups after restarts; still `latest` offset |
-| WebSocket idle timeout, max frame size, ping interval from the server | change | reclaim dead sockets, bound inbound frames |
+| `LiveSink` bounded buffer, close 4408 on overflow (done 2026-10-11, section 7d) | change | protects heap from slow clients; clients catch up over REST |
+| Direct local push: the live relay also pushes to `LiveSessions` before Kafka | change | removes Kafka from the latency path for sockets on the publishing node; duplicates on that node must be suppressed by `messageId`; section 7d shows the Kafka leg is a few milliseconds, so the gain would be small |
+| Stable per-node consumer group name with `reset-offsets` (done 2026-10-11) | knob | no dead groups after restarts; still `latest` offset |
+| Server ping, idle close 4409, write timeout (done 2026-10-11, section 7d); max inbound frame size stays Reactor Netty's 64 KB | change | reclaim dead sockets, bound inbound frames |
 | Frame handling on the socket: `flatMap` with small concurrency instead of `concatMap` | change | a slow command no longer blocks the same client's `read`/`ping` frames; ordering of the client's own posts is already guaranteed by `seq` |
 
 ### 4.4 Queries
@@ -276,12 +291,13 @@ samples of a meter that also has buckets. With a Prometheus server, set
 | `messaging.command.latency` | timer | `command`, `outcome` (`ok`, `rejected`, `error`) | `Conversations.send` | dispatch to answer, retries included, i.e. the ack latency minus the socket hop |
 | `messaging.command.retries` | counter | `command` | `Conversations.send` | re-dispatches after EventSourcingDB refused a write because another command changed the conversation first; the contention on single conversations |
 | `messaging.live.latency` | timer | `record` (`message`, `status`, `bulletin`) | `LiveEventsSubscriber` | record timestamp (the event time on the command side) to the push on this node: ESDB write, processor pickup, relay, Kafka, consumer |
+| `messaging.live.transport` | timer | `record` | `LiveEventsSubscriber` | the Kafka leg alone: record timestamp (the relay's send) to receipt by this node's consumer |
 | `messaging.live.delivered` | counter | `record` | `LiveEventsSubscriber` | frames pushed to local sockets |
 | `messaging.projection.delay` | timer | `group` | `MeteredProjection` | event written in ESDB to handled by the group on this node; the per-event lag |
 | `messaging.projection.handler` | timer | `group`, `outcome` | `MeteredProjection` | the handler's own duration |
 | `messaging.sessions`, `messaging.sessions.conversations`, `messaging.staff_sessions` | gauge | | `LiveSessions` | sockets on this node, conversations with a socket, staff sockets |
 | `messaging.sink.buffered`, `messaging.sink.buffered.max` | gauge | | `LiveSessions` | frames waiting in the outbound buffers (sum, and the deepest socket) |
-| `messaging.sink.dropped` | counter | `reason` (the `EmitResult`) | `LiveSink` | frames a socket buffer refused |
+| `messaging.sink.dropped` | counter | `reason` (the `EmitResult`) | `LiveSink` | frames a socket buffer refused (`FAIL_OVERFLOW`: the socket was closed as a slow consumer) |
 
 `MeteredProjection` wraps every `ReactiveProjection` bean (the read model and the two relays) through a
 `BeanPostProcessor`, so the framework is untouched; moving the timer into `ReactiveProjectionAdapter` would
@@ -356,12 +372,20 @@ Two defects the baseline run found, both fixed on 2026-10-01:
 3. Leader-elected processors (lock registry) before any multi-node test, or the numbers will be
    polluted by duplicate work. Done 2026-10-10: `R2dbcLockRegistry` in `cqrs-reactive`,
    `life-cycle.controller=leader_election`; two-node A/B and a crash of the leader in section 7c.
-4. Kafka producer/consumer latency settings on the live topic; measure `messaging.live.latency`.
+4. Kafka producer/consumer latency settings on the live topic; measure `messaging.live.latency`. Done
+   2026-10-11: the Kafka leg measured on its own (`messaging.live.transport`), latency settings and a stable
+   consumer group on the live binding; section 7d.
 5. Bounded `LiveSink` and socket timeouts; measure heap and `messaging.sink.dropped` with a stalled client.
+   Done 2026-10-11: `messaging.socket.*` (256 frames, ping 30 s, idle 75 s, write timeout 30 s), close 4408 /
+   4409; section 7d.
 6. Read-side partitions and R2DBC pool size together; measure `messaging.projection.delay` under load.
    Done 2026-10-10: 4 partitions for `conversation-read-model`, pool 40; lag p50 from 32 s to 0.08 s in
    section 7c.
 7. Query batching for the inbox.
+8. Command-side throughput (found by the burst of step 4, section 7d): at 40 posts/s with 40 commands in
+   flight a post takes about a second inside the facade and the acks queue up; find what serialises the
+   command path (the EventSourcingDB client's connection pool, the store itself, the bounded-elastic hop)
+   and measure `messaging.command.latency` against the number of commands in flight.
 
 Each step is small, independently revertable, and has one metric that tells whether it helped.
 
@@ -582,3 +606,95 @@ groups' checkpoints and the lock rows deleted (they held ids of the temporary st
 store's head before the next dev node start, as section 7a says), the temporary store removed, nothing
 pushed to `messaging.v1` that anyone consumed (no other service was running).
 
+## 7d. Live topic latency settings and socket policies, 2026-10-11
+
+One node (`ANNOUNCE_NODE=node-a`, port 8098), a throwaway EventSourcingDB started empty before every run
+(the development store on port 3000 still hangs on streaming reads), the development Kafka on 9094 and the
+live MySQL, all on the same host as the driver; the host was otherwise idle. Load as in section 7: 20
+support conversations, 40 sockets, 60 s.
+
+### Step 4: where the fan-out latency is
+
+A = the binder defaults forced back on the live binding (`acks=all`, idempotent producer,
+`fetch.max.wait.ms=500`, `max.poll.records=500`); B = the settings of section 2.6. The new timer
+`messaging.live.transport` is the Kafka leg alone (record timestamp at the relay's send to receipt by the
+consumer); `messaging.projection.delay{messaging-live}` is the store's pick-up (event written to the relay's
+handler); `messaging.live.latency` is the whole path from the event time on the command side.
+
+| Standard load, 800 posts (13 posts/s) | A: defaults | B: tuned |
+|---|---|---|
+| posts acknowledged / errors | 800 / 0 | 800 / 0 |
+| ack latency p50 / p95 / max (driver) | 52 / 117 / 177 ms | 63 / 212 / 475 ms |
+| `messaging.live.latency` p50 / p95 / p99 | 43 / 95 / 142 ms | 47 / 167 / 184 ms |
+| relay pick-up p50 / p95 / p99 | 37 / 51 / 62 ms | 39 / 56 / 62 ms |
+| `messaging.live.transport` p50 / p95 / p99 | 2.0 / 3.0 / 7.0 ms | 2.0 / 4.0 / 6.0 ms |
+
+The Kafka leg is 2 ms at the median and under 10 ms at p99 on both sides; the store's observe stream
+delivers the event to the relay about 37 ms after the write, and that is where the fan-out latency is. The
+driver-side difference between A and B (p95 117 vs 212 ms) is run-to-run noise on a shared host: the
+transport numbers are identical, and with one broker and replication 1 `acks=1` and `acks=all` wait for
+the same thing. The settings are for the production shape (replicas on other hosts); the stable consumer
+group (`messaging-live-${ANNOUNCE_NODE}`, `reset-offsets=true`) is the operational gain: no dead groups after
+restarts.
+
+| Burst, one post per socket per second (40 posts/s), 2,400 posts | A: defaults | B: tuned |
+|---|---|---|
+| posts acknowledged / errors | 1,477 / 134 | 1,446 / 111 |
+| ack latency p50 / p95 / max (driver) | 12.0 / 24.8 / 32.0 s | 13.1 / 26.1 / 34.4 s |
+| `messaging.command.latency{PostMessage}` p50 | 0.97 s | 1.01 s |
+| `messaging.live.latency` p50 / p95 / p99 | 0.87 / 0.97 / 1.04 s | 0.84 / 0.97 / 1.04 s |
+| relay pick-up p50 / p95 / p99 | 45 / 60 / 70 ms | 45 / 64 / 79 ms |
+| `messaging.live.transport` p50 / p95 / p99 | 2.9 / 5.2 / 9.4 ms | 3.0 / 5.2 / 8.1 ms |
+
+The burst is a finding of its own, not a Kafka one: at 40 posts/s with 40 commands in flight one node's
+command path saturates, a post takes about a second inside the facade, the driver's open loop keeps
+sending, the acks queue up to tens of seconds and about 5 % of the posts end in an error (retries exhausted
+or the driver's timeout). The relay and Kafka are untouched (pick-up 45 ms, transport 3 ms); the 0.87 s of
+live latency is the time the event waited to be written, since the event time is taken before the write.
+A first attempt at ten times the standard rate (133 posts/s) had acknowledged 1,329 of 7,994. The same 40
+sockets at 13 posts/s had every post acknowledged in 52 ms. This is step 8 of section 6.
+
+Two invalid runs on the way, recorded so they are not repeated: clearing the checkpoints of a node that
+points at a store which is no longer empty makes the processors replay the whole store onto the read model
+and the live topic (a "tuned" run showed 80 s of live latency for that reason: every run now gets a fresh
+store); and a burst at 300 ms per socket measures the command side's queue, nothing else.
+
+### Step 5: sockets that do not read
+
+What the end-to-end suite established first (test profile: bound 64 frames, ping 1 s, idle 4 s, write
+timeout 10 s): a client that reads nothing while 4,000 frames of 4 KB are pushed into its session accepts
+864 of them (what the loopback connection's buffers, Netty's outbound buffer and the 64-frame queue hold
+together), the queue never exceeds 64, the other 3,136 are refused and counted, and when the client reads
+again it receives exactly those 864 and then close 4408 with the reason. The same client pushed 60 KB
+frames never receives the close frame, because the connection is full; the write timeout ends the
+connection and the session is detached 10 s after the first stuck write, with nothing left queued. A client
+that sees the pings and does not answer them is closed 4409 after the idle timeout while a client beside it
+that answers them stays open and posts. Two lessons from the first attempt: the idle close must not be a
+`timeout` operator on the inbound (a cancelled inbound makes Reactor Netty send an empty close frame of its
+own and the client sees 1005), and counts must come from the sink itself (`accepted()`, `emitted()`), not
+from differences of the drop counter, which gave three different answers for the same 864 delivered frames.
+
+`StalledSocketDriver` against the running node (production settings: 256 frames, ping 30 s, idle 75 s,
+write timeout 30 s; and the same node with `buffer-frames=0`, `write-timeout=0`, `idle-timeout=0`, the
+state before this step): eleven staff dashboard sockets, one that reads and ten whose client never reads
+nor answers a ping, then 10,000 bulletins of 1,000 characters over REST at a concurrency of 16 (the
+bulletin limit is 1,023 characters). Every bulletin goes through the live topic to every staff socket:
+110,000 frames of about 1.1 KB, 100,000 of them for sockets that will never take them.
+
+| | unbounded (before) | bounded (now) |
+|---|---|---|
+| bulletins posted | 9,998 in 163 s | 9,998 in 163 s |
+| frames queued at the end (`sink.buffered`, deepest socket) | 75,782 (7,615); unchanged a minute later | 0 (never above 256 per socket) |
+| frames refused (`sink.dropped{FAIL_OVERFLOW}`) | 0 | 22,633 |
+| retained for the ten stalled sockets | about 80 MB of frame strings, growing with every bulletin, never released | nothing |
+| staff sockets on the node after the storm | 11, the stalled ones stay until TCP gives up | 1 (the reader); the ten stalled ones detached about 75 s after connecting, by the idle timeout since they answer no ping (the write timeout would have followed within seconds) |
+| the reading socket | received every bulletin | received every bulletin |
+
+The heap figure of the scrape is not quoted: without a forced collection it measures garbage, and both
+nodes grew it to about 600 MB during the burst. The retained memory is the frames the sinks hold, and that
+is 0 against 80 MB.
+
+Housekeeping: the `load %` conversations and their messages were deleted after each run and the `load %`
+bulletins after the stalled runs; the three groups' checkpoints and the lock rows are deleted (set partition
+0 to the development store's head before the next development start, section 7c); the throwaway store was
+removed. The development EventSourcingDB on port 3000 still needs `docker restart announce_esdb`.

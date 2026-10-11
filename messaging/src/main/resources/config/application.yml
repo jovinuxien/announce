@@ -19,19 +19,35 @@ spring:
         orderEvents-in-0:
           destination: order.v1
           group: messaging
-        # every node reads the whole live topic from its own consumer group and pushes to its local sockets
+        # every node reads the whole live topic from its own consumer group and pushes to its local sockets; the
+        # group is named after the node (stable across restarts, no dead group left behind) and reset to the latest
+        # offset at every start, since a socket only ever sees what happens after it attached
         liveEvents-in-0:
           destination: messaging.live
-          group: messaging-live-${random.uuid}
+          group: messaging-live-${ANNOUNCE_NODE:${HOSTNAME:node}-${server.port}}
       kafka:
         binder:
           brokers: ${ANNOUNCE_KAFKA_BROKERS:localhost:9094}
           auto-create-topics: true
           replication-factor: 1
         bindings:
+          # the live topic is tuned for latency, not durability: a lost live record only costs a push the client
+          # recovers with GET .../messages?after= (tuning step 4 of doc/messaging-architecture.md)
+          messaging-live-out-0:
+            producer:
+              configuration:
+                linger.ms: 0              # send each record at once, never wait to fill a batch
+                acks: "1"                 # the leader's write is enough; no wait for replicas
+                enable.idempotence: false # the sequence bookkeeping of the idempotent producer needs acks=all
+                compression.type: none    # a 300-byte record is not worth compressing
           liveEvents-in-0:
             consumer:
               start-offset: latest
+              reset-offsets: true         # seek to the end at every start even though the group has an offset
+              configuration:
+                fetch.min.bytes: 1        # the broker answers a fetch as soon as one record is there
+                fetch.max.wait.ms: 100    # and waits at most this long for one when the topic is quiet
+                max.poll.records: 100     # a poll that returns a burst still hands records over in small batches
   # announce_reactive_db through reactive-mybatis-support (it builds the pooled ConnectionFactory that
   # Spring Data R2DBC and the cqrs-reactive tables also use). Override with the ANNOUNCE_* environment variables.
   r2dbc:

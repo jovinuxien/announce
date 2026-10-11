@@ -2,11 +2,13 @@ package org.linlinjava.announce.messaging.infrastructure.live;
 
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.linlinjava.announce.messaging.application.MessagingProperties;
 import org.linlinjava.announce.messaging.infrastructure.metrics.MessagingMeters;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Sinks;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,7 +22,8 @@ import java.util.stream.Stream;
  *
  * <p>Exposes the node's socket population and buffer depth as gauges ({@code messaging.sessions},
  * {@code messaging.sessions.conversations}, {@code messaging.staff_sessions}, {@code messaging.sink.buffered},
- * {@code messaging.sink.buffered.max}) and counts refused emissions ({@code messaging.sink.dropped}).
+ * {@code messaging.sink.buffered.max}) and counts refused emissions ({@code messaging.sink.dropped}). Every sink
+ * is bounded by {@code messaging.socket.buffer-frames}.
  */
 @Component
 public class LiveSessions {
@@ -32,9 +35,11 @@ public class LiveSessions {
     private final Set<StaffSession> staff = ConcurrentHashMap.newKeySet();
     private final AtomicInteger conversationSockets = new AtomicInteger();
     private final MeterRegistry meters;
+    private final int bufferFrames;
 
-    public LiveSessions(MeterRegistry meters) {
+    public LiveSessions(MeterRegistry meters, MessagingProperties properties) {
         this.meters = meters;
+        this.bufferFrames = properties.getSocket().getBufferFrames();
         Gauge.builder(MessagingMeters.SESSIONS, conversationSockets, AtomicInteger::get)
                 .description("Conversation WebSocket sessions open on this node").register(meters);
         Gauge.builder(MessagingMeters.SESSION_CONVERSATIONS, byConversation, Map::size)
@@ -101,6 +106,12 @@ public class LiveSessions {
         return pushed;
     }
 
+    /** The sinks of the conversation's sockets on this node, for inspection. */
+    public List<LiveSink> sinksOf(String conversationId) {
+        Set<LiveSink> sinks = byConversation.get(conversationId);
+        return sinks == null ? List.of() : List.copyOf(sinks);
+    }
+
     public int sessions(String conversationId) {
         Set<LiveSink> sinks = byConversation.get(conversationId);
         return sinks == null ? 0 : sinks.size();
@@ -111,7 +122,7 @@ public class LiveSessions {
     }
 
     private LiveSink newSink() {
-        return new LiveSink(result -> meters.counter(MessagingMeters.SINK_DROPPED, MessagingMeters.TAG_REASON, result.name()).increment());
+        return new LiveSink(bufferFrames, result -> meters.counter(MessagingMeters.SINK_DROPPED, MessagingMeters.TAG_REASON, result.name()).increment());
     }
 
     private Stream<LiveSink> sinks() {

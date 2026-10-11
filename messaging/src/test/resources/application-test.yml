@@ -54,6 +54,13 @@ announce:
   service-token:
     mode: "off"         # suites call the controllers directly; the end-to-end test turns enforce on
 
+messaging:
+  socket:
+    buffer-frames: 64   # small so MessagingEndToEndTest overflows a stalled socket with a few thousand frames
+    ping-interval: 1s   # and short so a client that answers no ping is closed within the suite's patience
+    idle-timeout: 4s
+    write-timeout: 10s
+
 cqrs:
   readside:
     handler-timeout: 15s

@@ -16,6 +16,8 @@ public class MessagingProperties {
     private final CommandRetry commandRetry = new CommandRetry();
     /** How long a socket handshake waits for the read model. */
     private final Attach attach = new Attach();
+    /** What protects a node from a socket whose client reads slowly, not at all, or is gone. */
+    private final Socket socket = new Socket();
 
     public int getMaxTextLength() {
         return maxTextLength;
@@ -39,6 +41,10 @@ public class MessagingProperties {
 
     public Attach getAttach() {
         return attach;
+    }
+
+    public Socket getSocket() {
+        return socket;
     }
 
     /**
@@ -106,6 +112,63 @@ public class MessagingProperties {
 
         public void setRecheckInterval(Duration recheckInterval) {
             this.recheckInterval = recheckInterval;
+        }
+    }
+
+    /**
+     * Every WebSocket session queues the frames it has to push until the client's TCP connection takes them. A
+     * client that reads slowly or not at all would otherwise make the node queue frames without bound and keep
+     * the session forever. Tuning step 5 of {@code doc/messaging-architecture.md}.
+     */
+    public static class Socket {
+
+        /**
+         * Frames queued for one socket before it is treated as a slow consumer: the frames it holds are still
+         * delivered, then it is closed with 4408 and the client catches up over {@code GET .../messages?after=}.
+         * Rounded up to a power of two; 0 keeps the queue unbounded.
+         */
+        private int bufferFrames = 256;
+        /** A protocol ping is sent to every socket at this interval; clients answer it without application code. Zero sends none. */
+        private Duration pingInterval = Duration.ofSeconds(30);
+        /** A socket from which no frame (the pong included) arrived for this long is closed with 4409. Zero never closes. */
+        private Duration idleTimeout = Duration.ofSeconds(75);
+        /**
+         * A frame the kernel could not take within this time (the client's connection stopped reading) ends the
+         * connection; this is what reclaims a socket whose peer is gone without a close. Applies to every
+         * connection of the server. Zero turns it off.
+         */
+        private Duration writeTimeout = Duration.ofSeconds(30);
+
+        public int getBufferFrames() {
+            return bufferFrames;
+        }
+
+        public void setBufferFrames(int bufferFrames) {
+            this.bufferFrames = bufferFrames;
+        }
+
+        public Duration getPingInterval() {
+            return pingInterval;
+        }
+
+        public void setPingInterval(Duration pingInterval) {
+            this.pingInterval = pingInterval;
+        }
+
+        public Duration getIdleTimeout() {
+            return idleTimeout;
+        }
+
+        public void setIdleTimeout(Duration idleTimeout) {
+            this.idleTimeout = idleTimeout;
+        }
+
+        public Duration getWriteTimeout() {
+            return writeTimeout;
+        }
+
+        public void setWriteTimeout(Duration writeTimeout) {
+            this.writeTimeout = writeTimeout;
         }
     }
 }

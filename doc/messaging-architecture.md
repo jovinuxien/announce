@@ -766,19 +766,20 @@ containers of the end-to-end suite and the live read model) runs the same point 
 row 400 times in sequence at each layer of the path and reports the latency of one call as the caller
 sees it, p50 (p95). Same host, development stack up.
 
-| Layer | 3.0.6 | 3.1.3 |
-|---|---|---|
-| r2dbc-mysql driver, one connection, no pool | 1.8 (3.2) ms | 2.7 (9.0) ms |
-| pooled connection factory: acquire, statement, release | 2.1 (3.6) ms | 3.5 (13.7) ms |
-| mapper `selectByPrimaryKey` | 19.5 (39.0) ms | 8.7 (28.4) ms |
-| mapper, 400 calls on one transaction's connection, mean per call | 13.5 ms | 3.6 ms |
-| mapper `selectByExample`, two participant rows | 13.9 (20.9) ms | 5.1 (13.3) ms |
-| pooled factory, bare `select 1` | 1.0 (4.5) ms | 1.3 (5.8) ms |
-| mapper, four callers at once | 39.5 (81.4) ms | 7.8 (23.8) ms |
-| pooled factory, four callers at once | 1.6 (5.5) ms | 2.1 (9.6) ms |
+| Layer | 3.0.6 | 3.1.3, host busy | 3.1.3, host quiet |
+|---|---|---|---|
+| r2dbc-mysql driver, one connection, no pool | 1.8 (3.2) ms | 2.7 (9.0) ms | 2.5 (11.8) ms |
+| pooled connection factory: acquire, statement, release | 2.1 (3.6) ms | 3.5 (13.7) ms | 2.9 (7.7) ms |
+| mapper `selectByPrimaryKey` | 19.5 (39.0) ms | 8.7 (28.4) ms | 4.2 (8.8) ms |
+| mapper, 400 calls on one transaction's connection, mean per call | 13.5 ms | 3.6 ms | 2.7 ms |
+| mapper `selectByExample`, two participant rows | 13.9 (20.9) ms | 5.1 (13.3) ms | 3.9 (6.8) ms |
+| pooled factory, bare `select 1` | 1.0 (4.5) ms | 1.3 (5.8) ms | 1.2 (2.2) ms |
+| mapper, four callers at once | 39.5 (81.4) ms | 7.8 (23.8) ms | 4.9 (17.5) ms |
+| pooled factory, four callers at once | 1.6 (5.5) ms | 2.1 (9.6) ms | 3.4 (8.8) ms |
 
-(The 3.1.3 column was taken while other builds ran on the host, which the driver and pool rows show; the
-mapper rows fell regardless. A quieter rerun is in the report.)
+(The middle column was taken while other builds ran on the host, which its driver and pool rows show; the
+right one after the host was idle again. A mapper call now costs about a millisecond more than the pool
+and the driver, where it cost 17 ms more.)
 
 With 3.0.6 the driver and the pool answered in one to two milliseconds and stayed there with four callers,
 while the mapper call cost 19.5 ms, 39.5 ms with four callers, and still 13.5 ms per call when every call
@@ -806,5 +807,21 @@ set), so a downgrade fails a test instead of showing up as latency.
 
 The service under the inbox load of section 7e (four readers, 60 s), 3.0.6 against 3.1.3: a page of 20
 from 165 (222) ms to 47 (138) ms, a page of 50 from 182 (257) ms to 77 (210) ms, 20 to 50 pages per second
-on one node, `messaging.query.latency{inbox}` p50 from 180 to 67 ms. The chat load (the projection's cost
-per event) is measured in the report of this step.
+on one node, `messaging.query.latency{inbox}` p50 from 180 to 67 ms. The standard chat load of section 7 (20
+conversations, 40 sockets, 800 posts in 60 s) on the same node, 3.0.6 (section 7d, defaults column)
+against 3.1.3:
+
+| Chat load, 800 posts | 3.0.6 | 3.1.3 |
+|---|---|---|
+| posts acknowledged / errors | 800 / 0 | 800 / 0 |
+| ack latency p50 / p95 (driver) | 52 / 117 ms | 68 / 194 ms |
+| `messaging.command.latency{PostMessage}` p50 | 47 ms (section 7c) | 70 ms |
+| `messaging.live.latency{message}` p50 / p95 | 43 / 95 ms | 51 / 167 ms |
+| `messaging.projection.handler{conversation-read-model}` p50 / p95, per event | 39 / 41 ms (sections 7, 7c) | 15 / 26 ms |
+| `messaging.projection.delay{conversation-read-model}` p50 / p95 | 80 / 110 ms (section 7c) | 57 / 86 ms |
+| `GET /api/conversations/{id}`, two statements, mean | 75 ms (section 7e) | 12 ms |
+
+The read-model handler, which writes two tables and the checkpoint per event, costs 15 ms instead of 39:
+the per-statement overhead was the larger part of it. The command path does not touch MySQL for a post,
+and its numbers moved within run-to-run noise (this run had the end-to-end suite's containers still
+shutting down on the host); the ack latency is the command side's, not this step's.

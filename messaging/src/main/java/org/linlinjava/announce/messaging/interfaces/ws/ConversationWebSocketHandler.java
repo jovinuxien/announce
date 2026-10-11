@@ -17,7 +17,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.reactive.socket.HandshakeInfo;
 import org.springframework.web.reactive.socket.WebSocketHandler;
-import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 
@@ -29,7 +28,7 @@ import java.util.Optional;
  * with 4403 (4401 without a principal). Frames the client sends are commands ({@code post}, {@code offer},
  * {@code accept-offer}, {@code decline-offer}, {@code read}, {@code close}, {@code ping}) answered with {@code ack}
  * or {@code error}; what every participant sees ({@code message}, {@code status}) arrives through the live topic,
- * on this node and every other one.
+ * on this node and every other one. Pings, idle and slow-consumer closes: {@link SocketLifecycle}.
  */
 @Component
 public class ConversationWebSocketHandler implements WebSocketHandler {
@@ -48,14 +47,16 @@ public class ConversationWebSocketHandler implements WebSocketHandler {
     private final ConversationQueries queries;
     private final LiveSessions sessions;
     private final LiveFrames frames;
+    private final SocketLifecycle lifecycle;
     private final ObjectMapper objectMapper;
 
     public ConversationWebSocketHandler(Conversations conversations, ConversationQueries queries, LiveSessions sessions,
-                                        LiveFrames frames, ObjectMapper objectMapper) {
+                                        LiveFrames frames, SocketLifecycle lifecycle, ObjectMapper objectMapper) {
         this.conversations = conversations;
         this.queries = queries;
         this.sessions = sessions;
         this.frames = frames;
+        this.lifecycle = lifecycle;
         this.objectMapper = objectMapper;
     }
 
@@ -77,13 +78,8 @@ public class ConversationWebSocketHandler implements WebSocketHandler {
     private Mono<Void> attach(WebSocketSession session, String conversationId, Viewer viewer) {
         LiveSink sink = sessions.attach(conversationId);
         Sender sender = Principals.sender(viewer);
-        Mono<Void> outbound = session.send(sink.frames().map(session::textMessage));
-        Mono<Void> inbound = session.receive()
-                .map(WebSocketMessage::getPayloadAsText)
-                .concatMap(text -> handleFrame(conversationId, viewer, sender, text, sink))
-                .then()
-                .doFinally(signal -> sink.complete());
-        return Mono.when(outbound, inbound).doFinally(signal -> sessions.detach(conversationId, sink));
+        return lifecycle.run(session, sink, text -> handleFrame(conversationId, viewer, sender, text, sink))
+                .doFinally(signal -> sessions.detach(conversationId, sink));
     }
 
     private Mono<Void> handleFrame(String conversationId, Viewer viewer, Sender sender, String text, LiveSink sink) {

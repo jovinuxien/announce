@@ -58,10 +58,11 @@ requests and WebSocket handshakes without a valid `X-Service-Token` (`announce.s
 | Route | Body / params | Answer |
 |---|---|---|
 | `POST /api/conversations` | `{type: LISTING, announceId}` or `{type: SUPPORT, subject}` | 201 the conversation state (LISTING: the existing one when already open) |
-| `GET /api/conversations?page&size` | | the caller's conversations, latest activity first, with `unread` |
+| `GET /api/conversations?page&size` | | the caller's conversations, latest activity first, with `unread`; two statements per page whatever `size` (the page, then every participant of it in one query) |
 | `GET /api/conversations/{id}` | | 404 unknown, 403 not a participant (staff always may) |
 | `GET /api/conversations/{id}/messages?after=0&limit=50` | | messages with `seq > after`, oldest first: the initial load and the catch-up after a reconnect |
 | `POST /api/conversations/{id}/messages` | `{clientMsgId, contentType, content, attachmentUrl, amountCents, currency}` | 201 `{messageId, seq, clientMsgId, duplicate}` |
+| | | A command for a conversation that already has one in flight on the node waits for it (`messaging.serialize-commands`); two participants posting at once therefore never cost a refused write on the same node |
 | `POST /api/conversations/{id}/offers/accept` and `.../decline` | | the state |
 | `POST /api/conversations/{id}/read` | `{seq}` | 204 |
 | `POST /api/conversations/{id}/close` | | the state |
@@ -109,11 +110,25 @@ Frames the client receives:
 `ws://host/ws/staff?clientType=desktop` with a staff identity (`X-User-Id` + `X-User-Type=ADMIN`) receives `bulletin` frames for its client type
 (a bulletin without a client type reaches every staff socket).
 
+**What the node does to every socket** (`messaging.socket`, `SocketLifecycle`): it sends a WebSocket
+protocol ping every `ping-interval` (30 s), which browsers and client libraries answer by themselves; it
+closes with **4409** a socket from which nothing arrived (the pong counts) for `idle-timeout` (75 s); and it
+queues at most `buffer-frames` (256) frames for a socket whose connection is not taking them, after which the
+frames it holds are still delivered and the socket is closed with **4408** (slow consumer). On 4408 and
+4409 the client reconnects and reloads the messages after the last `seq` it has over REST; it has missed
+nothing else, because a message is only ever lost from the socket, never from the conversation. A peer whose
+connection stopped taking bytes altogether cannot receive the close frame either; the server-wide write
+timeout (`write-timeout`, 30 s) ends that connection. Binary frames from the client are ignored; a text
+frame that is not JSON gets `error` 400 `bad-frame`.
+
 **Fan-out across nodes.** A message is a command; the aggregate writes the event; the relay group
 `messaging-live` maps it to a live record on topic `messaging.live` (key = the conversation subject);
-every node consumes the topic with its own consumer group (`messaging-live-${random.uuid}`, start
-offset latest) and pushes to the sockets it holds (`LiveSessions`). Delivery is at least once: clients
-de-duplicate on `messageId`. Bulletins reach the same topic through `StreamBridgeLiveFeed`.
+every node consumes the topic with its own consumer group, named after the node
+(`messaging-live-${ANNOUNCE_NODE}`, falling back to host and port) and reset to the latest offset at every
+start, and pushes to the sockets it holds (`LiveSessions`). Delivery is at least once: clients
+de-duplicate on `messageId`. Bulletins reach the same topic through `StreamBridgeLiveFeed`. The live
+topic is produced and consumed for latency, not durability (`acks=1`, no idempotence, no lingering, fetch
+of one record): a lost live record costs a push the client recovers over REST, nothing more.
 
 **Posts at the same moment.** Two commands on one conversation that are handled together read the same
 state; EventSourcingDB accepts the first write and refuses the second, and nothing of the second is written.
@@ -146,16 +161,44 @@ mvn -pl messaging spring-boot:run
 ```
 
 `mvn -pl messaging test`: `ConversationTest` (aggregate through `CommandFixture`),
-`ConversationControllerTest` (REST slice), `ConversationsRetryTest` and `ConversationQueriesAttachTest`
-(the retry and the handshake re-check against mocks) and `MessagingEndToEndTest` (EventSourcingDB and Kafka
+`ConversationControllerTest` (REST slice), `ConversationsRetryTest`, `ConversationQueriesAttachTest` and
+`ConversationQueriesInboxTest` (the retry, the handshake re-check and the one-query page against mocks),
+`StatementCostProbeTest` (only with `-Dprobe=true`: the latency of one statement at every layer of the reactive
+MySQL path, printed as a table; the instrument of tuning step 9) and `MessagingEndToEndTest` (EventSourcingDB and Kafka
 from Testcontainers, the read model in the live `announce_reactive_db`; the class removes the rows it writes
-and clears the three groups' checkpoints before it starts). Several worktrees share `~/.m2`, so build
-with `-am` when another session may have installed an older `db-reactive`.
+and clears the three groups' checkpoints and the test lock table `cqrs_readside_lock_test` before it starts).
+The test profile runs the processors under leader election with the read model in two partitions, as in
+production, and asserts the leases and the controllers. It also runs the sockets with a small outbound bound
+(`messaging.socket.buffer-frames` 64), a 1 s ping, a 4 s idle timeout and a 10 s write timeout, and the suite
+drives a client that stops reading (closed 4408 once it reads again, every accepted frame delivered first), one
+that never reads (reclaimed by the write timeout) and one that answers no ping (closed 4409 while a normal
+client stays open). `LiveSinkTest` and `SocketLifecycleOverNettyTest` cover the sink and the socket policy
+without the application context. Several worktrees share `~/.m2`, so build with `-am` when another session
+may have installed an older `db-reactive`. The reactive MyBatis library comes from `db-reactive`
+(`mybatis-r2dbc-spring` 3.1.3 since 2026-10-11; 3.0.6 generated a ByteBuddy class for every statement, which cost
+about 15 ms of CPU per statement in every service: `doc/messaging-architecture.md` section 7f, and
+`ReactiveMybatisProxyTest` in db-reactive pins the fixed behaviour).
 
-After a test run the three checkpoints in `cqrs_readside_progress` hold event ids of the test's
-EventSourcingDB container. Before starting a node against the local `docker/cqrs` store, set them to that
-store's latest `/conversation` event id (or delete them for a full rebuild); otherwise the node resumes from
-an id that means something else there and replays old events onto `messaging.v1` and `messaging.live`.
+The command side keeps the state of recently used conversations in an in-memory LRU cache
+(`opencqrs.command-handling.cache.type=in_memory`, `capacity` 1000 conversations per node, set in both
+profiles). A command replays only the events written after the cached state, so a long conversation costs
+the same as a new one; a stale entry on another node is read forward from the store, never served as is.
+`doc/messaging-architecture.md` section 7b has the measurement.
+
+Read side across nodes (since 2026-10-10): each group and partition runs on the one node holding its lease in
+`cqrs_readside_lock` (`cqrs.readside.leader-election.enabled=true`, `life-cycle.controller=leader_election`;
+lease 10 s, renewed every 500 ms), so two nodes no longer project every event twice or put two copies of each
+record on `messaging.live`. `conversation-read-model` has four partitions (order per conversation is kept;
+one checkpoint row per partition, seeded by the framework when the count rises). Changing the partition count
+needs every node stopped. `doc/messaging-architecture.md` section 7c has the measurements, including a crash
+of the node holding the leases (takeover after the lease, nothing lost).
+
+After a test run the checkpoints in `cqrs_readside_progress` (one row per partition) hold event ids of the
+test's EventSourcingDB container. Before starting a node against the local `docker/cqrs` store, set them to
+that store's latest `/conversation` event id (partition 0 is enough: the start-up seeding copies it to the
+other partitions when their rows are missing, so delete the rows of the other partitions) or delete them all
+for a full rebuild; otherwise the node resumes from an id that means something else there and replays old
+events onto `messaging.v1` and `messaging.live`.
 
 Out of scope for this iteration: push notifications, attachment storage (URLs only), moderation beyond
 Block, read receipts per message.

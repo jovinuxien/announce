@@ -16,9 +16,15 @@ import java.time.Duration;
  *       and outcome ({@code ok}, {@code rejected}, {@code error}), retries included;</li>
  *   <li>{@link #COMMAND_RETRIES}: re-dispatches after the event store refused a write because another command
  *       changed the conversation first, per command type;</li>
+ *   <li>{@link #COMMAND_QUEUED}: commands that waited for an earlier command of the same conversation on this
+ *       node (the per-subject queue of {@code Conversations}), per command type;</li>
  *   <li>{@link #LIVE_LATENCY}: end-to-end fan-out delay, from the event's own timestamp to the moment this
  *       node pushes it to its sockets, per record type;</li>
+ *   <li>{@link #LIVE_TRANSPORT}: the Kafka leg of that path alone, from the relay's send (the record's own
+ *       timestamp) to the receipt by this node's consumer, per record type;</li>
  *   <li>{@link #LIVE_DELIVERED}: frames pushed to local sockets from the live topic;</li>
+ *   <li>{@link #QUERY_LATENCY}: a read over the read model, from the query call to the complete answer, per
+ *       query ({@code inbox}, {@code by_status}, {@code conversation}, {@code messages}) and outcome;</li>
  *   <li>{@link #PROJECTION_DELAY}: event written in EventSourcingDB to handled by the group on this node
  *       (the lag of the group, one sample per event);</li>
  *   <li>{@link #PROJECTION_HANDLER}: the handler's own duration, per group and outcome;</li>
@@ -31,8 +37,11 @@ public final class MessagingMeters {
 
     public static final String COMMAND_LATENCY = "messaging.command.latency";
     public static final String COMMAND_RETRIES = "messaging.command.retries";
+    public static final String COMMAND_QUEUED = "messaging.command.queued";
     public static final String LIVE_LATENCY = "messaging.live.latency";
+    public static final String LIVE_TRANSPORT = "messaging.live.transport";
     public static final String LIVE_DELIVERED = "messaging.live.delivered";
+    public static final String QUERY_LATENCY = "messaging.query.latency";
     public static final String PROJECTION_DELAY = "messaging.projection.delay";
     public static final String PROJECTION_HANDLER = "messaging.projection.handler";
     public static final String SESSIONS = "messaging.sessions";
@@ -47,6 +56,7 @@ public final class MessagingMeters {
     public static final String TAG_RECORD = "record";
     public static final String TAG_GROUP = "group";
     public static final String TAG_REASON = "reason";
+    public static final String TAG_QUERY = "query";
 
     public static final String OUTCOME_OK = "ok";
     public static final String OUTCOME_REJECTED = "rejected";
@@ -65,9 +75,24 @@ public final class MessagingMeters {
                 .tag(TAG_COMMAND, command).register(registry);
     }
 
+    public static Counter commandQueued(MeterRegistry registry, String command) {
+        return Counter.builder(COMMAND_QUEUED).description("Commands that waited for an earlier command of the same conversation on this node")
+                .tag(TAG_COMMAND, command).register(registry);
+    }
+
     public static Timer liveLatency(MeterRegistry registry, String record) {
         return Timer.builder(LIVE_LATENCY).description("Event time to push on this node's sockets (fan-out delay)")
                 .tag(TAG_RECORD, record).register(registry);
+    }
+
+    public static Timer liveTransport(MeterRegistry registry, String record) {
+        return Timer.builder(LIVE_TRANSPORT).description("Kafka send by the relay to receipt by this node's live consumer")
+                .tag(TAG_RECORD, record).register(registry);
+    }
+
+    public static Timer queryLatency(MeterRegistry registry, String query, String outcome) {
+        return Timer.builder(QUERY_LATENCY).description("One read over the messaging read model, call to complete answer")
+                .tag(TAG_QUERY, query).tag(TAG_OUTCOME, outcome).register(registry);
     }
 
     public static Timer projectionDelay(MeterRegistry registry, String group) {

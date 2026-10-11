@@ -23,6 +23,7 @@ import org.linlinjava.announce.order.api.OrderAgreedV1;
 import org.linlinjava.announce.order.api.OrderPaidV1;
 import org.linlinjava.announce.messaging.interfaces.Principals;
 import org.linlinjava.announce.messaging.interfaces.ws.ConversationWebSocketHandler;
+import org.linlinjava.announce.messaging.interfaces.ws.SocketLifecycle;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -52,6 +53,8 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
+import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.client.WebsocketClientSpec;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -67,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -164,6 +168,10 @@ class MessagingEndToEndTest {
     }
 
     @Autowired WebTestClient client;
+    @Autowired com.opencqrs.framework.command.CommandRouter commandRouter;
+    @Autowired org.linlinjava.announce.cqrs.readside.R2dbcLockRegistry lockRegistry;
+    @Autowired org.linlinjava.announce.cqrs.readside.R2dbcProgressTracker progressTracker;
+    @Autowired org.springframework.context.ApplicationContext applicationContext;
     @Autowired LiveSessions sessions;
     @Autowired StreamBridge streamBridge;
     @Autowired ObjectMapper objectMapper;
@@ -250,6 +258,56 @@ class MessagingEndToEndTest {
         }
     }
 
+    /**
+     * A client that reads its socket only once {@link #startReading()} was called (never, for a peer whose
+     * connection stopped taking bytes) and that, with {@code answerPings} false, sees the node's pings and leaves
+     * them unanswered instead of letting the library answer them.
+     */
+    class StalledClient {
+        final List<String> received = new CopyOnWriteArrayList<>();
+        final AtomicInteger pings = new AtomicInteger();
+        final Sinks.Empty<Void> readGate = Sinks.empty();
+        final Sinks.One<CloseStatus> closed = Sinks.one();
+        Disposable connection;
+
+        StalledClient connect(String path, String type, int id, boolean answerPings) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.add(ServiceTokens.HEADER, EdgeRequests.token());
+            headers.set(Principals.USER_HEADER, String.valueOf(id));
+            headers.set(Principals.TYPE_HEADER, type);
+            ReactorNettyWebSocketClient client = answerPings ? new ReactorNettyWebSocketClient()
+                    : new ReactorNettyWebSocketClient(HttpClient.create(), () -> WebsocketClientSpec.builder().handlePing(true));
+            connection = client.execute(URI.create("ws://localhost:" + port + path), headers, session -> {
+                session.closeStatus().subscribe(closed::tryEmitValue);
+                return readGate.asMono().thenMany(Flux.defer(session::receive))
+                        .doOnNext(message -> {
+                            if (message.getType() == WebSocketMessage.Type.PING) {
+                                pings.incrementAndGet();
+                            } else if (message.getType() == WebSocketMessage.Type.TEXT) {
+                                received.add(message.getPayloadAsText());
+                            }
+                        }).then();
+            }).subscribe(v -> {
+            }, e -> {
+            });
+            return this;
+        }
+
+        void startReading() {
+            readGate.tryEmitEmpty();
+        }
+
+        CloseStatus awaitClose() {
+            return closed.asMono().block(WAIT);
+        }
+
+        void close() {
+            if (connection != null) {
+                connection.dispose();
+            }
+        }
+    }
+
     Map<String, Object> parse(String json) {
         try {
             return objectMapper.readValue(json, MAP);
@@ -298,6 +356,7 @@ class MessagingEndToEndTest {
         String password = System.getenv().getOrDefault("ANNOUNCE_DB_PASSWORD", "Calliste_1006");
         List<String> statements = List.of(
                 "delete from cqrs_readside_progress where group_id in ('conversation-read-model', 'messaging-public', 'messaging-live')",
+                "delete from cqrs_readside_lock_test",
                 "delete from announce_chat_message where conversation_id in (select id from announce_conversation where announce_id like 'e2e-%')",
                 "delete from announce_conversation_participant where conversation_id in (select id from announce_conversation where announce_id like 'e2e-%')",
                 "delete from announce_conversation where announce_id like 'e2e-%' or subject like 'e2e %'",
@@ -591,7 +650,7 @@ class MessagingEndToEndTest {
         }
         await().atMost(WAIT).until(() -> sessions.sessions(RACE) == 0);
 
-        // four writers at once over REST: each can lose to the three others, which the three retries absorb
+        // four writers at once over REST: on one node they take turns (SubjectQueues); across nodes the retries would absorb the race
         WebClient http = WebClient.builder().baseUrl("http://localhost:" + port).filter(EdgeRequests.signing()).build();
         List<Integer> statuses = Flux.range(1, 4).flatMap(i -> http.post().uri("/api/conversations/" + RACE + "/messages")
                 .headers(h -> { h.set(Principals.USER_HEADER, String.valueOf(String.valueOf(i % 2 == 0 ? BUYER : SELLER))); h.set(Principals.TYPE_HEADER, "MEMBER"); }).contentType(MediaType.APPLICATION_JSON)
@@ -603,9 +662,164 @@ class MessagingEndToEndTest {
                 .expectBody().jsonPath("$.messageCount").isEqualTo(2 * rounds + 4).jsonPath("$.lastMessageSeq").isEqualTo(2 * rounds + 4));
     }
 
-    /** The meters of doc/messaging-architecture.md section 5 saw the traffic of the tests above. */
+    /**
+     * The command side runs with the LRU state cache (doc/messaging-architecture.md section 6, step 2): the router
+     * replays only the events after the cached state. Pinned here so a configuration slip cannot silently fall back
+     * to replaying every conversation in full. The tests above exercised it: every post after the first in a
+     * conversation went through a cached state.
+     */
     @Test
     @Order(8)
+    void theCommandRouterHoldsTheStateRebuildingCache() {
+        Object cache = org.springframework.test.util.ReflectionTestUtils.getField(commandRouter, "stateRebuildingCache");
+        assertThat(cache).isInstanceOf(com.opencqrs.framework.command.cache.LruInMemoryStateRebuildingCache.class);
+    }
+
+    /**
+     * Every processor runs under OpenCQRS's leader-election controller: one {@code LockRegistryLeaderInitiator}
+     * per processor, each the elected leader of its role, with its lease in the lock table through the R2DBC
+     * registry: three groups, the read model with two partitions in the test profile, so four leases, all held
+     * by this node. The partitioned read model kept every conversation's messages in order: the earlier tests
+     * read them back by seq, and the checkpoints exist for both partitions.
+     */
+    @Test
+    @Order(9)
+    void theProcessorsAreLeaderElectedAndTheReadModelIsPartitioned() {
+        // OpenCQRS keeps the processors, their controllers and the leader initiators in a child context
+        org.springframework.context.ApplicationContext processors = applicationContext.getBean("openCqrsEventHandlingProcessorContext",
+                org.springframework.context.ApplicationContext.class);
+        Map<String, com.opencqrs.framework.eventhandler.EventHandlingProcessorLifecycleController> controllers =
+                processors.getBeansOfType(com.opencqrs.framework.eventhandler.EventHandlingProcessorLifecycleController.class);
+        assertThat(controllers).hasSize(4);
+        assertThat(controllers.values()).allSatisfy(controller -> assertThat(controller.getClass().getSimpleName())
+                .isEqualTo("LeaderElectionEventHandlingProcessorLifecycleController"));
+        Map<String, org.springframework.integration.support.leader.LockRegistryLeaderInitiator> initiators =
+                processors.getBeansOfType(org.springframework.integration.support.leader.LockRegistryLeaderInitiator.class);
+        assertThat(initiators).hasSize(4);
+        assertThat(initiators.values()).allMatch(org.springframework.integration.support.leader.LockRegistryLeaderInitiator::isRunning);
+        assertThat(initiators.values()).allSatisfy(initiator -> assertThat(initiator.getContext().isLeader())
+                .as("leader of " + initiator.getContext().getRole()).isTrue());
+        Map<String, String> leases = lockRegistry.holders().block(Duration.ofSeconds(5));
+        assertThat(leases).hasSize(4);
+        assertThat(leases.values()).containsOnly(lockRegistry.owner());
+        assertThat(leases.keySet()).anySatisfy(key -> assertThat(key).contains("conversation-read-model"))
+                .anySatisfy(key -> assertThat(key).contains("messaging-public"))
+                .anySatisfy(key -> assertThat(key).contains("messaging-live"));
+
+        Map<Long, String> checkpoints = progressTracker.checkpoints("conversation-read-model").block(Duration.ofSeconds(5));
+        assertThat(checkpoints).containsKeys(0L, 1L);
+    }
+
+    /**
+     * Tuning step 5 of doc/messaging-architecture.md: the queue behind a socket is bounded
+     * ({@code messaging.socket.buffer-frames}, 64 in the test profile) and a client whose connection stopped taking
+     * bytes is reclaimed by the write timeout (10 s here). The frames are pushed straight into the node's sessions,
+     * as the live consumer does, and are 4 KB each so a few hundred exceed what the loopback connection buffers.
+     * <ol>
+     *   <li>A slow reader: it reads nothing while 4,000 frames are pushed. The queue never holds more than its
+     *       bound, the frames beyond it are counted as refused, and when the client reads again it receives
+     *       exactly what the connection and the queue held, then close 4408.</li>
+     *   <li>A reader that never resumes, pushed frames of 60 KB: once the connection's buffers are full the node
+     *       cannot deliver anything to it, the close frame included, so the write timeout ends the connection
+     *       and the session is detached, about 10 s after the first write got stuck. (With small frames the
+     *       buffers take the close frame as well and the session ends at once, as the first case shows.)</li>
+     * </ol>
+     */
+    @Test
+    @Order(10)
+    void aSlowSocketIsClosedAsSlowConsumerAndAStalledOneIsReclaimedByTheWriteTimeout() {
+        String path = "/ws/conversations/" + CONVERSATION;
+        String frame = "{\"type\":\"message\",\"conversationId\":\"" + CONVERSATION + "\",\"filler\":\"" + "x".repeat(4000) + "\"}";
+        int capacity = 64;
+        int pushed = 4000;
+
+        await().atMost(WAIT).until(() -> sessions.sessions(CONVERSATION) == 0);   // the sockets of the earlier tests are gone
+        StalledClient slow = new StalledClient().connect(path, "MEMBER", BUYER, true);
+        await().atMost(WAIT).until(() -> sessions.sessions(CONVERSATION) == 1);
+        double refusedBefore = overflowCount();
+        double allRefusedBefore = droppedCount();
+        List<org.linlinjava.announce.messaging.infrastructure.live.LiveSink> sinks = sessions.sinksOf(CONVERSATION);
+        int deepest = 0;
+        for (int i = 0; i < pushed; i++) {
+            sessions.toConversation(CONVERSATION, frame);
+            deepest = Math.max(deepest, (int) meters.get(MessagingMeters.SINK_BUFFERED_MAX).gauge().value());
+        }
+        double refused = overflowCount() - refusedBefore;
+        org.linlinjava.announce.messaging.infrastructure.live.LiveSink sink = sinks.get(0);
+        assertThat(sinks).hasSize(1);
+        assertThat(deepest).as("the queue never held more than its bound").isLessThanOrEqualTo(capacity);
+        assertThat(sink.overflowed()).isTrue();
+        assertThat(sink.accepted()).as("the frames beyond the bound and the connection's buffers were refused").isLessThan(pushed);
+        assertThat(refused).as("refusals are counted in messaging.sink.dropped").isGreaterThan(0);
+        assertThat(droppedCount() - allRefusedBefore).as("all for overflow").isEqualTo(refused);
+        slow.startReading();
+        CloseStatus status = slow.awaitClose();
+        assertThat(status.getCode()).isEqualTo(SocketLifecycle.SLOW_CONSUMER);
+        assertThat(status.getReason()).contains("Slow consumer");
+        await().atMost(WAIT).until(() -> sessions.sessions(CONVERSATION) == 0);
+        System.out.printf("slow consumer: pushed %d, accepted %d, refused %.0f, deepest %d, client received %d%n", pushed, sink.accepted(), refused, deepest,
+                slow.received.size());
+        assertThat(slow.received).as("every frame the node accepted was delivered before the close").hasSize((int) sink.accepted());
+        slow.close();
+
+        String bigFrame = "{\"type\":\"message\",\"conversationId\":\"" + CONVERSATION + "\",\"filler\":\"" + "y".repeat(60_000) + "\"}";
+        StalledClient stalled = new StalledClient().connect(path, "MEMBER", BUYER, true);
+        await().atMost(WAIT).until(() -> sessions.sessions(CONVERSATION) == 1);
+        long stuckAt = System.nanoTime();
+        for (int i = 0; i < 400; i++) {
+            sessions.toConversation(CONVERSATION, bigFrame);
+        }
+        await().atMost(Duration.ofSeconds(40)).until(() -> sessions.sessions(CONVERSATION) == 0);
+        Duration reclaimedAfter = Duration.ofNanos(System.nanoTime() - stuckAt);
+        assertThat(reclaimedAfter).as("the write timeout, not something earlier, ended the connection")
+                .isGreaterThan(Duration.ofSeconds(8)).isLessThan(Duration.ofSeconds(35));
+        assertThat(meters.get(MessagingMeters.SINK_BUFFERED).gauge().value()).as("nothing is queued for a detached socket").isZero();
+        stalled.close();
+    }
+
+    /**
+     * The node pings every socket ({@code messaging.socket.ping-interval}, 1 s here) and closes with 4409 one from
+     * which nothing arrived for {@code idle-timeout} (4 s here). A client that answers the pings, as every
+     * browser and library does without application code, stays open for longer than that and can still post.
+     */
+    @Test
+    @Order(11)
+    void aSocketThatAnswersNoPingIsClosedAsIdleWhileOneThatDoesStaysOpen() {
+        String path = "/ws/conversations/" + CONVERSATION;
+        StalledClient mute = new StalledClient().connect(path, "MEMBER", BUYER, false);
+        mute.startReading();
+        WsClient seller = new WsClient().connect(path, "MEMBER", SELLER);
+        long connectedAt = System.nanoTime();
+        try {
+            CloseStatus status = mute.awaitClose();
+            Duration closedAfter = Duration.ofNanos(System.nanoTime() - connectedAt);
+            assertThat(status.getCode()).isEqualTo(SocketLifecycle.IDLE);
+            assertThat(closedAfter).isGreaterThan(Duration.ofSeconds(3)).isLessThan(Duration.ofSeconds(30));
+            assertThat(mute.pings.get()).as("it was pinged and did not answer").isGreaterThan(0);
+
+            await().atMost(WAIT).until(() -> System.nanoTime() - connectedAt > Duration.ofSeconds(6).toNanos());
+            assertThat(seller.closed.asMono().timeout(Duration.ofMillis(100), Mono.empty()).block()).as("the responsive socket is still open").isNull();
+            seller.send(Map.of("type", "post", "clientMsgId", "idle-1", "content", "Still here"));
+            assertThat(seller.awaitAnswer("idle-1").get("type")).isEqualTo("ack");
+        } finally {
+            mute.close();
+            seller.close();
+        }
+        await().atMost(WAIT).until(() -> sessions.sessions(CONVERSATION) == 0);
+    }
+
+    double droppedCount() {
+        return meters.find(MessagingMeters.SINK_DROPPED).counters().stream().mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
+    }
+
+    double overflowCount() {
+        return meters.find(MessagingMeters.SINK_DROPPED).tag(MessagingMeters.TAG_REASON, Sinks.EmitResult.FAIL_OVERFLOW.name()).counters()
+                .stream().mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
+    }
+
+    /** The meters of doc/messaging-architecture.md section 5 saw the traffic of the tests above. */
+    @Test
+    @Order(12)
     void metersCoverCommandsProjectionsAndTheLiveFanOut() {
         assertThat(timer(MessagingMeters.COMMAND_LATENCY, MessagingMeters.TAG_COMMAND, "PostMessage", MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_OK).count())
                 .isGreaterThan(0);
@@ -614,8 +828,10 @@ class MessagingEndToEndTest {
         assertThat(meters.find(MessagingMeters.COMMAND_LATENCY).tag(MessagingMeters.TAG_COMMAND, "PostMessage")
                 .tag(MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_ERROR).timers())
                 .as("no post was lost to a concurrent write").allSatisfy(t -> assertThat(t.count()).isZero());
+        assertThat(MessagingMeters.commandQueued(meters, "PostMessage").count())
+                .as("the racing posts waited for each other on this node (step 8)").isGreaterThan(0);
         assertThat(MessagingMeters.commandRetries(meters, "PostMessage").count())
-                .as("the racing posts collided and were dispatched again").isGreaterThan(0);
+                .as("and therefore never collided in the store").isZero();
         for (String group : List.of(ConversationReadModelProjection.GROUP, MessagingRelays.PUBLIC_GROUP, MessagingRelays.LIVE_GROUP)) {
             assertThat(timer(MessagingMeters.PROJECTION_DELAY, MessagingMeters.TAG_GROUP, group).count()).as(group).isGreaterThan(0);
             assertThat(timer(MessagingMeters.PROJECTION_HANDLER, MessagingMeters.TAG_GROUP, group, MessagingMeters.TAG_OUTCOME, MessagingMeters.OUTCOME_OK).count())
@@ -625,12 +841,18 @@ class MessagingEndToEndTest {
         assertThat(live.count()).isGreaterThan(0);
         assertThat(live.max(java.util.concurrent.TimeUnit.SECONDS)).isLessThan(WAIT.toSeconds());
         assertThat(timer(MessagingMeters.LIVE_LATENCY, MessagingMeters.TAG_RECORD, "bulletin").count()).isGreaterThan(0);
+        Timer transport = timer(MessagingMeters.LIVE_TRANSPORT, MessagingMeters.TAG_RECORD, "message");
+        assertThat(transport.count()).as("the Kafka leg is measured from the record timestamp").isEqualTo(live.count());
+        assertThat(transport.max(java.util.concurrent.TimeUnit.SECONDS)).isLessThan(WAIT.toSeconds());
         assertThat(meters.get(MessagingMeters.LIVE_DELIVERED).tag(MessagingMeters.TAG_RECORD, "message").counter().count())
                 .as("both sockets of the listing conversation received the messages").isGreaterThanOrEqualTo(2);
         assertThat(meters.get(MessagingMeters.SESSIONS).gauge().value()).as("every socket detached").isZero();
         assertThat(meters.get(MessagingMeters.STAFF_SESSIONS).gauge().value()).isZero();
         assertThat(meters.get(MessagingMeters.SINK_BUFFERED).gauge().value()).isZero();
-        assertThat(meters.find(MessagingMeters.SINK_DROPPED).counters()).allSatisfy(c -> assertThat(c.count()).isZero());
+        assertThat(meters.find(MessagingMeters.SINK_DROPPED).counters())
+                .as("only the slow consumer of the socket test lost frames")
+                .allSatisfy(c -> assertThat(c.count() == 0 || Sinks.EmitResult.FAIL_OVERFLOW.name().equals(c.getId().getTag(MessagingMeters.TAG_REASON)))
+                        .as(c.getId().toString()).isTrue());
     }
 
     Timer timer(String name, String... tags) {

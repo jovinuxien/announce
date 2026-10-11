@@ -13,16 +13,19 @@ import reactor.core.publisher.Mono;
 
 /**
  * {@code /ws/staff?clientType=desktop}: the staff dashboard channel (book: CSR sessions and the bulletin board).
- * Needs staff ({@code X-User-Id} with {@code X-User-Type=ADMIN}, as the admin edge forwards it); receives {@code bulletin} frames for its client type (or every type when the bulletin
- * names none). The client sends nothing but keep-alives, which are ignored.
+ * Needs staff ({@code X-User-Id} with {@code X-User-Type=ADMIN}, as the admin edge forwards it); receives {@code bulletin}
+ * frames for its client type (or every type when the bulletin names none). The client sends nothing but keep-alives,
+ * which are ignored. Pings, idle and slow-consumer closes: {@link SocketLifecycle}.
  */
 @Component
 public class StaffWebSocketHandler implements WebSocketHandler {
 
     private final LiveSessions sessions;
+    private final SocketLifecycle lifecycle;
 
-    public StaffWebSocketHandler(LiveSessions sessions) {
+    public StaffWebSocketHandler(LiveSessions sessions, SocketLifecycle lifecycle) {
         this.sessions = sessions;
+        this.lifecycle = lifecycle;
     }
 
     @Override
@@ -35,8 +38,7 @@ public class StaffWebSocketHandler implements WebSocketHandler {
         }
         String clientType = UriComponentsBuilder.fromUri(handshake.getUri()).build().getQueryParams().getFirst("clientType");
         LiveSessions.StaffSession staffSession = sessions.attachStaff(clientType);
-        Mono<Void> outbound = session.send(staffSession.sink().frames().map(session::textMessage));
-        Mono<Void> inbound = session.receive().then().doFinally(signal -> staffSession.sink().complete());
-        return Mono.when(outbound, inbound).doFinally(signal -> sessions.detachStaff(staffSession));
+        return lifecycle.run(session, staffSession.sink(), text -> Mono.empty())
+                .doFinally(signal -> sessions.detachStaff(staffSession));
     }
 }

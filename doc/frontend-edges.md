@@ -874,6 +874,20 @@ on the announce page; opening that read in `PublicPaths` is a one-line edge chan
 Left open: a real payment provider and its checkout, carrier booking beyond the fake, proxy bidding, auction
 closing from the SPA (the end time is days away), refund and dispute resolution screens on the customer side.
 
+**Re-run on the development store (2026-10-11, evening).** The same drive ran with announce-management, the order
+module and the customer edge on the real store, attached one at a time after the store reported healthy. The order
+module's two `payment-*` groups read the whole log from their old checkpoints (6617 and 6277 of 13 599) and the
+store wedged again a minute into that replay, the way §15a describes; one more `docker restart announce_esdb`
+let the running processors resume and reach the head within seconds, and the store stayed readable from then on,
+through the run and after it. Every step of the table above passed again. The buyer's screen followed the other
+side's changes by polling in 2.8 to 4.8 s (the detail polls every 5 s since the first run); the seller's fee line
+appeared with the accept ("you receive 1.145 kr. (fee 105 kr.)"), none before it, as the module writes the fee when
+the deal is agreed. The members, the announces, the order, the auction with its two bids and the seller account
+stay in the database, since their events are in the real store; the auction announce was withdrawn through the
+edge afterwards (the auction follows as CANCELLED), the fixed-price one ended SOLD with the settled order. A first
+attempt had failed on the driver's side only (it still expected the fee line on the proposed order); its member
+pair, two announces and proposed order were cancelled and withdrawn through the edge as well.
+
 ## 17. Profile editing at the customer edge (2026-10-11)
 
 The last open item of the §9 follow-ups. The edge owns member identity (`/auth/login|register|refresh|logout|me`

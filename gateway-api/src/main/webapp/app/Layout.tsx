@@ -34,18 +34,42 @@ export default function Layout() {
                   {t('header.post')}
                 </Nav.Link>
                 {status === 'authenticated' ? (
-                  <NavDropdown title={user?.nickname || user?.username || t('header.account')} align="end">
-                    <NavDropdown.Item as={Link} to="/my/announces">{t('header.myAnnounces')}</NavDropdown.Item>
-                    {features.trade && <NavDropdown.Item as={Link} to="/orders">{t('header.orders')}</NavDropdown.Item>}
-                    {features.chat && <NavDropdown.Item as={Link} to="/messages">{t('header.messages')}</NavDropdown.Item>}
-                    <NavDropdown.Item as={Link} to="/me">{t('header.profile')}</NavDropdown.Item>
+                  <NavDropdown
+                    title={
+                      <>
+                        {user?.avatar && <img src={user.avatar} alt="" className="rounded-circle me-1" style={{ width: 22, height: 22, objectFit: 'cover' }} />}
+                        {user?.nickname || user?.username || t('header.account')}
+                      </>
+                    }
+                    align="end"
+                  >
+                    <NavDropdown.Item as={Link} to="/my/announces">
+                      {t('header.myAnnounces')}
+                    </NavDropdown.Item>
+                    {features.trade && (
+                      <NavDropdown.Item as={Link} to="/orders">
+                        {t('header.orders')}
+                      </NavDropdown.Item>
+                    )}
+                    {features.chat && (
+                      <NavDropdown.Item as={Link} to="/messages">
+                        {t('header.messages')}
+                      </NavDropdown.Item>
+                    )}
+                    <NavDropdown.Item as={Link} to="/me">
+                      {t('header.profile')}
+                    </NavDropdown.Item>
                     <NavDropdown.Divider />
                     <NavDropdown.Item onClick={() => dispatch(logout()).then(() => navigate('/'))}>{t('header.logout')}</NavDropdown.Item>
                   </NavDropdown>
                 ) : (
                   <>
-                    <Nav.Link as={NavLink} to="/login">{t('header.login')}</Nav.Link>
-                    <Nav.Link as={NavLink} to="/register">{t('header.register')}</Nav.Link>
+                    <Nav.Link as={NavLink} to="/login">
+                      {t('header.login')}
+                    </Nav.Link>
+                    <Nav.Link as={NavLink} to="/register">
+                      {t('header.register')}
+                    </Nav.Link>
                   </>
                 )}
                 <LanguageSwitcher className="w-auto" />

@@ -138,7 +138,7 @@ Phase 1 modules (`app/modules/*`):
 
 - **shell**: layout, header with kind tabs (Goods, Jobs, Events), search box with suggest,
   language switch, footer; auth guard; error boundary showing problem details.
-- **auth**: login, register, logout, refresh on 401, profile.
+- **auth**: login, register, logout, refresh on 401, profile (editable since 2026-10-11, §17).
 - **home**: category roots per kind (from `/api/categories?kind=`), latest announces per kind
   (search sorted by `created_epoch`), region chooser.
 - **search**: query, facets `kind`, `category_ids`, `price`, `region_id`/`city`, `condition`,
@@ -856,4 +856,58 @@ on the announce page; opening that read in `PublicPaths` is a one-line edge chan
 
 Left open: a real payment provider and its checkout, carrier booking beyond the fake, proxy bidding, auction
 closing from the SPA (the end time is days away), refund and dispute resolution screens on the customer side.
+
+## 17. Profile editing at the customer edge (2026-10-11)
+
+The last open item of the §9 follow-ups. The edge owns member identity (`/auth/login|register|refresh|logout|me`
+over `announce_user`), and until now `GET /auth/me` was the only read of a member's own row and nothing wrote it;
+the SPA's profile page printed the row and said editing would come later. This round adds the two routes and the
+screen. The edge is the only module touched.
+
+**Routes (member token).**
+
+| Route | Body | Answer |
+|---|---|---|
+| `PUT /auth/me` | `ProfileUpdateRequest {nickname ≤63, mobile ≤20 digits/+/space, avatar ≤255 (a URL), gender 0..2, birthday (past or today)}`; blank mobile and null birthday clear them, a blank nickname falls back to the username | `UserResponse`, now with `gender` and `birthday`; 400 with `errors` on invalid values, 409 when another member holds the mobile, 401 without a token |
+| `POST /auth/password` | `PasswordChangeRequest {currentPassword, newPassword ≥8}` | `TokenResponse` with a fresh access token and a fresh refresh cookie; 401 `current password does not match` (BCrypt off the event loop as at login); every other refresh token of the member is revoked first, so other devices must log in again while this one carries on |
+
+The username stays the login and the unique key (announces, orders and conversations refer to the member by id);
+changing it is out of scope. `UserAccounts` gained `updateProfile` (uniqueness check on the mobile against the other
+rows, then a full-row update so a cleared birthday is written as null) and `changePassword`; `RefreshTokenStore`
+gained `revokeAllForUser`; `RefreshTokenService.replaceAll` revokes and issues. `Account` carries `gender` and
+`birthday` (the old seven-argument shape remains for the token issuer and the tests).
+
+**Screen (`app/modules/auth/Profile.tsx`).** Two forms. Profile: picture (uploaded through the edge's storage route
+like the announce gallery, previewed, removable), username read-only with the member id, display name, mobile,
+gender, birthday; save updates the signed-in user in the store, so the header shows the new name and the avatar at
+once. Password: current, new, repeated; the client refuses a short or mismatching pair before the call; success
+stores the new access token, replaces the user in the store and clears the fields. The payouts card of §16 sits
+below. Strings in en, da, sv (`auth:profile.*`).
+
+**Tests.** `EdgeRoutesTest.memberEditsProfileAndChangesPassword` over the in-memory stores: the update and its
+echo on `GET /auth/me`, 401 without a token, 400 on gender 7 and a future birthday, 409 on another member's mobile,
+clearing mobile and birthday, 401 on a wrong current password, 400 on a short new one, and a change that keeps the
+caller's new cookie, kills both earlier cookies, refuses the old password and accepts the new one.
+`AuthPersistenceTest` gained the update (with the 409 and the clearing) and the password change against the live
+MySQL, and the revocation of every token of a member. The edge suite is 24 tests (20 before). SPA:
+`Profile.spec.tsx` (4) over msw handlers declared in the spec, the storage client stubbed because multipart through
+jsdom's `XMLHttpRequest` does not reach msw; the suite is 74 tests in 16 files. Typecheck and i18n clean.
+
+### 17a. Checklist, executed 2026-10-11
+
+Setup: the customer edge jar on 8092 and the live MySQL only (no backend needed; the throwaway event store was not
+involved). A member registered through the edge, logged in in a headless browser and once more over REST as a
+second device; a second member registered with a mobile. Both members, their tokens, the storage record and the
+uploaded file were deleted afterwards.
+
+| Step | Result |
+|---|---|
+| `/me` after login | username shown read-only with "the username is your login", display name "Before", header "Before" |
+| Save with the other member's mobile | alert "mobile already registered" (409 problem detail), nothing saved |
+| Picture, display name, mobile, gender, birthday, Save | upload answered `/api/storage/fetch/<key>.png` and the preview showed it; "Profile saved."; the header reads "After Name" with the avatar image; `GET /auth/me` over REST answers the five fields; the avatar URL serves `image/png` |
+| Wrong current password | alert "current password does not match" (401) |
+| Password change | "Password changed. Your other devices were signed out."; the second device's refresh cookie answers 401; login with the old password 401, with the new one 200; the browser's own session survives a full reload and shows "After Name" |
+| Console | the expected 401 of the silent refresh before login, the 409 and the 401 the two refused calls produced |
+
+Left open: username change, e-mail with verification, password reset by mail, account deletion.
 

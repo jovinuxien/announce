@@ -53,6 +53,26 @@ public class InMemoryAuthStores {
             public Mono<Void> recordLogin(int id, String ip) {
                 return Mono.empty();
             }
+
+            @Override
+            public Mono<Account> updateProfile(int id, ProfileUpdate u) {
+                String mobile = u.mobile() == null ? "" : u.mobile().trim();
+                if (!mobile.isEmpty() && byId.values().stream().anyMatch(a -> a.id() != id && mobile.equals(a.mobile()))) {
+                    return Mono.error(AuthException.conflict("mobile already registered"));
+                }
+                Account old = byId.get(id);
+                if (old == null) return Mono.error(AuthException.unauthorized("member no longer exists"));
+                Account a = new Account(old.id(), old.username(), old.passwordHash(), u.nickname() == null || u.nickname().isBlank() ? old.username() : u.nickname(),
+                        mobile, u.avatar() == null ? "" : u.avatar(), old.enabled(), u.gender() == null ? 0 : u.gender(), u.birthday());
+                byId.put(id, a);
+                return Mono.just(a);
+            }
+
+            @Override
+            public Mono<Void> changePassword(int id, String passwordHash) {
+                byId.computeIfPresent(id, (k, o) -> new Account(o.id(), o.username(), passwordHash, o.nickname(), o.mobile(), o.avatar(), o.enabled(), o.gender(), o.birthday()));
+                return Mono.empty();
+            }
         };
     }
 
@@ -75,6 +95,13 @@ public class InMemoryAuthStores {
             @Override
             public Mono<Void> revoke(String id) {
                 byId.computeIfPresent(id, (k, r) -> new RefreshTokenRecord(r.id(), r.userType(), r.userId(), r.tokenHash(), r.expiresAt(), true));
+                return Mono.empty();
+            }
+
+            @Override
+            public Mono<Void> revokeAllForUser(String userType, int userId) {
+                byId.replaceAll((k, r) -> r.userType().equals(userType) && r.userId() == userId
+                        ? new RefreshTokenRecord(r.id(), r.userType(), r.userId(), r.tokenHash(), r.expiresAt(), true) : r);
                 return Mono.empty();
             }
         };

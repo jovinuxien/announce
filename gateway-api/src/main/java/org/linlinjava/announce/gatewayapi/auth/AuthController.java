@@ -2,6 +2,8 @@ package org.linlinjava.announce.gatewayapi.auth;
 
 import jakarta.validation.Valid;
 import org.linlinjava.announce.gatewayapi.auth.AuthDtos.LoginRequest;
+import org.linlinjava.announce.gatewayapi.auth.AuthDtos.PasswordChangeRequest;
+import org.linlinjava.announce.gatewayapi.auth.AuthDtos.ProfileUpdateRequest;
 import org.linlinjava.announce.gatewayapi.auth.AuthDtos.RegisterRequest;
 import org.linlinjava.announce.gatewayapi.auth.AuthDtos.TokenResponse;
 import org.linlinjava.announce.gatewayapi.auth.AuthDtos.UserResponse;
@@ -13,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -90,6 +93,33 @@ public class AuthController {
         return accounts.findById(userId)
                 .switchIfEmpty(Mono.error(AuthException.unauthorized("member no longer exists")))
                 .map(UserResponse::of);
+    }
+
+    /** The member edits their own profile (doc/frontend-edges.md §17). */
+    @PutMapping("/me")
+    public Mono<UserResponse> updateMe(@RequestHeader(IdentityForwardingFilter.HDR_USER_ID) int userId, @Valid @RequestBody ProfileUpdateRequest body) {
+        return accounts.updateProfile(userId, new UserAccounts.ProfileUpdate(body.nickname(), body.mobile(), body.avatar(), body.gender(), body.birthday()))
+                .map(UserResponse::of);
+    }
+
+    /**
+     * Changes the password after checking the current one; every other refresh token of the member is revoked and
+     * this session gets a fresh one, so other devices have to log in again while this one carries on.
+     */
+    @PostMapping("/password")
+    public Mono<ResponseEntity<TokenResponse>> changePassword(@RequestHeader(IdentityForwardingFilter.HDR_USER_ID) int userId,
+                                                              @Valid @RequestBody PasswordChangeRequest body) {
+        return accounts.findById(userId)
+                .switchIfEmpty(Mono.error(AuthException.unauthorized("member no longer exists")))
+                .flatMap(a -> matches(body.currentPassword(), a.passwordHash())
+                        .flatMap(ok -> ok ? Mono.just(a) : Mono.error(AuthException.unauthorized("current password does not match"))))
+                .flatMap(a -> Mono.fromCallable(() -> passwords.encode(body.newPassword())).subscribeOn(Schedulers.boundedElastic())
+                        .flatMap(hash -> accounts.changePassword(a.id(), hash))
+                        .thenReturn(a))
+                .flatMap(a -> refreshTokens.replaceAll(a.id())
+                        .map(issued -> ResponseEntity.ok()
+                                .header(HttpHeaders.SET_COOKIE, cookies.issue(issued.token()).toString())
+                                .body(tokenResponse(a))));
     }
 
     private Mono<ResponseEntity<TokenResponse>> session(Account a, HttpStatus status) {

@@ -10,4 +10,7 @@ public interface RefreshTokenStore {
     Mono<RefreshTokenRecord> findByHash(String tokenHash);
 
     Mono<Void> revoke(String id);
+
+    /** Revokes every live token of one member (password change: other devices must log in again). */
+    Mono<Void> revokeAllForUser(String userType, int userId);
 }

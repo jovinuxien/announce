@@ -42,6 +42,16 @@ public class R2dbcRefreshTokenStore implements RefreshTokenStore {
     }
 
     @Override
+    public Mono<Void> revokeAllForUser(String userType, int userId) {
+        AnnounceRefreshTokenExample e = new AnnounceRefreshTokenExample();
+        e.or().andUserTypeEqualTo(userType).andUserIdEqualTo(userId).andRevokedEqualTo(false);
+        AnnounceRefreshToken row = new AnnounceRefreshToken();
+        row.setRevoked(true);
+        row.setUpdateTime(LocalDateTime.now());
+        return tokens.updateByExampleSelective(row, e).then();
+    }
+
+    @Override
     public Mono<Void> revoke(String id) {
         AnnounceRefreshToken row = new AnnounceRefreshToken();
         row.setId(id);

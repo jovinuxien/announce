@@ -73,8 +73,42 @@ public class R2dbcUserAccounts implements UserAccounts {
         return users.updateByPrimaryKeySelective(u).then();
     }
 
+    @Override
+    public Mono<Account> updateProfile(int id, ProfileUpdate update) {
+        String mobile = update.mobile() == null || update.mobile().isBlank() ? "" : update.mobile().trim();
+        Mono<Long> taken = Mono.just(0L);
+        if (!mobile.isEmpty()) {
+            LitemallUserExample e = new LitemallUserExample();
+            e.or().andMobileEqualTo(mobile).andIdNotEqualTo(id).andDeletedEqualTo(false);
+            taken = users.countByExample(e);
+        }
+        return taken.flatMap(n -> n > 0
+                        ? Mono.error(AuthException.conflict("mobile already registered"))
+                        : users.selectByPrimaryKeyWithLogicalDelete(id, false))
+                .switchIfEmpty(Mono.error(AuthException.unauthorized("member no longer exists")))
+                .flatMap(u -> {
+                    u.setNickname(update.nickname() == null || update.nickname().isBlank() ? u.getUsername() : update.nickname().trim());
+                    u.setMobile(mobile);
+                    u.setAvatar(update.avatar() == null ? "" : update.avatar().trim());
+                    u.setGender(update.gender() == null ? (byte) 0 : update.gender().byteValue());
+                    u.setBirthday(update.birthday());
+                    u.setUpdateTime(LocalDateTime.now());
+                    return users.updateByPrimaryKey(u).thenReturn(toAccount(u));
+                });
+    }
+
+    @Override
+    public Mono<Void> changePassword(int id, String passwordHash) {
+        LitemallUser u = new LitemallUser();
+        u.setId(id);
+        u.setPassword(passwordHash);
+        u.setUpdateTime(LocalDateTime.now());
+        return users.updateByPrimaryKeySelective(u).then();
+    }
+
     private static Account toAccount(LitemallUser u) {
         boolean enabled = (u.getStatus() == null || u.getStatus() == STATUS_ENABLED) && !Boolean.TRUE.equals(u.getDeleted());
-        return new Account(u.getId(), u.getUsername(), u.getPassword(), u.getNickname(), u.getMobile(), u.getAvatar(), enabled);
+        return new Account(u.getId(), u.getUsername(), u.getPassword(), u.getNickname(), u.getMobile(), u.getAvatar(), enabled,
+                u.getGender() == null ? 0 : u.getGender().intValue(), u.getBirthday());
     }
 }

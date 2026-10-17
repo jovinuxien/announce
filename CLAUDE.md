@@ -484,3 +484,82 @@ or `target/`.
   §7 executed and recorded (log in, create a category of each kind,
   withdraw an announce, trigger a listings import, create an admin with a
   role).
+
+### Worktree: `crawler-inventory` — fresh crawled data and a listing inventory (2026-10-17)
+
+- **Prerequisite:** `feat/crawled-listings` merged (done). Read
+  `doc/crawler-inventory-plan.md` first: it holds the 2026-09-29 survey of the
+  current dba.dk / tradera.com markup, the approved decisions and the step
+  details; this block is its summary. Then `doc/crawled-listings.md`. The
+  Java importer (`org.linlinjava.announce.listing`), `CrawledItem`,
+  `ListingImportService`, `ListingSweepJob` and the admin triggers exist and
+  stay; the old spiders in `~/Desktop/python_projects/scrapy_projects/tutorial`
+  are dead against today's sites.
+- **Decisions (approved):** (1) the scrapy project moves into the repo as
+  `crawler/` (package, `scrapy.cfg`, pinned `requirements.txt`; venv, eggs,
+  build, dbs, logs, .idea ignored); the Desktop folder becomes a symlink after
+  merge. (2) Spiders emit the importer's own shape: one flat JSON line per
+  item with `schema: "crawled-item/2"` and the fields `externalId, url,
+  title, brief, imageUrl, price, currency, saleType, endsAt, sourceCategory,
+  attributes{}, addressRaw, publishedAt, crawledAt`; one generic
+  `CrawledItemV2Parser` on the Java side, `DbaFeedParser` /
+  `TraderaFeedParser` kept for the legacy fixtures. (3) "available and good
+  candidate" = a quality grade computed at import plus liveness (`status`
+  ACTIVE/GONE and a bounded HEAD-check job); only graded rows are indexed.
+- **Task:**
+  1. `crawler/` with the scrapy project, `run.sh` (both spiders into
+     `announce.listing.import.dir`, files `dba_<stamp>.jsonl` /
+     `tradera_<stamp>.jsonl`), a modern honest user agent, robots obeyed,
+     page and item caps as spider arguments (`-a max_pages=`), polite delays
+     and autothrottle.
+  2. `dba_cars`: iterate `/mobility/search/car?registration_class=1&page=N`
+     (48 per page), parse the JSON-LD `CollectionPage.mainEntity` product
+     list; `externalId` = digits of `/mobility/item/{id}`; `sourceCategory`
+     "Cars/Private Car" (other `registration_class` values as further
+     categories); optional `-a detail=1` pass (1.5 s delay, capped) adding
+     km, model year, address and the full image list from the detail page.
+  3. `tradera_cars`: iterate `/category/1001?paging=N`, parse the
+     `div[data-item-card-id]` cards; `saleType` from `data-item-type`;
+     currency SEK; attributes year / km (mil x 10) / fuel; `publishedAt`
+     from the relative "Inkom … sedan"; optional detail pass for `endsAt`
+     with null fallback.
+  4. Offline spider tests (pytest, `scrapy.http.HtmlResponse` over saved
+     HTML fixtures of today's pages) so a markup change fails a test instead
+     of silently emptying the feed.
+  5. `listing.domain.ListingQuality`: grade GOOD / WEAK / REJECT plus an
+     `issues` list. GOOD = title, https image on a known host, canonical url
+     matching the source pattern, price > 0 or AUCTION, published date. WEAK
+     = one soft field missing (published date, brief, attributes). REJECT =
+     url, title or image missing.
+  6. Schema (`db-reactive/sql/announce_table.sql`,
+     `build_announce_reactive_db.sh`, mappers regenerated with
+     `mybatis-generator/generatorConfig.xml` + `reactify_mapper.py`):
+     `quality_grade varchar(10)`, `quality_issues json`, `url_checked_at`,
+     `url_ok tinyint`, `image_ok tinyint` on `crawled_listing`; key on
+     (`status`, `url_checked_at`).
+  7. `ListingLivenessJob` (`@Scheduled`, next to `ListingSweepJob`): HEAD
+     the url and image of the N oldest-checked ACTIVE rows per run
+     (`announce.listing.liveness.batch`, default 100), one host at a time
+     with a delay; 404/410 on the url -> GONE at once and index removal;
+     dead image -> grade downgraded and reindexed. `WebClient` behind a
+     `LinkChecker` port, fake in tests.
+  8. Index gating: `announce.listing.index-grades` (default GOOD, WEAK);
+     REJECT rows stay in the table with their issues and are never indexed.
+     `ImportReport` gains counts per grade.
+  9. `GET /api/admin/listings/inventory`: per source ACTIVE, GONE, per
+     grade, missing image, dead link, last import time and file. Read-model
+     query only.
+  10. Docs: `doc/crawled-listings.md` gains the v2 feed shape, the quality
+      rules, the liveness job and the crawler runbook; the plan's status
+      line records deviations.
+- **Out of scope:** image mirroring, Kafka transport, jobs/events from
+  crawled sources, Nutch, frontend changes.
+- **Acceptance:** `mvn -pl db-reactive test` and
+  `mvn -pl announce-management -P '!webapp' test` pass with
+  `announce.search.mode=noop`; `pytest` in `crawler/` passes offline. A real
+  run of both spiders writes `dba_<stamp>.jsonl` and `tradera_<stamp>.jsonl`
+  that import with zero rejected rows and at least 90 % GOOD. A fixture item
+  without image imports as REJECT with no index call; a stubbed 410 on a url
+  marks the row GONE and removes it from the index; a stubbed dead image
+  downgrades to WEAK and reindexes. The inventory endpoint returns the
+  expected counts for a five-row fixture.

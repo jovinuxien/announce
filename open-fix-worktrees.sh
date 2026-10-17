@@ -65,8 +65,22 @@ for short in "${MODULES[@]}"; do
   else
     inner_cmd="claude $(printf %q "$prompt"); exec bash"
   fi
+  # Every gnome-terminal window is hosted by ONE gnome-terminal-server process; when it
+  # crashes (VTE 0.60 on Ubuntu 20.04 aborts in its accessibility code under Claude's
+  # redraws, see the NO_AT_BRIDGE override in
+  # ~/.config/systemd/user/gnome-terminal-server.service.d) every window dies at once.
+  # With tmux installed the session runs detached inside tmux, survives the crash, and a
+  # relaunch simply reattaches (`-A`) instead of starting a new conversation.
+  if command -v tmux >/dev/null 2>&1; then
+    if tmux has-session -t "=$short" 2>/dev/null; then
+      echo "[$short] tmux session alive — reattaching"
+    fi
+    window_cmd=(tmux new-session -A -s "$short" -c "$wt_path" bash -c "$inner_cmd")
+  else
+    window_cmd=(bash -c "$inner_cmd")
+  fi
   gnome-terminal --window \
     --working-directory="$wt_path" \
     --title="claude/$short" \
-    -- bash -c "$inner_cmd"
+    -- "${window_cmd[@]}"
 done

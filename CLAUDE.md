@@ -563,3 +563,101 @@ or `target/`.
   marks the row GONE and removes it from the index; a stubbed dead image
   downgrades to WEAK and reindexes. The inventory endpoint returns the
   expected counts for a five-row fixture.
+
+### Worktree: `staff-permissions` — staff permissions checked by the edge and the backends (2026-10-17)
+
+- **Prerequisite:** nothing in flight; branch off `announce-jo-branch`. Read
+  `doc/frontend-edges.md` §11 (the caller convention, its "Still open"
+  paragraph is this task) and `doc/cqrs-reactive.md` §5a first. Facts: the
+  admin edge (`gateway-admin`, `auth/AdminAccounts`) derives only two
+  authorities, `ROLE_ADMIN` for any enabled role and `ROLE_SUPER` when a
+  role holds the permission `*`; `security/SecurityConfig` enforces
+  `ROLE_ADMIN` on `/api/**` and `/ws/**` and `ROLE_SUPER` on
+  `/api/admin/admins|roles|permissions/**`; `X-User-Roles` carries those two
+  values downstream, where `cqrs-reactive`'s `Caller` keeps them in `roles`
+  but every staff route only calls `Callers.staff(headers)`. So any staff
+  account can moderate announces, resolve disputes, release payouts, block
+  conversations and send bulletins. `web/admin/PermissionCatalogue` already
+  lists the permission codes (`admin:announce:moderate`,
+  `admin:catalog:manage`, `admin:listing:manage`, `admin:member:manage`,
+  `admin:region:manage`, `admin:order:manage`, `admin:support:manage`,
+  `admin:dashboard:read`, and `*`), the roles screen assigns them, but the
+  seed roles 2 (Marketplace administrator) and 3 (Support administrator) in
+  `db-reactive/sql/announce_data_en.sql` still hold litemall's
+  `admin:category:*` strings and nothing reads any of them.
+- **Task:** permissions become real, end to end, keeping one convention.
+  1. Edge authorities: `AdminAccounts` adds the enabled, non-deleted
+     permission codes of the account's enabled roles to the authorities
+     next to `ROLE_ADMIN` / `ROLE_SUPER` (`*` expands to every code of the
+     catalogue; unknown codes are dropped and logged once). They travel in
+     the JWT, in `/auth/me` (`AdminSummary.roles`, keep the field name so
+     the SPA's `selectRoles` keeps working) and in `X-User-Roles`
+     (`IdentityForwardingFilter`), comma separated as today. A changed
+     role takes effect at the next access token (2 h) or refresh; document
+     it, no revocation list.
+  2. Edge path rules in `SecurityConfig`, one line per route group, super
+     paths unchanged: `/api/admin/announces/**` -> `admin:announce:moderate`;
+     `/api/admin/categories/**`, `/api/admin/brands/**` ->
+     `admin:catalog:manage`; `/api/admin/listings/**` ->
+     `admin:listing:manage`; `/api/admin/users/**` -> `admin:member:manage`;
+     `/api/admin/regions/**` -> `admin:region:manage`;
+     `/api/admin/auctions|orders|payouts|bids/**` -> `admin:order:manage`;
+     `/api/admin/conversations/**`, `/api/admin/bulletins/**`, `/ws/**` ->
+     `admin:support:manage`; `/api/admin/dashboard/**` ->
+     `admin:dashboard:read`. Anything else under `/api/**` stays
+     `ROLE_ADMIN`. 403 as a problem detail with code `missing-permission`
+     and the permission in `detail`.
+  3. Framework: `Caller.can(String permission)` (true for `*`, `ROLE_SUPER`
+     or the code itself) and `Callers.staff(HttpHeaders, String permission)`
+     which answers 403 `missing-permission` after the existing checks;
+     `doc/cqrs-reactive.md` §5a gains the rule. The permission codes are
+     plain strings in the framework, no catalogue there.
+  4. Backends, every staff route and handshake passes its permission:
+     announce-management `AnnounceAdminController` (`admin:announce:moderate`)
+     and `ListingAdminController` (`admin:listing:manage`), its category and
+     brand admin endpoints if any (`admin:catalog:manage`); order
+     `AuctionController`, `OrderController`, `PaymentController`,
+     `ShipmentController` admin routes (`admin:order:manage`); messaging
+     `Principals.staff` callers in `AdminMessagingController`,
+     `StaffWebSocketHandler` and the staff path of
+     `ConversationWebSocketHandler` (`admin:support:manage`). The
+     per-context helpers (`goods.interfaces.rest.Callers`,
+     `messaging.interfaces.Principals`) gain the overload; controllers do
+     not import the framework class directly.
+  5. Seed: `gen_seed_en.py` and `announce_data_en.sql` /
+     `announce_reseed_en.sql` give role 2 `admin:announce:moderate`,
+     `admin:catalog:manage`, `admin:listing:manage`, `admin:member:manage`,
+     `admin:region:manage`, `admin:dashboard:read` and role 3
+     `admin:support:manage`, `admin:dashboard:read`; role 1 keeps `*`. The
+     litemall `admin:category:*` strings go. `reseed_en.sh` applies it to
+     the live `announce_reactive_db` only when the user says so.
+  6. Admin SPA: nav entries and routes gated by permission
+     (`RequirePermission` next to `RequireRole`, `selectCan(code)` in
+     `authSlice`, `*` and `ROLE_SUPER` grant all); a screen the account
+     may not use is hidden from the nav and answers a "no permission" page
+     on a direct URL; the role editor's permission picker reads
+     `GET /api/admin/permissions` as today. i18n `en`, `da`, `sv`.
+  7. Docs: `doc/frontend-edges.md` gains a section "Staff permissions"
+     that closes the "Still open" paragraph of §11 (table route group ->
+     permission, token lifetime caveat, how to add a permission: catalogue
+     + edge rule + backend route + seed + nav).
+- **Out of scope:** per-record ownership for staff, audit log, immediate
+  revocation, member-side permissions, new screens.
+- **Acceptance:** `mvn -pl gateway-admin -P '!webapp' test` passes with new
+  route tests: a token of a support-only account gets 403
+  `missing-permission` on `POST /api/admin/announces/{id}/withdraw` and 200
+  on `GET /api/admin/conversations`, and the proxied request carries
+  `X-User-Roles` with `ROLE_ADMIN` and the permission codes; a super token
+  passes every group. `mvn -pl cqrs-reactive test` covers `Caller.can` and
+  the overload. `mvn -pl announce-management -P '!webapp' test`,
+  `mvn -pl order -P '!webapp' test` and `mvn -pl messaging test` pass with
+  one test per module proving that a staff caller without the permission is
+  refused with 403 `missing-permission` and one with it (or `*`) is served;
+  the staff WebSocket handshake in messaging refuses a caller without
+  `admin:support:manage`. `npm test` and `npm run i18n:check` pass in
+  `gateway-admin`; a jest test shows the nav without the trade entries for a
+  support-only account. The seed loads (`mvn -pl db-reactive test`). Manual:
+  log in as admin123 (super), create an admin with role 3 only, log in as
+  it and confirm the support queue works while the announces screen is
+  hidden and `POST /api/admin/announces/{id}/withdraw` answers 403; recorded
+  in `doc/frontend-edges.md` §7.

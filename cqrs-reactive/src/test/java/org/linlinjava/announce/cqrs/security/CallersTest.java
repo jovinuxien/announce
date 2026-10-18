@@ -20,7 +20,14 @@ class CallersTest {
 
     static final HttpHeaders MEMBER_7 = headers(Callers.USER_HEADER, "7", Callers.TYPE_HEADER, "MEMBER");
     static final HttpHeaders STAFF_42 = headers(Callers.USER_HEADER, "42", Callers.TYPE_HEADER, "ADMIN", Callers.ROLES_HEADER, "ROLE_ADMIN, role_super");
+    /** What the admin edge forwards for a support-only account (seed role 3). */
+    static final HttpHeaders SUPPORT_43 = headers(Callers.USER_HEADER, "43", Callers.TYPE_HEADER, "ADMIN",
+            Callers.ROLES_HEADER, "ROLE_ADMIN, Admin:Support:Manage ,admin:dashboard:read");
+    static final HttpHeaders STAR_44 = headers(Callers.USER_HEADER, "44", Callers.TYPE_HEADER, "ADMIN", Callers.ROLES_HEADER, "ROLE_ADMIN,*");
     static final HttpHeaders NOBODY = headers();
+
+    static final String MODERATE = "admin:announce:moderate";
+    static final String SUPPORT = "admin:support:manage";
 
     private static void rejected(Runnable call, HttpStatus status, String code) {
         assertThatThrownBy(call::run).isInstanceOfSatisfying(CommandRejectedException.class, e -> {
@@ -35,8 +42,37 @@ class CallersTest {
         Caller staff = Callers.caller(STAFF_42).orElseThrow();
         assertThat(staff.id()).isEqualTo(42);
         assertThat(staff.staff()).isTrue();
-        assertThat(staff.hasRole("ROLE_SUPER")).as("roles are trimmed and upper-cased").isTrue();
+        assertThat(staff.hasRole("ROLE_SUPER")).as("authorities are trimmed and upper-cased").isTrue();
+        assertThat(Callers.caller(SUPPORT_43).orElseThrow().roles())
+                .as("permission codes are trimmed and lower-cased, authorities stay upper-cased")
+                .containsExactlyInAnyOrder("ROLE_ADMIN", SUPPORT, "admin:dashboard:read");
         assertThat(Callers.caller(NOBODY)).isEmpty();
+    }
+
+    @Test
+    void canHoldsForTheCodeTheStarAndTheSuperAuthorityOnly() {
+        Caller support = Callers.caller(SUPPORT_43).orElseThrow();
+        assertThat(support.can(SUPPORT)).isTrue();
+        assertThat(support.can(" ADMIN:SUPPORT:MANAGE ")).as("case and padding do not matter").isTrue();
+        assertThat(support.can(MODERATE)).isFalse();
+        assertThat(support.can(null)).isFalse();
+        assertThat(support.can("")).isFalse();
+        assertThat(Callers.caller(STAFF_42).orElseThrow().can(MODERATE)).as("ROLE_SUPER grants everything").isTrue();
+        assertThat(Callers.caller(STAR_44).orElseThrow().can(MODERATE)).as("* grants everything").isTrue();
+        assertThat(Callers.caller(MEMBER_7).orElseThrow().can(MODERATE)).as("members hold no permission").isFalse();
+        assertThat(new Caller(1, Caller.Type.ADMIN, java.util.Set.of("ROLE_ADMIN")).can(MODERATE)).as("ROLE_ADMIN alone is no permission").isFalse();
+    }
+
+    @Test
+    void staffRoutesWithAPermissionRefuseWhoeverLacksIt() {
+        assertThat(Callers.staff(SUPPORT_43, SUPPORT)).isEqualTo(43);
+        assertThat(Callers.staff(STAFF_42, MODERATE)).as("super passes every permission").isEqualTo(42);
+        assertThat(Callers.staff(STAR_44, MODERATE)).as("* passes every permission").isEqualTo(44);
+        rejected(() -> Callers.staff(SUPPORT_43, MODERATE), HttpStatus.FORBIDDEN, Callers.MISSING_PERMISSION);
+        assertThatThrownBy(() -> Callers.staff(SUPPORT_43, MODERATE)).hasMessageContaining(MODERATE);
+        // the existing checks come first: a member is not-staff, nobody is no-principal, whatever the permission
+        rejected(() -> Callers.staff(MEMBER_7, SUPPORT), HttpStatus.FORBIDDEN, Callers.NOT_STAFF);
+        rejected(() -> Callers.staff(NOBODY, SUPPORT), HttpStatus.UNAUTHORIZED, Callers.NO_PRINCIPAL);
     }
 
     @Test

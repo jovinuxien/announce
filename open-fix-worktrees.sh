@@ -19,9 +19,9 @@ WT_BASE="$(readlink -f "$REPO_ROOT/..")/announce-wt"
 BASE_BRANCH="${BASE_BRANCH:-announce-jo-branch}"
 BRANCH_PREFIX="feat"
 
-# Active worktrees (2026-10-17): crawler-inventory (new; launch it with
-# FRESH=1 MODULES=crawler-inventory). The others are merged into announce-jo-branch
-# and kept for follow-ups.
+# Active worktrees (2026-10-17): crawler-inventory and staff-permissions (new; launch
+# with FRESH=1 MODULES="crawler-inventory staff-permissions"). The others are merged
+# into announce-jo-branch and kept for follow-ups.
 # Each name must have a matching '### Worktree: `<short>`' block in CLAUDE.md
 # under '## Per-worktree tasks'; a short name with no block sends the session
 # hunting for an assignment that does not exist.

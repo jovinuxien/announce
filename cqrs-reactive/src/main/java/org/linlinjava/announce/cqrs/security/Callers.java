@@ -20,7 +20,12 @@ import java.util.Set;
  * {@link #member}, a staff route {@link #staff}, a route both may use {@link #any}; a public route that behaves
  * differently for a signed-in member calls {@link #memberIfAny}. Failures are problem details through
  * {@link CommandRejectedException}: 401 {@code no-principal} without an identity, 403 {@code not-a-member} /
- * {@code not-staff} for the wrong kind of caller, 403 {@code unknown-caller-type} for a type that is neither.
+ * {@code not-staff} for the wrong kind of caller, 403 {@code unknown-caller-type} for a type that is neither, 403
+ * {@code missing-permission} for a staff member whose roles lack the permission a route names
+ * ({@link #staff(HttpHeaders, String)}).
+ *
+ * <p>{@code X-User-Roles} is comma separated. Authorities ({@code ROLE_...}) are kept upper-cased; every other
+ * value is a permission code and is kept lower-cased, so {@link Caller#can} compares case-insensitively.
  */
 public final class Callers {
 
@@ -34,6 +39,7 @@ public final class Callers {
     public static final String NOT_A_MEMBER = "not-a-member";
     public static final String NOT_STAFF = "not-staff";
     public static final String UNKNOWN_TYPE = "unknown-caller-type";
+    public static final String MISSING_PERMISSION = "missing-permission";
 
     private Callers() {
     }
@@ -83,6 +89,22 @@ public final class Callers {
         return caller.id();
     }
 
+    /**
+     * The staff member behind an admin route that needs a permission: the checks of {@link #staff(HttpHeaders)}
+     * first, then 403 {@code missing-permission} (the code in the detail) unless {@link Caller#can} holds.
+     */
+    public static Integer staff(HttpHeaders headers, String permission) {
+        Caller caller = any(headers);
+        if (!caller.staff()) {
+            throw new CommandRejectedException(HttpStatus.FORBIDDEN, NOT_STAFF, "Only staff can do this");
+        }
+        if (!caller.can(permission)) {
+            throw new CommandRejectedException(HttpStatus.FORBIDDEN, MISSING_PERMISSION,
+                    "This action needs the permission " + permission);
+        }
+        return caller.id();
+    }
+
     /** The member looking at a public page, or empty for a visitor and for staff. */
     public static Optional<Integer> memberIfAny(HttpHeaders headers) {
         return caller(headers).filter(Caller::member).map(Caller::id);
@@ -93,7 +115,12 @@ public final class Callers {
             return Set.of();
         }
         Set<String> roles = new LinkedHashSet<>();
-        Arrays.stream(header.split(",")).map(String::trim).filter(s -> !s.isEmpty()).map(s -> s.toUpperCase(Locale.ROOT)).forEach(roles::add);
+        Arrays.stream(header.split(",")).map(String::trim).filter(s -> !s.isEmpty()).map(Callers::normalise).forEach(roles::add);
         return roles;
+    }
+
+    /** {@code ROLE_...} authorities upper-cased, permission codes lower-cased. */
+    static String normalise(String value) {
+        return value.regionMatches(true, 0, "ROLE_", 0, 5) ? value.toUpperCase(Locale.ROOT) : value.toLowerCase(Locale.ROOT);
     }
 }

@@ -353,6 +353,17 @@ announce:
   `Callers.memberIfAny(headers)`. Failures are problem details: 401 `no-principal`, 403 `not-a-member` /
   `not-staff` / `unknown-caller-type`, 400 for a non-numeric id. No service reads `X-Seller-Id`,
   `X-Staff-Id` or `X-Admin-Id` any more.
+- **Permissions (2026-10-18).** `X-User-Roles` carries, next to `ROLE_ADMIN` / `ROLE_SUPER`, the permission codes
+  of the staff member's roles as the admin edge's catalogue spells them (`admin:announce:moderate`,
+  `admin:order:manage`, ...). `Callers` keeps `ROLE_*` values upper-cased and every other value lower-cased.
+  `Caller.can(permission)` is true for the code itself, for `*` and for `ROLE_SUPER`; members hold no permission.
+  A staff route names its permission: `Callers.staff(headers, "admin:order:manage")` runs the checks of
+  `Callers.staff(headers)` first and then answers 403 `missing-permission` (the code in `detail`) unless `can`
+  holds. The framework knows no catalogue: the code is a plain string that the admin edge rule, the backend route
+  and the seed roles agree on (`doc/frontend-edges.md`, section "Staff permissions"). A per-context helper
+  (announce-management `interfaces.rest.Callers`, messaging `interfaces.Principals`) exposes the same overload so
+  controllers keep one import. A role change reaches a backend at the staff member's next access token; there is
+  no revocation list.
 - Design and rollout: `doc/frontend-edges.md` §10 and §11.
 
 ## 6. `cqrs-reactive-test`: the test kit

@@ -52,6 +52,9 @@ announce:
       enabled: false       # the end-to-end test enables the polling flow itself with a temporary directory
     sweep:
       enabled: false
+    liveness:
+      enabled: false       # ListingImportEndToEndTest runs the service directly against a fake LinkChecker
+      delay: PT0S
 
 logging:
   level:

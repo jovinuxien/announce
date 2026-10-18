@@ -40,7 +40,7 @@ public class TraderaFeedParser implements ListingFeedParser {
 
     @Override
     public Flux<CrawledItem> parse(Path file) {
-        return reader.read(file).map(this::toItem);
+        return reader.read(file).map(n -> CrawledItemV2Parser.isV2(n) ? CrawledItemV2Parser.toItem(ListingSource.TRADERA, n) : toItem(n));
     }
 
     CrawledItem toItem(JsonNode n) {

@@ -31,6 +31,11 @@
     <result column="last_seen_at" jdbcType="TIMESTAMP" property="lastSeenAt" />
     <result column="status" jdbcType="VARCHAR" property="status" />
     <result column="click_count" jdbcType="INTEGER" property="clickCount" />
+    <result column="quality_grade" jdbcType="VARCHAR" property="qualityGrade" />
+    <result column="quality_issues" jdbcType="VARCHAR" property="qualityIssues" />
+    <result column="url_checked_at" jdbcType="TIMESTAMP" property="urlCheckedAt" />
+    <result column="url_ok" jdbcType="BIT" property="urlOk" />
+    <result column="image_ok" jdbcType="BIT" property="imageOk" />
     <result column="add_time" jdbcType="TIMESTAMP" property="addTime" />
     <result column="update_time" jdbcType="TIMESTAMP" property="updateTime" />
   </resultMap>
@@ -96,7 +101,8 @@
     id, `source`, external_id, url, content_hash, kind, title, brief, image_url, price, 
     currency, sale_type, ends_at, source_category, category_id, `attributes`, address_raw, 
     region_id, city, postal_code, published_at, first_seen_at, last_seen_at, `status`, 
-    click_count, add_time, update_time
+    click_count, quality_grade, quality_issues, url_checked_at, url_ok, image_ok, add_time, 
+    update_time
   </sql>
   <select id="selectByExample" parameterType="org.linlinjava.announce.db.domain.CrawledListingExample" resultMap="BaseResultMap">
     select
@@ -175,8 +181,9 @@
       `attributes`, address_raw, region_id, 
       city, postal_code, published_at, 
       first_seen_at, last_seen_at, `status`, 
-      click_count, add_time, update_time
-      )
+      click_count, quality_grade, quality_issues, 
+      url_checked_at, url_ok, image_ok, 
+      add_time, update_time)
     values (#{id,jdbcType=VARCHAR}, #{source,jdbcType=VARCHAR}, #{externalId,jdbcType=VARCHAR}, 
       #{url,jdbcType=VARCHAR}, #{contentHash,jdbcType=CHAR}, #{kind,jdbcType=VARCHAR}, 
       #{title,jdbcType=VARCHAR}, #{brief,jdbcType=VARCHAR}, #{imageUrl,jdbcType=VARCHAR}, 
@@ -185,8 +192,9 @@
       #{attributes,jdbcType=VARCHAR}, #{addressRaw,jdbcType=VARCHAR}, #{regionId,jdbcType=INTEGER}, 
       #{city,jdbcType=VARCHAR}, #{postalCode,jdbcType=VARCHAR}, #{publishedAt,jdbcType=TIMESTAMP}, 
       #{firstSeenAt,jdbcType=TIMESTAMP}, #{lastSeenAt,jdbcType=TIMESTAMP}, #{status,jdbcType=VARCHAR}, 
-      #{clickCount,jdbcType=INTEGER}, #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}
-      )
+      #{clickCount,jdbcType=INTEGER}, #{qualityGrade,jdbcType=VARCHAR}, #{qualityIssues,jdbcType=VARCHAR}, 
+      #{urlCheckedAt,jdbcType=TIMESTAMP}, #{urlOk,jdbcType=BIT}, #{imageOk,jdbcType=BIT}, 
+      #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP})
   </insert>
   <insert id="insertSelective" parameterType="org.linlinjava.announce.db.domain.CrawledListing">
     insert into crawled_listing
@@ -265,6 +273,21 @@
       </if>
       <if test="clickCount != null">
         click_count,
+      </if>
+      <if test="qualityGrade != null">
+        quality_grade,
+      </if>
+      <if test="qualityIssues != null">
+        quality_issues,
+      </if>
+      <if test="urlCheckedAt != null">
+        url_checked_at,
+      </if>
+      <if test="urlOk != null">
+        url_ok,
+      </if>
+      <if test="imageOk != null">
+        image_ok,
       </if>
       <if test="addTime != null">
         add_time,
@@ -348,6 +371,21 @@
       </if>
       <if test="clickCount != null">
         #{clickCount,jdbcType=INTEGER},
+      </if>
+      <if test="qualityGrade != null">
+        #{qualityGrade,jdbcType=VARCHAR},
+      </if>
+      <if test="qualityIssues != null">
+        #{qualityIssues,jdbcType=VARCHAR},
+      </if>
+      <if test="urlCheckedAt != null">
+        #{urlCheckedAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="urlOk != null">
+        #{urlOk,jdbcType=BIT},
+      </if>
+      <if test="imageOk != null">
+        #{imageOk,jdbcType=BIT},
       </if>
       <if test="addTime != null">
         #{addTime,jdbcType=TIMESTAMP},
@@ -441,6 +479,21 @@
       <if test="record.clickCount != null">
         click_count = #{record.clickCount,jdbcType=INTEGER},
       </if>
+      <if test="record.qualityGrade != null">
+        quality_grade = #{record.qualityGrade,jdbcType=VARCHAR},
+      </if>
+      <if test="record.qualityIssues != null">
+        quality_issues = #{record.qualityIssues,jdbcType=VARCHAR},
+      </if>
+      <if test="record.urlCheckedAt != null">
+        url_checked_at = #{record.urlCheckedAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.urlOk != null">
+        url_ok = #{record.urlOk,jdbcType=BIT},
+      </if>
+      <if test="record.imageOk != null">
+        image_ok = #{record.imageOk,jdbcType=BIT},
+      </if>
       <if test="record.addTime != null">
         add_time = #{record.addTime,jdbcType=TIMESTAMP},
       </if>
@@ -479,6 +532,11 @@
       last_seen_at = #{record.lastSeenAt,jdbcType=TIMESTAMP},
       `status` = #{record.status,jdbcType=VARCHAR},
       click_count = #{record.clickCount,jdbcType=INTEGER},
+      quality_grade = #{record.qualityGrade,jdbcType=VARCHAR},
+      quality_issues = #{record.qualityIssues,jdbcType=VARCHAR},
+      url_checked_at = #{record.urlCheckedAt,jdbcType=TIMESTAMP},
+      url_ok = #{record.urlOk,jdbcType=BIT},
+      image_ok = #{record.imageOk,jdbcType=BIT},
       add_time = #{record.addTime,jdbcType=TIMESTAMP},
       update_time = #{record.updateTime,jdbcType=TIMESTAMP}
     <if test="_parameter != null">
@@ -560,6 +618,21 @@
       <if test="clickCount != null">
         click_count = #{clickCount,jdbcType=INTEGER},
       </if>
+      <if test="qualityGrade != null">
+        quality_grade = #{qualityGrade,jdbcType=VARCHAR},
+      </if>
+      <if test="qualityIssues != null">
+        quality_issues = #{qualityIssues,jdbcType=VARCHAR},
+      </if>
+      <if test="urlCheckedAt != null">
+        url_checked_at = #{urlCheckedAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="urlOk != null">
+        url_ok = #{urlOk,jdbcType=BIT},
+      </if>
+      <if test="imageOk != null">
+        image_ok = #{imageOk,jdbcType=BIT},
+      </if>
       <if test="addTime != null">
         add_time = #{addTime,jdbcType=TIMESTAMP},
       </if>
@@ -595,6 +668,11 @@
       last_seen_at = #{lastSeenAt,jdbcType=TIMESTAMP},
       `status` = #{status,jdbcType=VARCHAR},
       click_count = #{clickCount,jdbcType=INTEGER},
+      quality_grade = #{qualityGrade,jdbcType=VARCHAR},
+      quality_issues = #{qualityIssues,jdbcType=VARCHAR},
+      url_checked_at = #{urlCheckedAt,jdbcType=TIMESTAMP},
+      url_ok = #{urlOk,jdbcType=BIT},
+      image_ok = #{imageOk,jdbcType=BIT},
       add_time = #{addTime,jdbcType=TIMESTAMP},
       update_time = #{updateTime,jdbcType=TIMESTAMP}
     where id = #{id,jdbcType=VARCHAR}
@@ -677,7 +755,7 @@
     insert into crawled_listing (id, `source`, external_id, url, content_hash, kind, title, brief, image_url,
       price, currency, sale_type, ends_at, source_category, category_id, `attributes`, address_raw,
       region_id, city, postal_code, published_at, first_seen_at, last_seen_at, `status`, click_count,
-      add_time, update_time)
+      quality_grade, quality_issues, url_checked_at, url_ok, image_ok, add_time, update_time)
     values (#{id,jdbcType=VARCHAR}, #{source,jdbcType=VARCHAR}, #{externalId,jdbcType=VARCHAR}, #{url,jdbcType=VARCHAR},
       #{contentHash,jdbcType=CHAR}, #{kind,jdbcType=VARCHAR}, #{title,jdbcType=VARCHAR}, #{brief,jdbcType=VARCHAR},
       #{imageUrl,jdbcType=VARCHAR}, #{price,jdbcType=DECIMAL}, #{currency,jdbcType=CHAR}, #{saleType,jdbcType=VARCHAR},
@@ -685,8 +763,12 @@
       #{attributes,jdbcType=VARCHAR}, #{addressRaw,jdbcType=VARCHAR}, #{regionId,jdbcType=INTEGER},
       #{city,jdbcType=VARCHAR}, #{postalCode,jdbcType=VARCHAR}, #{publishedAt,jdbcType=TIMESTAMP},
       #{firstSeenAt,jdbcType=TIMESTAMP}, #{lastSeenAt,jdbcType=TIMESTAMP}, #{status,jdbcType=VARCHAR},
-      #{clickCount,jdbcType=INTEGER}, #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP})
+      #{clickCount,jdbcType=INTEGER}, #{qualityGrade,jdbcType=VARCHAR}, #{qualityIssues,jdbcType=VARCHAR},
+      #{urlCheckedAt,jdbcType=TIMESTAMP}, #{urlOk,jdbcType=BIT}, #{imageOk,jdbcType=BIT},
+      #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP})
     on duplicate key update
+      <!-- a new image url has not been checked yet: forget the old verdict (evaluated before image_url is overwritten) -->
+      image_ok = if(image_url &lt;=&gt; values(image_url), image_ok, null),
       url = values(url),
       content_hash = values(content_hash),
       kind = values(kind),
@@ -707,6 +789,8 @@
       published_at = values(published_at),
       last_seen_at = values(last_seen_at),
       `status` = values(`status`),
+      quality_grade = values(quality_grade),
+      quality_issues = values(quality_issues),
       update_time = values(update_time)
   </insert>
   <update id="touchSeen" parameterType="map">
@@ -727,4 +811,33 @@
     update crawled_listing set click_count = click_count + 1, update_time = #{updateTime,jdbcType=TIMESTAMP}
     where id = #{id,jdbcType=VARCHAR}
   </update>
+  <!-- hand-written: liveness and quality (ListingLivenessJob, ListingQuality) -->
+  <select id="selectForLivenessCheck" parameterType="map" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from crawled_listing
+    where `status` = 'ACTIVE'
+    order by url_checked_at asc, id asc
+    limit #{limit}
+  </select>
+  <update id="updateLiveness" parameterType="map">
+    update crawled_listing set url_checked_at = #{checkedAt,jdbcType=TIMESTAMP},
+      url_ok = #{urlOk,jdbcType=BIT}, image_ok = #{imageOk,jdbcType=BIT}, update_time = #{checkedAt,jdbcType=TIMESTAMP}
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+  <update id="updateQuality" parameterType="map">
+    update crawled_listing set quality_grade = #{grade,jdbcType=VARCHAR}, quality_issues = #{issues,jdbcType=VARCHAR},
+      update_time = #{updateTime,jdbcType=TIMESTAMP}
+    where id = #{id,jdbcType=VARCHAR}
+  </update>
+  <!-- hand-written: inventory (GET /api/admin/listings/inventory) -->
+  <select id="selectInventoryCounts" resultType="map">
+    select `source`, `status`, quality_grade,
+      count(*) as total,
+      sum(case when image_url is null or image_ok = 0 then 1 else 0 end) as missing_image,
+      sum(case when url_ok = 0 then 1 else 0 end) as dead_link,
+      sum(case when url_checked_at is not null then 1 else 0 end) as checked
+    from crawled_listing
+    group by `source`, `status`, quality_grade
+  </select>
 </mapper>

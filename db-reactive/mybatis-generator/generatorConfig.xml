@@ -102,8 +102,10 @@
         <table tableName="announce_event" domainObjectName="AnnounceEventDetail"/>
         <table tableName="crawled_listing" domainObjectName="CrawledListing">
             <columnOverride column="attributes" javaType="java.lang.String" jdbcType="VARCHAR"/>
+            <columnOverride column="quality_issues" javaType="java.lang.String" jdbcType="VARCHAR"/>
         </table>
         <table tableName="listing_category_map" domainObjectName="ListingCategoryMap"/>
+        <table tableName="listing_import_run" domainObjectName="ListingImportRun"/>
         <table tableName="announce_goods_attribute" domainObjectName="LitemallGoodsAttribute">
             <generatedKey column="id" sqlStatement="MySql" identity="true"/>
         </table>

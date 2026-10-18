@@ -1,18 +1,38 @@
 package org.linlinjava.announce.listing.domain;
 
 import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Where a crawled listing comes from. The facet value is the lower-case name; {@code local} is reserved for announces. */
 public enum ListingSource {
-    DBA("dba.dk", "DKK"),
-    TRADERA("tradera.com", "SEK");
+    /** Item urls: {@code https://www.dba.dk/mobility/item/25925994} (2026) or {@code https://www.dba.dk/<slug>/id-1117479380/} (legacy). */
+    DBA("dba.dk", "DKK", "^https://www\\.dba\\.dk/(mobility/item/\\d+|[^?#]*/id-\\d+/?)$",
+            Set.of("images.dbastatic.dk", "billeder.dba.dk")),
+    /** Item urls: {@code https://www.tradera.com/item/1001/756274596/<slug>} or the short {@code /item/756274596}. */
+    TRADERA("tradera.com", "SEK", "^https://www\\.tradera\\.com/item/\\d+(/\\d+(/[^/?#]*)?)?/?$",
+            Set.of("img.tradera.net"));
 
     private final String domain;
     private final String currency;
+    private final Pattern itemUrl;
+    private final Set<String> imageHosts;
 
-    ListingSource(String domain, String currency) {
+    ListingSource(String domain, String currency, String itemUrl, Set<String> imageHosts) {
         this.domain = domain;
         this.currency = currency;
+        this.itemUrl = Pattern.compile(itemUrl);
+        this.imageHosts = imageHosts;
+    }
+
+    /** True when the url is a canonical item page of this source (the click-out target the quality rules expect). */
+    public boolean isItemUrl(String url) {
+        return url != null && itemUrl.matcher(url.strip()).matches();
+    }
+
+    /** True for the image hosts the site serves listing pictures from. */
+    public boolean isImageHost(String host) {
+        return host != null && imageHosts.contains(host.toLowerCase(Locale.ROOT));
     }
 
     /** Value of the {@code source} facet in the search index and prefix of every listing id. */

@@ -705,13 +705,45 @@ CREATE TABLE `crawled_listing` (
   `last_seen_at` datetime NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE, GONE',
   `click_count` int(11) NOT NULL DEFAULT '0',
+  `quality_grade` varchar(10) DEFAULT NULL COMMENT 'GOOD, WEAK, REJECT (ListingQuality); only GOOD and WEAK are indexed',
+  `quality_issues` json DEFAULT NULL COMMENT 'list of issue codes behind the grade, e.g. ["no_published_at","image_dead"]',
+  `url_checked_at` datetime DEFAULT NULL COMMENT 'last liveness check (ListingLivenessJob)',
+  `url_ok` tinyint(1) DEFAULT NULL COMMENT '1 when the source url answered 2xx/3xx, 0 when 404/410 (then status is GONE); null when never checked or unreachable',
+  `image_ok` tinyint(1) DEFAULT NULL COMMENT '1 when the image url answered 2xx/3xx, 0 when dead (grade downgraded); null when never checked or unreachable',
   `add_time` datetime DEFAULT NULL,
   `update_time` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_crawled_listing_source_external` (`source`, `external_id`),
   KEY `idx_crawled_listing_status_seen` (`status`, `last_seen_at`),
-  KEY `idx_crawled_listing_source_hash` (`source`, `content_hash`)
+  KEY `idx_crawled_listing_source_hash` (`source`, `content_hash`),
+  KEY `idx_crawled_listing_status_checked` (`status`, `url_checked_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Crawled listings: snippet + link out, indexed next to the announces';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `listing_import_run` (one row per import of a crawled feed; the inventory reads the latest per source)
+--
+
+DROP TABLE IF EXISTS `listing_import_run`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `listing_import_run` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `source` varchar(16) NOT NULL COMMENT 'DBA, TRADERA',
+  `file` varchar(1023) DEFAULT NULL COMMENT 'the feed file imported; null for a transport without files',
+  `started_at` datetime NOT NULL,
+  `finished_at` datetime NOT NULL,
+  `seen` int(11) NOT NULL DEFAULT '0',
+  `inserted` int(11) NOT NULL DEFAULT '0',
+  `updated` int(11) NOT NULL DEFAULT '0',
+  `unchanged` int(11) NOT NULL DEFAULT '0',
+  `rejected` int(11) NOT NULL DEFAULT '0' COMMENT 'items that could not be normalised',
+  `good` int(11) NOT NULL DEFAULT '0' COMMENT 'graded GOOD in this run (inserted or updated rows)',
+  `weak` int(11) NOT NULL DEFAULT '0',
+  `reject` int(11) NOT NULL DEFAULT '0' COMMENT 'graded REJECT: stored with issues, not indexed',
+  PRIMARY KEY (`id`),
+  KEY `idx_listing_import_run_source_time` (`source`, `finished_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Import runs of crawled feeds (ImportReport per file)';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

@@ -7,6 +7,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * Reactive (R2DBC) mapper for {@code crawled_listing}, migrated from the blocking MyBatis generator output.
@@ -43,7 +44,8 @@ public interface CrawledListingMapper {
                                               @Param("limit") int limit,
                                               @Param("selective") CrawledListing.Column... selective);
 
-    /** Inserts the row or overwrites every content column of the existing one; first_seen_at and click_count are kept. */
+    /** Inserts the row or overwrites every content column of the existing one; first_seen_at, click_count and the
+     *  liveness columns are kept (image_ok is reset when the image url changed). */
     Mono<Integer> upsert(CrawledListing record);
 
     /** Records that the listing was seen again without changes: last_seen_at (and update_time) only. */
@@ -57,4 +59,18 @@ public interface CrawledListingMapper {
 
     /** Adds one to click_count. */
     Mono<Integer> incrementClickCount(@Param("id") String id, @Param("updateTime") LocalDateTime updateTime);
+
+    /** ACTIVE rows least recently liveness-checked first (never checked before all others), at most {@code limit}. */
+    Flux<CrawledListing> selectForLivenessCheck(@Param("limit") int limit);
+
+    /** Records a liveness check: url_checked_at, url_ok and image_ok (null = not checked / unreachable). */
+    Mono<Integer> updateLiveness(@Param("id") String id, @Param("checkedAt") LocalDateTime checkedAt,
+                                 @Param("urlOk") Boolean urlOk, @Param("imageOk") Boolean imageOk);
+
+    /** Sets quality_grade and quality_issues (a JSON array as text). */
+    Mono<Integer> updateQuality(@Param("id") String id, @Param("grade") String grade, @Param("issues") String issues,
+                                @Param("updateTime") LocalDateTime updateTime);
+
+    /** Rows of {@code source, status, quality_grade, total, missing_image, dead_link, checked} for the inventory. */
+    Flux<Map<String, Object>> selectInventoryCounts();
 }

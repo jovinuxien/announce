@@ -1,0 +1,11 @@
+.venv/
+*.egg-info/
+build/
+eggs/
+dbs/
+logs/
+.idea/
+.scrapy/
+__pycache__/
+*.pyc
+.pytest_cache/

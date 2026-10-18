@@ -2695,6 +2695,476 @@ public class CrawledListingExample {
             return (Criteria) this;
         }
 
+        public Criteria andQualityGradeIsNull() {
+            addCriterion("quality_grade is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeIsNotNull() {
+            addCriterion("quality_grade is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeEqualTo(String value) {
+            addCriterion("quality_grade =", value, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_grade = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeNotEqualTo(String value) {
+            addCriterion("quality_grade <>", value, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeNotEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_grade <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeGreaterThan(String value) {
+            addCriterion("quality_grade >", value, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeGreaterThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_grade > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeGreaterThanOrEqualTo(String value) {
+            addCriterion("quality_grade >=", value, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeGreaterThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_grade >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeLessThan(String value) {
+            addCriterion("quality_grade <", value, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeLessThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_grade < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeLessThanOrEqualTo(String value) {
+            addCriterion("quality_grade <=", value, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeLessThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_grade <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeLike(String value) {
+            addCriterion("quality_grade like", value, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeNotLike(String value) {
+            addCriterion("quality_grade not like", value, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeIn(List<String> values) {
+            addCriterion("quality_grade in", values, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeNotIn(List<String> values) {
+            addCriterion("quality_grade not in", values, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeBetween(String value1, String value2) {
+            addCriterion("quality_grade between", value1, value2, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityGradeNotBetween(String value1, String value2) {
+            addCriterion("quality_grade not between", value1, value2, "qualityGrade");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesIsNull() {
+            addCriterion("quality_issues is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesIsNotNull() {
+            addCriterion("quality_issues is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesEqualTo(String value) {
+            addCriterion("quality_issues =", value, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_issues = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesNotEqualTo(String value) {
+            addCriterion("quality_issues <>", value, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesNotEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_issues <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesGreaterThan(String value) {
+            addCriterion("quality_issues >", value, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesGreaterThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_issues > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesGreaterThanOrEqualTo(String value) {
+            addCriterion("quality_issues >=", value, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesGreaterThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_issues >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesLessThan(String value) {
+            addCriterion("quality_issues <", value, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesLessThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_issues < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesLessThanOrEqualTo(String value) {
+            addCriterion("quality_issues <=", value, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesLessThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("quality_issues <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesLike(String value) {
+            addCriterion("quality_issues like", value, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesNotLike(String value) {
+            addCriterion("quality_issues not like", value, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesIn(List<String> values) {
+            addCriterion("quality_issues in", values, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesNotIn(List<String> values) {
+            addCriterion("quality_issues not in", values, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesBetween(String value1, String value2) {
+            addCriterion("quality_issues between", value1, value2, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andQualityIssuesNotBetween(String value1, String value2) {
+            addCriterion("quality_issues not between", value1, value2, "qualityIssues");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtIsNull() {
+            addCriterion("url_checked_at is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtIsNotNull() {
+            addCriterion("url_checked_at is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtEqualTo(LocalDateTime value) {
+            addCriterion("url_checked_at =", value, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_checked_at = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtNotEqualTo(LocalDateTime value) {
+            addCriterion("url_checked_at <>", value, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtNotEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_checked_at <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtGreaterThan(LocalDateTime value) {
+            addCriterion("url_checked_at >", value, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtGreaterThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_checked_at > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtGreaterThanOrEqualTo(LocalDateTime value) {
+            addCriterion("url_checked_at >=", value, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtGreaterThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_checked_at >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtLessThan(LocalDateTime value) {
+            addCriterion("url_checked_at <", value, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtLessThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_checked_at < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtLessThanOrEqualTo(LocalDateTime value) {
+            addCriterion("url_checked_at <=", value, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtLessThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_checked_at <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtIn(List<LocalDateTime> values) {
+            addCriterion("url_checked_at in", values, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtNotIn(List<LocalDateTime> values) {
+            addCriterion("url_checked_at not in", values, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtBetween(LocalDateTime value1, LocalDateTime value2) {
+            addCriterion("url_checked_at between", value1, value2, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlCheckedAtNotBetween(LocalDateTime value1, LocalDateTime value2) {
+            addCriterion("url_checked_at not between", value1, value2, "urlCheckedAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkIsNull() {
+            addCriterion("url_ok is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkIsNotNull() {
+            addCriterion("url_ok is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkEqualTo(Boolean value) {
+            addCriterion("url_ok =", value, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_ok = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkNotEqualTo(Boolean value) {
+            addCriterion("url_ok <>", value, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkNotEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_ok <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkGreaterThan(Boolean value) {
+            addCriterion("url_ok >", value, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkGreaterThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_ok > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkGreaterThanOrEqualTo(Boolean value) {
+            addCriterion("url_ok >=", value, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkGreaterThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_ok >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkLessThan(Boolean value) {
+            addCriterion("url_ok <", value, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkLessThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_ok < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkLessThanOrEqualTo(Boolean value) {
+            addCriterion("url_ok <=", value, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkLessThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("url_ok <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkIn(List<Boolean> values) {
+            addCriterion("url_ok in", values, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkNotIn(List<Boolean> values) {
+            addCriterion("url_ok not in", values, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkBetween(Boolean value1, Boolean value2) {
+            addCriterion("url_ok between", value1, value2, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andUrlOkNotBetween(Boolean value1, Boolean value2) {
+            addCriterion("url_ok not between", value1, value2, "urlOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkIsNull() {
+            addCriterion("image_ok is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkIsNotNull() {
+            addCriterion("image_ok is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkEqualTo(Boolean value) {
+            addCriterion("image_ok =", value, "imageOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("image_ok = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkNotEqualTo(Boolean value) {
+            addCriterion("image_ok <>", value, "imageOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkNotEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("image_ok <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkGreaterThan(Boolean value) {
+            addCriterion("image_ok >", value, "imageOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkGreaterThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("image_ok > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkGreaterThanOrEqualTo(Boolean value) {
+            addCriterion("image_ok >=", value, "imageOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkGreaterThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("image_ok >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkLessThan(Boolean value) {
+            addCriterion("image_ok <", value, "imageOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkLessThanColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("image_ok < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkLessThanOrEqualTo(Boolean value) {
+            addCriterion("image_ok <=", value, "imageOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkLessThanOrEqualToColumn(CrawledListing.Column column) {
+            addCriterion(new StringBuilder("image_ok <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkIn(List<Boolean> values) {
+            addCriterion("image_ok in", values, "imageOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkNotIn(List<Boolean> values) {
+            addCriterion("image_ok not in", values, "imageOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkBetween(Boolean value1, Boolean value2) {
+            addCriterion("image_ok between", value1, value2, "imageOk");
+            return (Criteria) this;
+        }
+
+        public Criteria andImageOkNotBetween(Boolean value1, Boolean value2) {
+            addCriterion("image_ok not between", value1, value2, "imageOk");
+            return (Criteria) this;
+        }
+
         public Criteria andAddTimeIsNull() {
             addCriterion("add_time is null");
             return (Criteria) this;

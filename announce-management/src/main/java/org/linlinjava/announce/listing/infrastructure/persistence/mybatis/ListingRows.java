@@ -5,13 +5,16 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.linlinjava.announce.db.domain.CrawledListing;
 import org.linlinjava.announce.listing.domain.Address;
+import org.linlinjava.announce.listing.domain.ListingGrade;
 import org.linlinjava.announce.listing.domain.ListingKind;
+import org.linlinjava.announce.listing.domain.ListingQuality;
 import org.linlinjava.announce.listing.domain.ListingSaleType;
 import org.linlinjava.announce.listing.domain.ListingSource;
 import org.linlinjava.announce.listing.domain.ListingStatus;
 
 import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -19,6 +22,8 @@ import java.util.TreeMap;
 final class ListingRows {
 
     private static final TypeReference<TreeMap<String, String>> ATTRIBUTES = new TypeReference<>() {
+    };
+    private static final TypeReference<List<String>> ISSUES = new TypeReference<>() {
     };
 
     private final ObjectMapper json;
@@ -34,7 +39,8 @@ final class ListingRows {
                 r.getSourceCategory(), r.getCategoryId(), attributes(r.getAttributes()),
                 new Address(r.getAddressRaw(), r.getPostalCode(), r.getCity()), r.getRegionId(), r.getPublishedAt(),
                 r.getFirstSeenAt(), r.getLastSeenAt(), ListingStatus.valueOf(r.getStatus()),
-                r.getClickCount() == null ? 0 : r.getClickCount());
+                r.getClickCount() == null ? 0 : r.getClickCount(), quality(r.getQualityGrade(), r.getQualityIssues()),
+                r.getUrlCheckedAt(), r.getUrlOk(), r.getImageOk());
     }
 
     CrawledListing toRow(org.linlinjava.announce.listing.domain.CrawledListing l, LocalDateTime now) {
@@ -64,6 +70,13 @@ final class ListingRows {
         r.setLastSeenAt(l.lastSeenAt());
         r.setStatus(l.status().name());
         r.setClickCount(l.clickCount());
+        if (l.quality() != null) {
+            r.setQualityGrade(l.quality().grade().name());
+            r.setQualityIssues(issues(l.quality()));
+        }
+        r.setUrlCheckedAt(l.urlCheckedAt());
+        r.setUrlOk(l.urlOk());
+        r.setImageOk(l.imageOk());
         r.setAddTime(now);
         r.setUpdateTime(now);
         return r;
@@ -75,6 +88,26 @@ final class ListingRows {
         }
         try {
             return Map.copyOf(json.readValue(s, ATTRIBUTES));
+        } catch (JsonProcessingException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** The issue list as a JSON array for the {@code quality_issues} column. */
+    String issues(ListingQuality q) {
+        try {
+            return json.writeValueAsString(q.issues());
+        } catch (JsonProcessingException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private ListingQuality quality(String grade, String issues) {
+        if (grade == null) {
+            return null;
+        }
+        try {
+            return new ListingQuality(ListingGrade.valueOf(grade), issues == null || issues.isBlank() ? List.of() : json.readValue(issues, ISSUES));
         } catch (JsonProcessingException e) {
             throw new UncheckedIOException(e);
         }

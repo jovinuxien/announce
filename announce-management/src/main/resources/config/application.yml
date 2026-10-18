@@ -156,6 +156,23 @@ announce:
       cron: "0 30 * * * *"
     reindex:
       batch: 500
+    # Only these grades reach the index (ListingQuality: GOOD, WEAK, REJECT); REJECT rows stay in the table
+    index-grades: GOOD,WEAK
+    # Bounded HEAD check of url + image, oldest-checked ACTIVE rows first; 404/410 -> GONE, dead image -> WEAK
+    liveness:
+      enabled: true
+      cron: "0 */15 * * * *"
+      batch: 100
+      delay: PT1S
+      timeout: PT10S
+      user-agent: "Mozilla/5.0 (compatible; AnnounceBot/0.1; link check)"
+
+# The OCS indexer's first bulk call after a cold start takes longer than the client's default 1 s time limit
+resilience4j:
+  timelimiter:
+    instances:
+      ocs-indexer:
+        timeoutDuration: 15s
 
 logging:
   level:

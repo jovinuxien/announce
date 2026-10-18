@@ -1,11 +1,30 @@
 # Plan: worktree `crawler-inventory` — fresh crawled data and a listing inventory
 
-Status: **approved 2026-10-17** as written (decisions 1-3, steps 1-10, open points resolved: new worktree
-`crawler-inventory` on branch `feat/crawler-inventory` off `announce-jo-branch`; the Desktop scrapy folder
-becomes a symlink to `crawler/` after merge). Proposed 2026-09-29 in the `crawled-listings` worktree after
-merging `announce-jo-branch` (fbfc72f4) and rerunning the acceptance tests. The matching
-`### Worktree: crawler-inventory` block is in `CLAUDE.md`; launch with
-`FRESH=1 MODULES=crawler-inventory ./open-fix-worktrees.sh`. Nothing below is implemented yet.
+Status: **implemented 2026-10-17** (worktree `crawler-inventory`, branch `feat/crawler-inventory`), approved
+2026-10-17 as written. What shipped follows the steps below; deviations recorded here:
+
+- The scrapy package is `announce_crawler` (not `tutorial`); venv on anaconda's Python 3.9 because both pyenv builds
+  on this host lack the `bz2` module scrapy imports; scrapy 2.13.4 pinned in `crawler/requirements.txt`.
+- New table `listing_import_run` (one row per imported file) so the inventory's "last import time and file" is a
+  read-model query; `ImportReport` gained `good` / `weak` / `reject` / `indexed` / `indexFailed`.
+- A failed index call is retried twice and then counted as `indexFailed` instead of `rejected` (the first bulk call to
+  a cold OCS indexer tripped the client's default 1 s time limit once); `resilience4j.timelimiter.instances.ocs-indexer`
+  raised to 15 s in announce-management.
+- Soft issues make a row WEAK whatever their number (the plan said "one soft field missing"); `url_pattern`,
+  `image_not_https`, `image_host_unknown` and `no_price` are soft issues too, so legacy 2024 rows stay indexable.
+- The dba list card already carries km, model year, fuel, gearbox, city, seller type and a relative age, so the
+  detail pass (`-a detail=1`) only adds the postal code, the first registration, the image list and a fallback date.
+  tradera pages hold 80 cards, not 48; auction cards show `Sluttid` (end time) instead of `Inkom`, so auctions have
+  no published date (WEAK) unless the detail pass runs. tradera has no address on the card.
+- `POST /api/admin/listings/liveness` runs one batch on demand (not in the plan; used for the manual check).
+- The legacy tradera fixture got `imageUrl` and `price` so it grades WEAK instead of REJECT (no image = REJECT).
+- Measured 2026-10-17: 239 dba + 400 tradera items from 5 pages each; import 238 GOOD + 1 index failure (fixed as
+  above) and 365 GOOD + 35 WEAK, nothing rejected; the first liveness batch (30 rows) set 21 of the 2024 legacy rows
+  GONE (dba answers 404 for the old `/id-<digits>/` urls), today's urls and images answer 200 to the bot agent.
+- Not done: the Desktop folder symlink (after merge, by hand); the admin SPA does not show the inventory yet.
+
+Original plan (proposed 2026-09-29 in the `crawled-listings` worktree after merging `announce-jo-branch` (fbfc72f4)
+and rerunning the acceptance tests; the matching `### Worktree: crawler-inventory` block is in `CLAUDE.md`):
 
 ## 0. State of the `crawled-listings` worktree on 2026-09-29
 

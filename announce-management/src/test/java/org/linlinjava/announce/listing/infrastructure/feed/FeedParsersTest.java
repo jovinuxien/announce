@@ -84,4 +84,31 @@ class FeedParsersTest {
         assertThat(FeedFields.dateTime("2024-10-08T10:00:00")).isEqualTo(LocalDateTime.of(2024, 10, 8, 10, 0));
         assertThat(FeedFields.dateTime("yesterday")).isNull();
     }
+
+    @Test
+    void v2LinesOfTheRepoSpidersGoThroughTheGenericParser() {
+        List<CrawledItem> items = new DbaFeedParser(mapper).parse(FIXTURES.resolve("dba_v2_fixture.jsonl")).collectList().block();
+        assertThat(items).hasSize(2);
+        CrawledItem peugeot = items.get(0);
+        assertThat(peugeot.id()).isEqualTo("dba-25925994");
+        assertThat(peugeot.url()).as("query string stripped").isEqualTo("https://www.dba.dk/mobility/item/25925994");
+        assertThat(peugeot.title()).isEqualTo("Peugeot 308");
+        assertThat(peugeot.price()).isEqualByComparingTo("46000");
+        assertThat(peugeot.currency()).isEqualTo("DKK");
+        assertThat(peugeot.saleType()).isEqualTo(ListingSaleType.FIXED_PRICE);
+        assertThat(peugeot.endsAt()).isNull();
+        assertThat(peugeot.attributes()).containsEntry("km", "223000").containsEntry("model_year", "2015").containsEntry("fuel", "Diesel");
+        assertThat(peugeot.addressRaw()).isEqualTo("Lystrup");
+        assertThat(peugeot.publishedAt()).isEqualTo(LocalDateTime.of(2026, 10, 17, 17, 56));
+        assertThat(items.get(1).imageUrl()).isNull();
+        assertThat(items.get(1).attributes()).containsOnlyKeys("km", "model_year");
+    }
+
+    @Test
+    void aV2LineOfAnotherSourceIsRefused() {
+        com.fasterxml.jackson.databind.JsonNode line = mapper.createObjectNode().put("schema", "crawled-item/2").put("source", "TRADERA")
+                .put("externalId", "1").put("url", "https://www.tradera.com/item/1").put("title", "x");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> CrawledItemV2Parser.toItem(ListingSource.DBA, line))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("TRADERA");
+    }
 }

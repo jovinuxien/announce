@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
  * with the page's whitespace. The external id is the {@code id-<digits>} segment of the url; the price is in DKK;
  * {@code itemAddress} has a second element with the dealer's name for trade sellers; km and model year become the
  * attributes {@code km} and {@code model_year}; the site's category path is {@code itemCategory/itemSubCategory}.
+ * Lines carrying {@code "schema": "crawled-item/2"} (the spiders in {@code crawler/}) go through {@link CrawledItemV2Parser}.
  */
 @Component
 public class DbaFeedParser implements ListingFeedParser {
@@ -41,7 +42,7 @@ public class DbaFeedParser implements ListingFeedParser {
 
     @Override
     public Flux<CrawledItem> parse(Path file) {
-        return reader.read(file).map(this::toItem);
+        return reader.read(file).map(n -> CrawledItemV2Parser.isV2(n) ? CrawledItemV2Parser.toItem(ListingSource.DBA, n) : toItem(n));
     }
 
     CrawledItem toItem(JsonNode n) {

@@ -661,3 +661,105 @@ or `target/`.
   it and confirm the support queue works while the announces screen is
   hidden and `POST /api/admin/announces/{id}/withdraw` answers 403; recorded
   in `doc/frontend-edges.md` §7.
+
+### Worktree: `service-descriptor` — Lagom-style service descriptor for announce-management (2026-10-22)
+
+- **Prerequisite:** nothing in flight; branch off `announce-jo-branch`. Read
+  `doc/cqrs-reactive.md` §0 and §4, then `AnnounceController`,
+  `AnnouncePublishing`, `AnnounceMessaging` (announce-management) and
+  `messaging/.../infrastructure/announce/{AnnounceApi,AnnounceLookupConfig}`
+  plus `messaging/.../application/AnnounceRef`. Facts: the Lagom split is
+  already in place except for one piece. `ReactiveCommandRouter.send` is
+  `entityRef.ask`; `X-Command-Id` -> `CommandIdStore` is the idempotent
+  dispatch; the relay group `announce-public` in `AnnounceMessaging` is the
+  `TopicProducer` reading the journal (checkpointed, at-least-once to
+  `announce.v1`); `AnnounceTopics` in `announce-management-api` is the
+  topic on the descriptor; `HttpExchangeClients` is the service client.
+  Missing: a shared `@HttpExchange` descriptor. messaging carries a private
+  copy (`AnnounceApi` + `AnnounceRef`, comment "until an
+  announce-management-api module publishes the descriptor") against
+  `GET /api/announces/{id}`, the only cross-service REST call today.
+  Spring Boot 3.5 = Framework 6.2: `@HttpExchange` interfaces are valid
+  server-side mappings, so a `@RestController` can implement the descriptor
+  without duplicating `@RequestMapping`; a class or method must not mix the
+  two annotation families.
+- **Decisions (agreed 2026-10-22):** (1) the write path never calls Kafka;
+  the relay stays the only producer (no `StreamBridge.send` in a service or
+  controller). (2) Interface parameters are client-legal only:
+  `@PathVariable`, `@RequestParam`, named `@RequestHeader`, `@RequestBody`.
+  No bare `HttpHeaders`, so caller identity leaves the signature and is
+  resolved once by a `WebFilter` into the Reactor context. (3) Read slice
+  first (`view`, `browse`), writes after the caller filter exists.
+  (4) `AnnouncePublishing` stays as the application layer (reference checks;
+  also used by the `order.v1` subscriber, `AnnounceExpiryJob`,
+  `AnnounceAdminController`); the implementing controller stays thin.
+  (5) `announce-management-api` keeps depending on `cqrs-reactive` only:
+  DTOs that move there get api-level enums, never domain imports.
+  (6) Nothing in `cqrs-reactive` main code changes; the framework gains a
+  sample and a doc section.
+- **Task:**
+  1. Descriptor in `announce-management-api`, package
+     `org.linlinjava.announce.goods.api`: `@HttpExchange("/api/announces")
+     AnnounceApi` with `@GetExchange("/{id}") Mono<AnnounceResponse> view`
+     and `@GetExchange Mono<PageResponse<AnnounceSummaryResponse>> browse`
+     (every filter as `@RequestParam(required = false)`, `page`, `size`,
+     `sort` with the controller's defaults). Move `AnnounceResponse`,
+     `AnnounceSummaryResponse`, `PageResponse`, `LocationDto`, `GoodsDto`,
+     `JobDto`, `EventDto` from `AnnounceDtos` into the api module as
+     `AnnounceApiDtos`, with api enums `AnnounceKindV1`, `AnnounceStatusV1`,
+     `SaleTypeV1` (string-serialised, same names as the domain enums). The
+     `of(Announce)` factories stay in announce-management (a mapper class
+     next to the controller); the api records hold no logic.
+  2. Caller filter in announce-management, `goods.interfaces.rest`:
+     `CallerContextFilter` (`WebFilter`, after `ServiceTokenWebFilter`)
+     parses `X-User-Id` / `X-User-Type` through the framework `Callers` and
+     writes the `Caller` (or none) into the Reactor context under one key.
+     `Callers.member()`, `viewer()` and `staff(permission)` gain no-arg
+     overloads returning `Mono<SellerId>` / `Mono<Integer>` read from the
+     context; the `HttpHeaders` overloads stay for the admin and listing
+     controllers until they are migrated (not in this task). Same mechanism
+     is NOT added to messaging or order here.
+  3. `AnnounceController implements AnnounceApi`: drop the class-level
+     `@RequestMapping` and the `@GetMapping` lines on `view` and `browse`
+     (the interface carries them); keep `@PostMapping` / `@PutMapping` for
+     the writes on the class exactly as today. Mixing is legal across
+     methods, not on one method. `view` and `browse` read the viewer from
+     the context.
+  4. messaging: delete `infrastructure/announce/AnnounceApi` and
+     `application/AnnounceRef`; `AnnounceLookupConfig` creates
+     `clients.create(org.linlinjava.announce.goods.api.AnnounceApi.class,
+     "announce-management")` and `AnnounceLookup` maps `AnnounceResponse`
+     to what `Conversations` needs (`sellerId`, `title`, `status`). Add
+     `announce-management-api` to `messaging/pom.xml`; keep
+     `cqrs.api.clients.announce-management.service-token=true` and the
+     `messaging.announce-lookup=stub` test switch.
+  5. Framework sample (`cqrs-reactive-test`, `sample` package):
+     `ListingApi` (`@HttpExchange("/listings")`, `view` + `post` with
+     `@RequestHeader(value = "X-Command-Id", required = false)`)
+     implemented by `ListingController`; `SampleEndToEndTest` adds one
+     round trip through `clients.create(ListingApi.class, ...)` with
+     `cqrs.api.clients.<id>.base-url` pinned to the test server and the
+     service token on, proving the same JSON the controller serves.
+  6. Docs: `doc/cqrs-reactive.md` §4 gains "Implementing the descriptor"
+     (server-side `@HttpExchange`, client-legal parameters, caller filter,
+     no mixing on one method, the relay is the only producer) and the Lagom
+     table row for "service implementation implements the descriptor";
+     `doc/announce-management-context.md` records the api module layout.
+     Session report PDF in `doc/` as usual.
+- **Out of scope:** moving the member writes (post, edit, publish,
+  withdraw, sold) onto the interface, admin/listing controllers on the
+  caller filter, descriptors for order and messaging, DTO versioning beyond
+  the `V1` enums, any change in `cqrs-reactive` main code.
+- **Acceptance:** `mvn -pl announce-management-api,announce-management
+  -P '!webapp' test` and `mvn -pl messaging test` pass (Testcontainers +
+  live MySQL as today); messaging has no local copy of the announce
+  descriptor and compiles against `announce-management-api`; a test in
+  announce-management calls `view` and `browse` through
+  `HttpExchangeClients` (base-url pinned, service token on) and gets the
+  same body the controller serves directly; a request without
+  `X-User-Id` still sees only PUBLISHED announces and a request with
+  `X-User-Id` sees its own drafts (caller filter); `mvn -pl
+  cqrs-reactive,cqrs-reactive-test test` passes with the sample round
+  trip; `doc/cqrs-reactive.md` §4 updated. Manual: with the stack up, a
+  member opens a listing conversation in the customer SPA and the seller is
+  resolved through the shared descriptor (messaging log shows the call).

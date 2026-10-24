@@ -7,9 +7,10 @@ import org.linlinjava.announce.goods.domain.announce.AnnounceQuery;
 import org.linlinjava.announce.goods.domain.announce.AnnounceStatus;
 import org.linlinjava.announce.goods.domain.announce.Kind;
 import org.linlinjava.announce.goods.domain.announce.SaleType;
-import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceDtos.AnnounceResponse;
-import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceDtos.AnnounceSummaryResponse;
-import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceDtos.PageResponse;
+import org.linlinjava.announce.goods.api.AnnounceApiDtos.AnnounceResponse;
+import org.linlinjava.announce.goods.api.AnnounceApiDtos.AnnounceSummaryResponse;
+import org.linlinjava.announce.goods.api.AnnounceApiDtos.PageResponse;
+import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceApiMapper;
 import org.linlinjava.announce.goods.interfaces.rest.Callers;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -68,14 +69,14 @@ public class AnnounceAdminController {
                                                             @RequestHeader HttpHeaders headers) {
         Callers.staff(headers);
         AnnounceQuery query = new AnnounceQuery(kind, category, null, seller, region, q, saleType, status, page, size, sort);
-        return browsing.count(query).flatMap(total -> browsing.browse(query).map(AnnounceSummaryResponse::of).collectList()
+        return browsing.count(query).flatMap(total -> browsing.browse(query).map(AnnounceApiMapper::summary).collectList()
                 .map(items -> new PageResponse<>(items, query.page(), query.size(), total)));
     }
 
     @GetMapping("/{id}")
     public Mono<AnnounceResponse> inspect(@PathVariable String id, @RequestHeader HttpHeaders headers) {
         Callers.staff(headers);
-        return browsing.inspect(id).map(AnnounceResponse::of);
+        return browsing.inspect(id).map(AnnounceApiMapper::response);
     }
 
     @PostMapping("/{id}/withdraw")
@@ -83,7 +84,7 @@ public class AnnounceAdminController {
                                            @RequestHeader HttpHeaders headers,
                                            @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId,
                                            @RequestBody ModerationRequest body) {
-        return publishing.moderateWithdraw(id, Callers.staff(headers), body.reason(), commandId).map(AnnounceResponse::of);
+        return publishing.moderateWithdraw(id, Callers.staff(headers), body.reason(), commandId).map(AnnounceApiMapper::response);
     }
 
     @PostMapping("/{id}/expire")
@@ -91,7 +92,7 @@ public class AnnounceAdminController {
                                          @RequestHeader HttpHeaders headers,
                                          @RequestHeader(value = COMMAND_ID_HEADER, required = false) String commandId,
                                          @RequestBody ModerationRequest body) {
-        return publishing.moderateExpire(id, Callers.staff(headers), body.reason(), commandId).map(AnnounceResponse::of);
+        return publishing.moderateExpire(id, Callers.staff(headers), body.reason(), commandId).map(AnnounceApiMapper::response);
     }
 
     /** Full pass over the PUBLISHED announces of the read model; answers {@code {"indexed": n}}. */

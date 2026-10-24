@@ -298,3 +298,36 @@ is logged and skipped rather than retried: the order module owns that inconsiste
 
 `AnnounceKindsEndToEndTest` gained the Kafka container: it probes `announce.v1` and injects `order.v1` records with
 the test kit's `PublicEventTestProducer`, standing in for the order module.
+
+## 12. The `announce-management-api` module and the service descriptor (2026-10-24)
+
+`announce-management-api` (package `org.linlinjava.announce.goods.api`, depends on `cqrs-reactive` only) is the
+whole public contract of this service, Lagom's `Service` descriptor with its topics:
+
+| what | types | consumer |
+|---|---|---|
+| public events on `announce.v1` (§11) | `AnnouncePublishedV1`, `AnnounceEditedV1`, `AnnounceWithdrawnV1`, `AnnounceExpiredV1`, `AnnounceSoldV1`, `AnnounceTopics` | order, messaging, search |
+| REST descriptor | `AnnounceApi` (`@HttpExchange("/api/announces")`: `view(id)`, `browse(filters, page, size, sort)`) | messaging (`AnnounceLookup` over `HttpExchangeClients`) |
+| response records | `AnnounceApiDtos`: `AnnounceResponse`, `AnnounceSummaryResponse`, `PageResponse`, `LocationDto`, `GoodsDto`, `JobDto`, `EventDto`, `VariantDto`, `AttributeDto`, `SpecificationDto` | every REST consumer, the SPAs' hand-written clients |
+| api enums | `AnnounceKindV1`, `AnnounceStatusV1`, `SaleTypeV1`, `ConditionV1`, `ContractTypeV1` (same names as the domain enums, serialised as strings) | same |
+
+Inside the service (`doc/cqrs-reactive.md` §4, "Implementing the descriptor"):
+
+- `interfaces.rest.announce.AnnounceController implements AnnounceApi`. The class has no `@RequestMapping` and
+  `view` / `browse` no `@GetMapping`: the interface carries them. The member writes (post, edit, publish,
+  withdraw, sold) are not on the descriptor and keep their `@PostMapping` / `@PutMapping` with `HttpHeaders`.
+- `interfaces.rest.announce.AnnounceApiMapper` is the only place that knows both the domain and the api records:
+  request -> `AnnounceContent` / `AnnounceKind`, `Announce` -> `AnnounceResponse`, `AnnounceSummary` ->
+  `AnnounceSummaryResponse`, enums by name. `AnnounceDtos` keeps only the request bodies (`AnnounceRequest`,
+  `PublishRequest`). `AnnounceAdminController` and `BrandController` answer with the api records too.
+- `interfaces.rest.CallerContextFilter` (order `MIN_VALUE + 300`, after the service token check) resolves
+  `X-User-Id` / `X-User-Type` once into the Reactor context; `Callers.member()`, `Callers.viewer()` and
+  `Callers.staff(permission)` read it as `Mono`s. The `HttpHeaders` overloads stay for the admin and listing
+  controllers. A request without `X-User-Id` sees PUBLISHED announces only; a member sees their own drafts.
+- messaging dropped its private copy of the descriptor (`AnnounceApi` + `AnnounceRef`) and compiles against this
+  module; `AnnounceLookup.AnnounceFacts(id, sellerId, title, status)` is what it keeps of an `AnnounceResponse`.
+
+Tests: `AnnounceApiRoundTripTest` (a `@WebFluxTest` with the service token enforced) calls `view` and `browse`
+through `HttpExchangeClients` and compares the records with the JSON the controller serves; `AnnounceControllerTest`
+keeps the visitor-versus-owner cases over the caller filter.
+

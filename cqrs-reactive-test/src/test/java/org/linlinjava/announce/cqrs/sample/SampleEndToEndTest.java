@@ -4,23 +4,34 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.linlinjava.announce.cqrs.CqrsProperties;
+import org.linlinjava.announce.cqrs.api.HttpExchangeClients;
 import org.linlinjava.announce.cqrs.readside.ProjectionRebuilder;
 import org.linlinjava.announce.cqrs.sample.ListingPublicEvents.ListingCreatedV1;
 import org.linlinjava.announce.cqrs.sample.ListingPublicEvents.ListingPriceChangedV1;
+import org.linlinjava.announce.cqrs.security.ServiceTokenMinter;
+import org.linlinjava.announce.cqrs.test.EdgeRequests;
 import org.linlinjava.announce.cqrs.test.containers.CqrsContainers;
 import org.linlinjava.announce.cqrs.test.containers.EventSourcingDbContainer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.web.reactive.server.WebTestClientBuilderCustomizer;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
+import reactor.test.StepVerifier;
 
 import java.time.Duration;
 import java.util.Map;
@@ -30,13 +41,16 @@ import static org.awaitility.Awaitility.await;
 
 /**
  * HTTP command -> EventSourcingDB -> projection in MySQL (checkpointed) -> public topic on Kafka -> subscriber,
- * plus idempotent retries, problem details and a rebuild of the read model.
+ * plus idempotent retries, problem details, a rebuild of the read model, and the service descriptor round trip:
+ * {@link ListingApi} implemented by the controller and called through {@link HttpExchangeClients}. The suite runs as
+ * in production, serving only requests that carry a service token ({@link EdgeRequests}).
  */
 // @Testcontainers is registered before @SpringBootTest so that, after the class, Spring closes the context
 // (@DirtiesContext) before Testcontainers stops the containers: the event processors are stopped while the
 // database is still there instead of failing against a vanished container.
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {EdgeRequests.ENFORCE, EdgeRequests.SECRET_PROPERTY})
 @DirtiesContext
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SampleEndToEndTest {
@@ -53,8 +67,25 @@ class SampleEndToEndTest {
         CqrsContainers.register(registry, esdb, kafka, mysql);
     }
 
+    /** Every request of the test's {@code WebTestClient} is signed the way an edge signs it. */
+    @TestConfiguration
+    static class Edge {
+        @Bean
+        WebTestClientBuilderCustomizer signedWebTestClient() {
+            return EdgeRequests.signedWebTestClient();
+        }
+    }
+
     @Autowired
     WebTestClient client;
+    @LocalServerPort
+    int port;
+    @Autowired
+    WebClient.Builder webClientBuilder;
+    @Autowired
+    ServiceTokenMinter minter;
+    @Autowired
+    com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     @Autowired
     ListingSummaryProjection summaries;
     @Autowired
@@ -71,7 +102,7 @@ class SampleEndToEndTest {
     void commandIsHandledProjectedAndPublished() {
         client.post().uri("/listings").contentType(MediaType.APPLICATION_JSON)
                 .header("X-Command-Id", "create-1").header("X-Correlation-Id", "corr-e2e")
-                .bodyValue(new ListingController.CreateRequest("1", "Bike", 12000))
+                .bodyValue(new ListingApi.CreateRequest("1", "Bike", 12000))
                 .exchange().expectStatus().isCreated()
                 .expectHeader().valueEquals("X-Correlation-Id", "corr-e2e")
                 .expectBody().jsonPath("$.id").isEqualTo("1");
@@ -106,7 +137,7 @@ class SampleEndToEndTest {
     void retriedCommandIdReplaysTheResultWithoutRunningTheHandlerAgain() {
         client.post().uri("/listings").contentType(MediaType.APPLICATION_JSON)
                 .header("X-Command-Id", "create-1")
-                .bodyValue(new ListingController.CreateRequest("1", "Bike", 12000))
+                .bodyValue(new ListingApi.CreateRequest("1", "Bike", 12000))
                 .exchange().expectStatus().isCreated()
                 .expectBody().jsonPath("$.id").isEqualTo("1");
 
@@ -117,7 +148,7 @@ class SampleEndToEndTest {
 
         // the same command without an id is a real second dispatch: the subject is no longer pristine
         client.post().uri("/listings").contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new ListingController.CreateRequest("1", "Bike", 12000))
+                .bodyValue(new ListingApi.CreateRequest("1", "Bike", 12000))
                 .exchange().expectStatus().isEqualTo(409)
                 .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
                 .expectBody().jsonPath("$.type").isEqualTo("urn:announce:cqrs:subject-already-exists")
@@ -180,5 +211,41 @@ class SampleEndToEndTest {
                 .expectBody().jsonPath("$.code").isEqualTo("listing-closed");
         await().atMost(WAIT).untilAsserted(() -> assertThat(summaries.find("1").block(WAIT)).get()
                 .extracting(ListingSummaryProjection.Summary::status).isEqualTo("CLOSED"));
+    }
+
+    /** The descriptor as a service client of this very server: base URL pinned to the test port, service token on or off. */
+    private ListingApi clientOf(boolean serviceToken) {
+        CqrsProperties.Api api = new CqrsProperties.Api();
+        CqrsProperties.Api.Client overrides = new CqrsProperties.Api.Client();
+        overrides.setBaseUrl("http://localhost:" + port);
+        overrides.setServiceToken(serviceToken);
+        api.getClients().put("listing-sample", overrides);
+        return new HttpExchangeClients(webClientBuilder, null, null, api, minter).create(ListingApi.class, "listing-sample");
+    }
+
+    @Test
+    @Order(7)
+    void theDescriptorIsImplementedByTheControllerAndCalledThroughTheClient() throws Exception {
+        ListingApi listings = clientOf(true);
+
+        // write through the client: the same route, the same idempotent command id header
+        assertThat(listings.post(new ListingApi.CreateRequest("2", "Helmet", 3000), "create-2").block(WAIT)).containsEntry("id", "2");
+        assertThat(listings.post(new ListingApi.CreateRequest("2", "Helmet", 3000), "create-2").block(WAIT)).containsEntry("id", "2");
+
+        // read through the client is the JSON the controller serves
+        await().atMost(WAIT).untilAsserted(() -> assertThat(listings.view("2").block(WAIT)).isNotNull()
+                .extracting(ListingSummaryProjection.Summary::title).isEqualTo("Helmet"));
+        String served = client.get().uri("/listings/2").exchange().expectStatus().isOk()
+                .expectBody(String.class).returnResult().getResponseBody();
+        assertThat(objectMapper.readTree(objectMapper.writeValueAsString(listings.view("2").block(WAIT))))
+                .isEqualTo(objectMapper.readTree(served));
+
+        // a missing listing is a 404 problem detail on both sides
+        client.get().uri("/listings/404").exchange().expectStatus().isNotFound()
+                .expectBody().jsonPath("$.code").isEqualTo("listing-not-found");
+        StepVerifier.create(listings.view("404")).expectError(WebClientResponseException.NotFound.class).verify(WAIT);
+
+        // a client that did not opt into the service token is refused before any route runs
+        StepVerifier.create(clientOf(false).view("2")).expectError(WebClientResponseException.Unauthorized.class).verify(WAIT);
     }
 }

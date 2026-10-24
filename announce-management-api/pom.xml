@@ -13,11 +13,12 @@
     <artifactId>announce-management-api</artifactId>
     <packaging>jar</packaging>
     <name>Announce management public API</name>
-    <description>Public contract of announce-management: the versioned public events of topic announce.v1.
+    <description>Public contract of announce-management: the versioned public events of topic announce.v1 and the
+        @HttpExchange service descriptor AnnounceApi with its response records.
         Consumers (order, messaging, search) depend on this module, never on announce-management itself.</description>
 
     <dependencies>
-        <!-- @PublicEvent only; the records are plain Java -->
+        <!-- @PublicEvent and, transitively, spring-web for the @HttpExchange descriptor; the records are plain Java -->
         <dependency>
             <groupId>org.joviste</groupId>
             <artifactId>cqrs-reactive</artifactId>

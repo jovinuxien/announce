@@ -3,7 +3,7 @@ package org.linlinjava.announce.goods.interfaces.rest.brand;
 import org.linlinjava.announce.goods.application.brand.BrandManagement;
 import org.linlinjava.announce.goods.domain.brand.Brand;
 import org.linlinjava.announce.goods.domain.brand.BrandId;
-import org.linlinjava.announce.goods.interfaces.rest.announce.AnnounceDtos.PageResponse;
+import org.linlinjava.announce.goods.api.AnnounceApiDtos.PageResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

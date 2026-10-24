@@ -14,6 +14,7 @@ OpenCQRS 1.0.0 on EventSourcingDB, R2DBC MySQL and Spring Cloud Stream on Kafka.
 | `TopicProducer.taggedStreamWithOffset` | `PublicEventRelay`: an event handling group with its own checkpoint that maps internal events to versioned public events and publishes them at least once |
 | `subscribe().atLeastOnce()` | `PublicEventSubscriber`: a Spring Cloud Stream consumer that acks a record only after the handler's `Mono` completes |
 | service descriptor + service client with circuit breaker and service locator | the `@HttpExchange` interface in the provider's `<name>-api` module + `HttpExchangeClients` (Eureka/LoadBalancer + Resilience4j) |
+| service implementation implements the descriptor (`ServiceImpl implements Service`) | the `@RestController` implements the `@HttpExchange` interface; Spring Framework 6.2 maps the interface's `@HttpExchange` / `@GetExchange` server-side, so the route is declared once (§4, "Implementing the descriptor") |
 | `PersistentEntityTestDriver`, `ReadSideTestDriver`, `ServiceTest.withServer` | `CommandFixture`, `ProjectionHarness`, `CqrsContainers` |
 
 Public contracts (DTOs, public events, `@HttpExchange` interfaces) belong in a per-service `<name>-api`
@@ -307,6 +308,61 @@ and Eureka), wrapped in a Resilience4j circuit breaker and time limiter named af
 not. `cqrs.api.clients.<serviceId>.base-url` pins a fixed URL for services outside the registry (the OCS
 tier) and for tests. `cqrs.api.clients.<serviceId>.service-token: true` makes the client sign its calls
 (§5a); set it for clients of our own services only.
+
+### Implementing the descriptor (2026-10-24)
+
+Spring Boot 3.5 runs Spring Framework 6.2, where an `@HttpExchange` interface is also a valid server-side
+mapping. The provider's controller therefore *implements* the descriptor, the way a Lagom `ServiceImpl`
+implements its `Service`, and the route is declared once, in the `-api` module:
+
+```java
+// announce-management-api
+@HttpExchange("/api/announces")
+public interface AnnounceApi {
+    @GetExchange("/{id}") Mono<AnnounceResponse> view(@PathVariable("id") String id);
+    @GetExchange Mono<PageResponse<AnnounceSummaryResponse>> browse(@RequestParam(name = "kind", required = false) AnnounceKindV1 kind, ...);
+}
+
+// announce-management
+@RestController                                   // no @RequestMapping: the interface carries the path
+public class AnnounceController implements AnnounceApi {
+    @Override public Mono<AnnounceResponse> view(String id) { ... }      // no @GetMapping either
+    @PostMapping                                   // a route that is not on the descriptor keeps its own mapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<AnnounceResponse> post(@RequestHeader HttpHeaders headers, @RequestBody AnnounceRequest body) { ... }
+}
+```
+
+The rules that make this work:
+
+- **Never mix the two annotation families on one element.** A class with `@RequestMapping` must not also
+  inherit `@HttpExchange`, and a method with `@GetMapping` must not override an `@GetExchange` method: Framework
+  6.2 refuses to start. Mixing *across* methods of one class is fine, and the interface's class-level path is
+  combined with a method-level `@PostMapping` just as a class-level `@RequestMapping` would be.
+- **Only client-legal parameters on the interface:** `@PathVariable`, `@RequestParam`, `@RequestBody` and
+  *named* `@RequestHeader` values (such as the optional `X-Command-Id`). No `HttpHeaders`, `ServerWebExchange`
+  or `Principal`: the client proxy could not send them. Name every `@PathVariable` / `@RequestParam` explicitly
+  (`@RequestParam(name = "kind")`): the client proxy cannot rely on parameter names in compiled code.
+- **The caller's identity is not a parameter.** The edge forwards it as `X-User-Id` / `X-User-Type` (§5a); the
+  provider resolves it once in a `WebFilter` ordered right after `ServiceTokenWebFilter` and puts it into the
+  Reactor context, and the routes read it from there (announce-management: `CallerContextFilter`,
+  `Callers.member()` / `viewer()` / `staff(permission)` returning `Mono`). A parse failure is stored, not thrown,
+  in the filter and raised when a route reads it, so the problem details are the same as with header parameters.
+  A service calling through `HttpExchangeClients` sends no identity and is served as a visitor.
+- **The DTOs on the interface belong to the `-api` module** and hold no logic: records with api-level enums
+  (`AnnounceKindV1`, `AnnounceStatusV1`, `SaleTypeV1`, ...), never domain types. The provider keeps a mapper next
+  to the controller (`AnnounceApiMapper`). Add fields, never rename or retype; version the record when a
+  breaking change is unavoidable.
+- **`@ResponseStatus` stays on the implementation**: it is not a mapping annotation and does not travel to the
+  client. On the client side a 4xx answer is a `WebClientResponseException` (`NotFound`, `Unauthorized`, ...).
+- **The write path never produces to Kafka.** A command handler or controller never calls `StreamBridge`; the
+  `PublicEventRelay` (§3) reading the journal is the only producer, so a write is one transaction with the event
+  store and the topic follows at least once.
+
+The test kit's sample shows the whole round trip (`ListingApi` implemented by `ListingController`,
+`SampleEndToEndTest` calls it through `HttpExchangeClients` with the base URL pinned to the test server and the
+service token on), and announce-management's `AnnounceApiRoundTripTest` does the same against `AnnounceApi` in a
+`@WebFluxTest` without containers (an `HttpHandlerConnector` into the test context stands in for the network).
 
 ## 5. `observability`: correlation, causation, tracing
 

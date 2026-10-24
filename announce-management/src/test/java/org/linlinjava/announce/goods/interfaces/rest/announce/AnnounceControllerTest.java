@@ -20,6 +20,7 @@ import org.linlinjava.announce.goods.domain.announce.SellerId;
 import org.linlinjava.announce.goods.domain.category.CategoryId;
 import org.linlinjava.announce.goods.infrastructure.configuration.security.CatalogSecurityConfig;
 import org.linlinjava.announce.cqrs.command.CqrsProblemDetailsHandler;
+import org.linlinjava.announce.goods.interfaces.rest.CallerContextFilter;
 import org.linlinjava.announce.goods.interfaces.rest.Callers;
 import org.linlinjava.announce.goods.interfaces.rest.CatalogExceptionHandler;
 import org.mockito.ArgumentCaptor;
@@ -42,7 +43,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @WebFluxTest(controllers = AnnounceController.class)
-@Import({CatalogExceptionHandler.class, CatalogSecurityConfig.class, CqrsProblemDetailsHandler.class})
+// the filter is part of the contract under test: view and browse read the viewer from the Reactor context it fills
+@Import({CatalogExceptionHandler.class, CatalogSecurityConfig.class, CqrsProblemDetailsHandler.class, CallerContextFilter.class})
 class AnnounceControllerTest {
 
     static final LocalDateTime NOW = LocalDateTime.of(2026, 9, 22, 12, 0);

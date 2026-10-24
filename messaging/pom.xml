@@ -37,6 +37,11 @@
             <groupId>org.joviste</groupId>
             <artifactId>messaging-api</artifactId>
         </dependency>
+        <!-- announce-management's descriptor (AnnounceApi) and response records -->
+        <dependency>
+            <groupId>org.joviste</groupId>
+            <artifactId>announce-management-api</artifactId>
+        </dependency>
         <!-- the order module's public records consumed from order.v1 -->
         <dependency>
             <groupId>org.joviste</groupId>

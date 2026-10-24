@@ -16,7 +16,6 @@ import org.linlinjava.announce.cqrs.test.EdgeRequests;
 import org.linlinjava.announce.cqrs.test.containers.CqrsContainers;
 import org.linlinjava.announce.cqrs.test.containers.EventSourcingDbContainer;
 import org.linlinjava.announce.messaging.application.AnnounceLookup;
-import org.linlinjava.announce.messaging.application.AnnounceRef;
 import org.linlinjava.announce.messaging.domain.conversation.ConversationIds;
 import org.linlinjava.announce.messaging.infrastructure.live.LiveSessions;
 import org.linlinjava.announce.order.api.OrderAgreedV1;
@@ -149,7 +148,7 @@ class MessagingEndToEndTest {
 
         @Bean
         AnnounceLookup stubAnnounceLookup() {
-            return id -> id.startsWith("e2e-") ? Mono.just(new AnnounceRef(id, SELLER, "E2E bike", "PUBLISHED")) : Mono.empty();
+            return id -> id.startsWith("e2e-") ? Mono.just(new AnnounceLookup.AnnounceFacts(id, SELLER, "E2E bike", "PUBLISHED")) : Mono.empty();
         }
 
         @Bean

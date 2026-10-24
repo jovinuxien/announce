@@ -218,6 +218,30 @@ Observations: announce-management's `/actuator/health` reports DOWN while the AP
 indicator of an unused binder; not caused by this change). The three "Checklist <KIND> 2026-09-26"
 root categories were left in the database as visible evidence; hide them from the categories screen.
 
+### 7b. Service descriptor checklist, executed 2026-10-24
+
+Setup: live MySQL, `docker/cqrs` (EventSourcingDB 3000, Kafka 9094), announce-management from `spring-boot:run` on
+8085 with `--announce.search.mode=noop`, messaging from `spring-boot:run` on 8086 with
+`logging.level.org.springframework.web.reactive.function.client.ExchangeFunctions=TRACE` so every outbound call is
+logged, the customer edge jar of worktree `gateway-api` (built 2026-10-11) on 8090 with the route overrides to 8085
+and 8086. Service tokens stayed in `enforce` on both backends. The check of the worktree `service-descriptor` block:
+a member opens a listing conversation and messaging resolves the seller through the shared descriptor
+`org.linlinjava.announce.goods.api.AnnounceApi` instead of its deleted private copy.
+
+| Step | Result |
+|---|---|
+| A new member registers through `/auth/register` and logs in | 201 (id 61), 200 |
+| `GET /api/announces/2000001` through the edge, anonymous | 200, `kind GOODS, sellerId 1, status PUBLISHED`; the same call straight at 8085 without a token 401 |
+| `POST /api/conversations {type: LISTING, announceId: 2000001}` as the member (REST) | 201, conversation `25c5615b-…` OPEN with participants buyer 61 and seller 1; a second POST answers the same id |
+| messaging log | `HTTP GET http://localhost:8085/api/announces/2000001` then `Response 200 OK`, once per open (the descriptor client, signed with the service token) |
+| `POST /api/conversations` for `no-such-announce` | messaging logs `Response 404 NOT_FOUND`; the member gets 404 problem `announce-not-found` |
+| Customer SPA, headless Chromium: log in, open `/announce/2000001`, click "Message the seller" | `POST /api/conversations` 201, lands on `/messages/25c5615b-…` in 54 ms, thread header "Conversation about ad 2000001 · open · with member #1", socket "live"; messaging logs one more descriptor call with 200 |
+| Read model | `announce_conversation` row `LISTING OPEN 2000001` |
+
+Observations: the main checkout's `gateway-api/target` jar dates from 2026-09-26, before the edge trust change,
+and answers every proxied call with 401 `service-token-invalid`; the worktree jar is the one to run. The member
+(id 61) and the conversation were kept; their events live in the development store.
+
 ## 8. Out of scope for the first iteration
 
 Image upload to object storage (URLs only), SEO head rendering and sitemap (litemall has

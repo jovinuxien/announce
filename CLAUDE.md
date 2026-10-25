@@ -28,6 +28,11 @@ Build facts:
   or `ADMIN`) through `cqrs-reactive`'s `Callers`; `X-Seller-Id`,
   `X-Staff-Id` and `X-Admin-Id` no longer exist (`doc/frontend-edges.md` §11).
 - Design notes: `doc/announce-management-context.md`, `doc/auction-chat-schema.md`.
+- Local stack for manual testing: `scripts/start-stack.sh` (builds what is missing,
+  starts docker/cqrs if needed, then announce-management 8085, order 8083, messaging
+  8086, customer edge 8090, admin edge 8091) and `scripts/stop-stack.sh`. Addresses,
+  test accounts and a walk-through: `doc/stack-test-guide.pdf`
+  (rendered by `scripts/stack-test-guide.py`).
 
 Process rule: in a worktree session, write a plan and get approval before
 editing code. Commit only when asked. Never commit `node/`, `node_modules/`

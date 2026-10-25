@@ -326,6 +326,9 @@ Inside the service (`doc/cqrs-reactive.md` §4, "Implementing the descriptor"):
   controllers. A request without `X-User-Id` sees PUBLISHED announces only; a member sees their own drafts.
 - messaging dropped its private copy of the descriptor (`AnnounceApi` + `AnnounceRef`) and compiles against this
   module; `AnnounceLookup.AnnounceFacts(id, sellerId, title, status)` is what it keeps of an `AnnounceResponse`.
+  Error policy of the lookup (2026-10-25): a 4xx about the id (404, 400, 422) completes empty, so messaging
+  answers its own 404 `announce-not-found`; a refused service token (401, 403), a 5xx or a transport failure
+  surface as 503 `announce-lookup-failed` instead of a bare 500 (`AnnounceLookupConfigTest`).
 
 Tests: `AnnounceApiRoundTripTest` (a `@WebFluxTest` with the service token enforced) calls `view` and `browse`
 through `HttpExchangeClients` and compares the records with the JSON the controller serves; `AnnounceControllerTest`

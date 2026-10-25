@@ -768,3 +768,311 @@ or `target/`.
   trip; `doc/cqrs-reactive.md` §4 updated. Manual: with the stack up, a
   member opens a listing conversation in the customer SPA and the seller is
   resolved through the shared descriptor (messaging log shows the call).
+
+### Worktree: `listing-availability` — crawled listings stay clickable (2026-10-25)
+
+- **Prerequisite:** nothing in flight; branch off `announce-jo-branch` (the
+  `crawler-inventory` worktree holds the history of `crawler/` and the
+  listing sub-context). Read `doc/crawled-listings.md` §3, §4b, §5, §7 and
+  §11, then `ListingSweepService`, `ListingLivenessService`,
+  `ListingImportService`, `ListingClickOutController` and
+  `gateway-api/.../shared/components/AnnounceCard.tsx`. Facts (survey
+  2026-10-25 on the live `announce_reactive_db`): every one of the 693
+  `crawled_listing` rows is GONE. 400 tradera and 238 dba rows came from the
+  single crawl of 2026-10-17 and were set GONE by the hourly sweep on
+  2026-10-24 (`gone-after` P7D); 54 more are the 2024 legacy `dba_cars.json`
+  (old `/.../id-N/` urls, 404) that the import flow re-imports because its
+  regex `^(dba|tradera)_.*\.jsonl?$` also matches `dba_cars.json`. The OCS
+  index still served all of them: the home and search cards link to
+  `/out/{id}`, which answers the 410 problem JSON in a new tab, and that is
+  the "announce is gone from its source" screen. Two defects behind it:
+  (1) the table and the index disagree, because `indexer.remove` in the
+  sweep has no retry and nothing reconciles (`ListingLivenessService`
+  swallows a failed remove per row too); (2) the sweep calls a listing GONE
+  on age alone, while a spot check of a swept dba row (item 12184677)
+  answers 200 with the live ad. HEAD liveness cannot see "sold": dba.dk and
+  tradera.com answer 200 for a sold or ended ad; only a deleted ad is 404.
+  Nothing schedules `crawler/run.sh`; the crawl has not run since 10-17.
+- **Decisions:** (a) the list page a spider just parsed is the proof of
+  availability, so a fresh feed is indexed as today and a stale feed is
+  not; (b) "not seen" is not "gone": a third status STALE sits between
+  ACTIVE and GONE; only a verification (status spider, 404/410) sets GONE;
+  (c) the table records what the index holds and a job repairs the
+  difference; (d) a crawled hit opens an SPA page that can show "no longer
+  available" instead of the raw 410; (e) verification is a scrapy spider,
+  not a Java GET-and-parse, so one place knows the sites' markup.
+- **Task:**
+  1. Schema (`db-reactive/sql/announce_table.sql`,
+     `build_announce_reactive_db.sh`, mappers regenerated with
+     `mybatis-generator/generatorConfig.xml` + `reactify_mapper.py`):
+     `crawled_listing.status` gains STALE; new columns `index_state`
+     varchar(16) (NONE, INDEXED, PENDING_INDEX, PENDING_REMOVE),
+     `indexed_at`, `source_status` varchar(16) (what the last status check
+     saw: AVAILABLE, SOLD, ENDED, REMOVED), `source_checked_at`; key on
+     (`index_state`), key on (`status`, `source_checked_at`).
+  2. Index bookkeeping (`listing.application`): every `index`/`remove`
+     goes through one `ListingIndexWriter` that sets `PENDING_*` before the
+     call and `INDEXED`/`NONE` after success; `ListingIndexReconcileJob`
+     (`@Scheduled`, `announce.listing.reconcile.cron`, default every 5 min)
+     retries `PENDING_*` rows in batches and, once a day, removes the
+     document of every non-ACTIVE row still `INDEXED`. `POST
+     /api/admin/listings/reindex` first deletes the documents of rows that
+     may not be shown, then indexes the rest. Inventory gains the four
+     `index_state` counts and `GET /api/admin/listings/inventory` the
+     difference between indexable rows and `INDEXED` rows.
+  3. Lifecycle: `gone-after` becomes `announce.listing.stale-after`
+     (default P2D): the sweep sets STALE and removes the document; the
+     importer turns a STALE or GONE row ACTIVE again when a feed shows it
+     (as today for GONE). `announce.listing.max-feed-age` (default P1D): an
+     item whose `crawledAt` is older is upserted as STALE and not indexed.
+     `ListingLivenessService` keeps the image HEAD and the 404/410 -> GONE
+     rule but no longer treats 200 as proof of anything. `/out/{id}`: 302
+     for ACTIVE and STALE (the ad may well be live), 410 for GONE, 404
+     unknown. `POST /api/admin/listings/purge` with `{status: GONE,
+     olderThan: P30D}` deletes rows (and their documents) for hygiene.
+     Import flow regex tightened to `^(dba|tradera)_\d{12}\.jsonl$`; the
+     legacy `dba_cars.json` moves to `crawler/tests/fixtures/legacy/`.
+  4. Status feed from scrapy: `ListingStatusExportJob` (`@Scheduled`,
+     `announce.listing.status.cron`, default every 6 h) writes
+     `<import.dir>/recheck/<source>.urls` (one url per line, oldest
+     `source_checked_at` first, STALE rows first, batch
+     `announce.listing.status.batch` default 200). New spiders
+     `dba_status` and `tradera_status` in `crawler/` read that file, fetch
+     each item page politely (1.5 s delay, caps as `-a` arguments) and emit
+     one line per url with `schema: "listing-status/1"`: `source,
+     externalId, url, status (AVAILABLE | SOLD | ENDED | REMOVED), price,
+     currency, endsAt, checkedAt`. Survey the sold/ended markers on both
+     sites first (a tradera page says "avslutad"; the dba marker is
+     unknown; a 404 is REMOVED) and record them in the doc. The spiders
+     write `<source>_status_<stamp>.jsonl.part`, `run.sh` renames it. On
+     the Java side a `ListingStatusParser` + `ListingStatusService.apply`:
+     AVAILABLE -> ACTIVE, `last_seen_at` touched, re-indexed when it was
+     STALE; SOLD / ENDED / REMOVED -> GONE and the document removed; a
+     price change updates the row. The import flow accepts
+     `^(dba|tradera)_status_\d{12}\.jsonl$` and routes it to this service.
+  5. Scheduling the crawl: `crawler/systemd/announce-crawler.service` +
+     `.timer` (user unit, daily 05:00, `MAX_PAGES=10`) and
+     `announce-recheck.timer` (every 6 h, both status spiders); `run.sh`
+     gains `./run.sh status` for the recheck pass. `scripts/start-stack.sh`
+     warns when the newest feed in `done/` is older than
+     `max-feed-age`. Document both in the runbook (§11).
+  6. Customer SPA (`gateway-api`): `AnnounceCard` for `source != local`
+     links to the SPA route `/listing/{id}` (no new tab); new page
+     `modules/listing/ListingDetail.tsx` reads `GET /api/listings/{id}`
+     (new public read in `listing.interfaces.rest`, the row without
+     `quality_issues`, `click_count` and the index columns; edge route
+     next to `/api/announces/**`) and shows image, title, brief, price,
+     attributes, city, source domain and an "Open at dba.dk" button that
+     goes to `/out/{id}` in a new tab; for a GONE row it shows "This ad is
+     no longer available at its source" with a link back to the search
+     with the same category. i18n `en`, `da`, `sv`. Search facet `status`
+     is not added: a non-ACTIVE row is simply not indexed.
+  7. Docs: `doc/crawled-listings.md` gains the STALE state, the index
+     bookkeeping, the status feed (`listing-status/1`), the systemd units
+     and the SPA page; `doc/frontend-edges.md` §3 the two routes.
+- **Out of scope:** Kafka transport, image mirroring, geocoding,
+  jobs/events from crawled sources, a Java page parser.
+- **Acceptance:** `mvn -pl db-reactive test` and
+  `mvn -pl announce-management -P '!webapp' test` pass with
+  `announce.search.mode=noop`; `pytest` in `crawler/` passes offline with
+  fixtures of an available, a sold and a removed item page per site. Tests:
+  a fake indexer that fails once leaves `PENDING_REMOVE`, the reconcile job
+  retries and the state ends `NONE`; a row not seen for `stale-after` is
+  STALE, out of the index and `/out/{id}` still 302s; a `listing-status/1`
+  line SOLD sets GONE, removes the document and `/out/{id}` answers 410;
+  AVAILABLE on a STALE row re-indexes it; an item with `crawledAt` older
+  than `max-feed-age` is stored STALE with no index call; `dba_cars.json`
+  in the import dir is ignored; the inventory reports index_state counts.
+  Real run: `./run.sh` then `./run.sh status` on the live stack: the
+  inventory shows ACTIVE rows, `INDEXED` equals the indexable count, the
+  search page lists them, a card opens `/listing/{id}`, "Open at ..."
+  lands on the live ad, and a row made GONE by hand shows the "no longer
+  available" page. Recorded in `doc/frontend-edges.md` §7.
+
+### Worktree: `auction-schedule` — auction start and end on the announce (2026-10-25)
+
+- **Prerequisite:** nothing in flight; branch off `announce-jo-branch` (the
+  `order-reactive` worktree holds the auction history). Read
+  `doc/order-context.md` §4, `doc/announce-management-context.md` (goods
+  kind), `order/.../auction/infrastructure/messaging/AuctionMessaging.java`
+  (`auctionAnnounceEvents`), `AuctionRules`, `AuctionPanel.tsx` and
+  `AnnounceDetail.tsx`. Facts: nothing on the announce says when its
+  auction runs; the order module opens the auction on `AnnouncePublishedV1`
+  with start = `publishedAt` and end = start + `auction.default-duration`
+  (7 d) capped by `expiresAt`. `GET /api/auctions/{announceId}` is 404
+  until that row exists, and with `auction.seller-account.required=true`
+  OpenAuction is refused while the seller has no enabled payout account, so
+  the panel shows "The auction is not open yet." with no date at all.
+  `announce_auction.start_time` and `AuctionRow.startTime` exist but are
+  never rendered; a not-yet-started auction (status OPEN, `isAuctionOpen`
+  false) renders "ended {endTime}". `AuctionRules` already refuses a bid
+  before `startsAt` (`auction-not-started`). Local auction documents carry
+  no `ends_epoch`; crawled tradera auctions do.
+- **Decisions:** the seller schedules the auction on the announce (start
+  and end, both optional, defaults = publish time and 7 days capped by the
+  expiry); the announce is the single source of the schedule and the public
+  event carries it; the order module opens at those dates and keeps today's
+  rule as the fallback for events without them; the SPA renders three time
+  states (before start, open, closed) and shows the planned schedule even
+  when no auction row exists yet.
+- **Task:**
+  1. announce-management domain: `GoodsDetails` gains `auctionStartsAt`,
+     `auctionEndsAt` (LocalDateTime, nullable). Rules in `AnnounceRules`:
+     only with sale type AUCTION (else `auction-schedule-not-allowed`);
+     start < end; end <= `expiresAt` when both are set; at publish, a null
+     start becomes `publishedAt` and a null end becomes start +
+     `announce.auction.default-duration` (7 d) capped by `expiresAt`, and
+     an end in the past is rejected (`auction-already-over`). PostAnnounce
+     and EditAnnounce accept the fields; `AnnouncePosted`, `AnnounceEdited`
+     and `AnnouncePublished` carry them (publish writes the resolved
+     values). Read model: `announce_goods_detail.auction_starts_at`,
+     `auction_ends_at` (`announce_table.sql`, build script, mapper regen);
+     the projection writes them, `AnnounceBrowsing` reads them.
+  2. API module: `GoodsDto` gains `auctionStartsAt`, `auctionEndsAt`;
+     `AnnounceSummaryResponse` gains `auctionEndsAt`; `AnnouncePublishedV1`
+     and `AnnounceEditedV1` gain `auctionStartsAt`, `auctionEndsAt`
+     (nullable, additive, older consumers ignore them). The search
+     document (`AnnounceDocument.of`) sets `ends_epoch` and a new
+     `starts_epoch` (indexer yml: long, Result + Sort) for local auctions
+     so cards and the auction-end sort work across sources.
+  3. order: `auctionAnnounceEvents` uses the event's dates when present,
+     today's rule otherwise; `AnnounceEditedV1` with changed dates before
+     the first bid reschedules (new command `RescheduleAuction`, refused
+     once a bid exists or the auction is closed; event
+     `AuctionRescheduled`, projection updates `start_time`/`end_time`,
+     `AuctionClosingJob` unaffected since it reads the row). Relay a
+     `AuctionRescheduledV1` to `auction.v1`.
+  4. Customer SPA (`gateway-api`): post wizard goods form shows start and
+     end pickers when AUCTION is chosen, `validation.ts` mirrors the rules
+     (i18n `en`, `da`, `sv`); `AnnounceDetail` shows an "Auction: starts
+     {date}, ends {date}" line from the announce for every AUCTION goods
+     announce; `AuctionPanel` renders by time: before `startTime` "starts
+     {date}" with the bid form disabled, open "started {date} · ends in
+     {time}", closed "ended {date}"; the 404 state shows the announce's
+     schedule plus "bidding opens once the seller's payout account is
+     enabled" (wording in `trade.json`); `AnnounceCard` shows "Auction ·
+     ends {date}" for local auctions as it does for crawled ones.
+  5. Admin SPA (`gateway-admin`): the auctions list and detail show start
+     and end (`trade` screens; check first, they may already).
+  6. Docs: `doc/order-context.md` §4 (opening and rescheduling rule),
+     `doc/announce-management-context.md` (goods fields and rules),
+     checklist entry in `doc/frontend-edges.md` §7. Session report PDF.
+- **Out of scope:** reserve and buy-now prices on the announce, auction
+  templates, time zone handling beyond the server's local time, changing
+  `auction.default-duration` semantics, notifications about the auction.
+- **Acceptance:** `mvn -pl db-reactive test`, `mvn -pl
+  announce-management-api,announce-management -P '!webapp' test` and
+  `mvn -pl order -P '!webapp' test` pass. Tests: an AUCTION announce
+  posted with an explicit schedule publishes with the dates in
+  `AnnounceResponse`, in the read model and on `AnnouncePublishedV1`; one
+  posted without them gets publish time + 7 d capped by the expiry; end
+  before start, a schedule on FIXED_PRICE, and an end in the past are
+  rejected with the codes above; order: `AnnouncePublishedV1` with dates
+  opens the auction at those dates, without them at the fallback,
+  `AnnounceEditedV1` before a bid reschedules and after a bid is refused.
+  `npm test` in both SPAs: `AuctionPanel` renders the three time states
+  and the 404 state with the planned dates; the wizard refuses end before
+  start. Manual: post an auction starting tomorrow, publish, open the
+  detail and see the start date; log in as another member and see the
+  disabled bid form with "starts ..."; recorded in `doc/frontend-edges.md`
+  §7.
+
+### Worktree: `chat-notifications` — new-message notifications for members and staff (2026-10-25)
+
+- **Prerequisite:** nothing in flight; branch off `announce-jo-branch` (the
+  `messaging` worktree holds the chat history). Read
+  `doc/messaging-context.md` §5, `doc/frontend-edges.md` §14 and §15,
+  `messaging/.../infrastructure/live/{LiveSessions,LiveEventsSubscriber,
+  LiveFrames}.java`, `application/live/MessageLive.java`,
+  `interfaces/ws/*`, `gateway-api/.../modules/chat/{Inbox,Thread,
+  useConversationSocket}`, `gateway-admin/.../modules/chat/{useSocket,
+  SupportQueuePage}`. Facts: a live frame reaches only the sockets attached
+  to that conversation (`LiveSessions.toConversation`) and the staff
+  channel `/ws/staff` carries bulletins only; the member inbox polls every
+  30 s and shows the per-row `unread` (messages with `seq >
+  last_read_seq`, from `announce_conversation_participant` against
+  `announce_conversation.last_message_seq`); the header has no badge and
+  nothing happens on another page; the staff queue polls WAITING every
+  15 s and a staff member learns of a new message in a joined conversation
+  only with that thread open. `MessageLive` carries conversationId,
+  messageId, seq, senderType, senderId, contentType, content; every node
+  consumes `messaging.live`. `doc/messaging-context.md` lists push
+  notifications as out of scope; this block adds in-app notifications.
+- **Decisions:** in-app only (no mail, no web push); one per-user channel
+  over the existing fan-out, derived from the live records, no new events
+  in the aggregate; counts come from the read model; the browser
+  Notification API is an opt-in extra; the sender never notifies itself.
+- **Task:**
+  1. messaging, live fan-out: `LiveSessions.attachUser(type, id)` /
+     `detachUser` / `toUser(type, id, json)`. `LiveEventsSubscriber` on
+     `MessageLive` additionally pushes an `activity` frame `{type:
+     "activity", conversationId, conversationType, announceId, subject,
+     messageId, seq, senderType, senderId, contentType, preview (120
+     chars, empty for OFFER/IMAGE), at}` to every participant of the
+     conversation but the sender (participants from the read model through
+     `ConversationQueries`, one IN query cached 60 s per conversation as
+     the state cache does); on `ConversationStatusLive` JOINED it pushes
+     `activity` to the member whose support conversation staff joined. A
+     new `QueueLive` record (relayed like `BulletinLive` from
+     `ConversationOpened` of type SUPPORT) is pushed as `{type: "queue",
+     conversationId, subject, memberId, at}` to every staff session.
+  2. messaging, endpoints: WebSocket `/ws/me` (`MeWebSocketHandler`,
+     member or staff from `X-User-Id`/`X-User-Type` as the other handlers,
+     staff through `Principals.staff`; client sends only keep-alives;
+     lifecycle via `SocketLifecycle`); `GET /api/conversations/unread` ->
+     `{conversations, messages}` for the caller (sum over its participant
+     rows of `last_message_seq - last_read_seq`, excluding CLOSED/BLOCKED);
+     `GET /api/admin/conversations/summary` -> `{waiting, myUnread}`.
+     `/ws/staff` keeps bulletins and now also receives `queue` frames, so
+     the admin SPA needs one socket, not two.
+  3. Edges: `gateway-api` route `messaging-ws` gets
+     `Path=/ws/conversations/**,/ws/me` (token via the existing
+     `WebSocketTokenFilter`); `/api/conversations/**` already covers the
+     count. `gateway-admin` `/ws/**` and `/api/admin/conversations/**`
+     already route; nothing new.
+  4. Customer SPA (`gateway-api`): `notificationsSlice` (unread counts,
+     last 20 activity items, browser-notification opt-in); `useMeSocket`
+     opened once in `Layout` while authenticated and `features.chat` is
+     on (reconnect/backoff as `useConversationSocket`, falls back to
+     polling `GET /api/conversations/unread` every 60 s when the socket is
+     unavailable); header: badge with the unread conversation count on
+     Messages; `ToastContainer` bottom-right showing an activity toast
+     (sender, preview, click opens the thread) unless that thread is on
+     screen; document title prefixed "(n) " while n > 0; `Inbox` rows
+     update from frames (unread + preview) and `Thread`'s mark-read
+     refetches the count; opt-in toggle "Desktop notifications" on the
+     inbox (permission requested on click only, choice in localStorage,
+     `new Notification(...)` only when the tab is hidden). i18n `en`,
+     `da`, `sv`.
+  5. Admin SPA (`gateway-admin`): the existing `/ws/staff` socket moves
+     from `BulletinsPage` to the shell (one per session, `useSocket`),
+     dispatching `bulletin`, `queue` and `activity` frames to a
+     `notificationsSlice`; sidebar badge on "Support queue" with the
+     WAITING count (`summary` on load, +1 on `queue`), toast on `queue`
+     and `activity` (click opens the conversation); `SupportQueuePage`
+     refetches on a `queue` frame in addition to its poll. i18n `en`,
+     `da`, `sv`.
+  6. Docs: `doc/messaging-context.md` §4 (two endpoints) and §5 (`/ws/me`,
+     the `activity` and `queue` frames, at-least-once as today),
+     `doc/frontend-edges.md` §14/§15 gain the badge and toast behaviour
+     and a §7 checklist entry. Session report PDF.
+- **Out of scope:** mail and web push (service worker), notification
+  preferences beyond the one toggle, per-message read receipts, muting a
+  conversation, notifications for order events (their SYSTEM messages
+  already produce `activity` frames), mobile.
+- **Acceptance:** `mvn -pl messaging test` passes (Testcontainers + live
+  MySQL as today): two members, one posts, the other's `/ws/me` receives
+  exactly one `activity` frame and the sender none; a third member gets
+  nothing; a SUPPORT open pushes `queue` to a staff `/ws/staff` socket; a
+  staff join pushes `activity` to the member; `GET
+  /api/conversations/unread` counts match the inbox rows and drop to zero
+  after mark-read; `/ws/me` refuses a handshake without `X-User-Id`.
+  `mvn -pl gateway-api -P '!webapp' test` covers the `/ws/me` route.
+  `npm test` and `npm run i18n:check` pass in both SPAs: header badge from
+  the count endpoint, toast on an `activity` frame and none for the open
+  thread, title prefix, admin sidebar badge from `summary` and `queue`.
+  Manual on the stack: two browsers, member A writes to member B on
+  another page -> B sees the badge and the toast within a second and the
+  thread opens from it; a member opens a support conversation -> the
+  staff sidebar badge increments and a toast appears; recorded in
+  `doc/frontend-edges.md` §7.

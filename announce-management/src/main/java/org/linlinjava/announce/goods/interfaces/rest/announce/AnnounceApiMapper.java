@@ -97,7 +97,8 @@ public final class AnnounceApiMapper {
                 g.variants() == null ? null : g.variants().stream().map(v -> new Variant(v.specifications(),
                         v.price() == null ? null : Money.of(v.price()), v.stock() == null ? 0 : v.stock(), v.pictureUrl())).toList(),
                 g.attributes() == null ? null : g.attributes().stream().map(a -> new Attribute(a.name(), a.value())).toList(),
-                g.specifications() == null ? null : g.specifications().stream().map(s -> new Specification(s.name(), s.value(), s.pictureUrl())).toList());
+                g.specifications() == null ? null : g.specifications().stream().map(s -> new Specification(s.name(), s.value(), s.pictureUrl())).toList(),
+                g.auctionStartsAt(), g.auctionEndsAt());
     }
 
     static JobDetails toDetails(JobDto j) {
@@ -130,7 +131,7 @@ public final class AnnounceApiMapper {
                 f.price() == null ? null : f.price().amount(), toApi(f.saleType()), toApi(f.condition()),
                 f.employer(), toApi(f.contractType()), f.applicationDeadline(),
                 f.startsAt(), f.endsAt(), f.ticketed(), f.ticketPrice() == null ? null : f.ticketPrice().amount(),
-                m == null ? null : m.moderatedBy(), m == null ? null : m.reason());
+                m == null ? null : m.moderatedBy(), m == null ? null : m.reason(), f.auctionEndsAt());
     }
 
     static LocationDto location(Location l) {
@@ -141,7 +142,8 @@ public final class AnnounceApiMapper {
         return new GoodsDto(g.price().amount(), toApi(g.condition()), toApi(g.saleType()), g.brandId() == null ? null : g.brandId().value(), g.unit(),
                 g.variants().stream().map(v -> new VariantDto(v.specifications(), v.price().amount(), v.stock(), v.pictureUrl())).toList(),
                 g.attributes().stream().map(a -> new AttributeDto(a.name(), a.value())).toList(),
-                g.specifications().stream().map(s -> new SpecificationDto(s.name(), s.value(), s.pictureUrl())).toList());
+                g.specifications().stream().map(s -> new SpecificationDto(s.name(), s.value(), s.pictureUrl())).toList(),
+                g.auctionStartsAt(), g.auctionEndsAt());
     }
 
     static JobDto job(JobDetails j) {

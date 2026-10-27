@@ -12,6 +12,8 @@
     <result column="sale_type" jdbcType="VARCHAR" property="saleType" />
     <result column="brand_id" jdbcType="INTEGER" property="brandId" />
     <result column="unit" jdbcType="VARCHAR" property="unit" />
+    <result column="auction_starts_at" jdbcType="TIMESTAMP" property="auctionStartsAt" />
+    <result column="auction_ends_at" jdbcType="TIMESTAMP" property="auctionEndsAt" />
   </resultMap>
   <sql id="Example_Where_Clause">
     <where>
@@ -72,7 +74,7 @@
     </where>
   </sql>
   <sql id="Base_Column_List">
-    announce_id, price, `condition`, sale_type, brand_id, unit
+    announce_id, price, `condition`, sale_type, brand_id, unit, auction_starts_at, auction_ends_at
   </sql>
   <select id="selectByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceGoodsDetailExample" resultMap="BaseResultMap">
     select
@@ -144,11 +146,11 @@
   </delete>
   <insert id="insert" parameterType="org.linlinjava.announce.db.domain.AnnounceGoodsDetail">
     insert into announce_goods_detail (announce_id, price, `condition`, 
-      sale_type, brand_id, unit
-      )
+      sale_type, brand_id, unit, 
+      auction_starts_at, auction_ends_at)
     values (#{announceId,jdbcType=VARCHAR}, #{price,jdbcType=DECIMAL}, #{condition,jdbcType=VARCHAR}, 
-      #{saleType,jdbcType=VARCHAR}, #{brandId,jdbcType=INTEGER}, #{unit,jdbcType=VARCHAR}
-      )
+      #{saleType,jdbcType=VARCHAR}, #{brandId,jdbcType=INTEGER}, #{unit,jdbcType=VARCHAR}, 
+      #{auctionStartsAt,jdbcType=TIMESTAMP}, #{auctionEndsAt,jdbcType=TIMESTAMP})
   </insert>
   <insert id="insertSelective" parameterType="org.linlinjava.announce.db.domain.AnnounceGoodsDetail">
     insert into announce_goods_detail
@@ -171,6 +173,12 @@
       <if test="unit != null">
         unit,
       </if>
+      <if test="auctionStartsAt != null">
+        auction_starts_at,
+      </if>
+      <if test="auctionEndsAt != null">
+        auction_ends_at,
+      </if>
     </trim>
     <trim prefix="values (" suffix=")" suffixOverrides=",">
       <if test="announceId != null">
@@ -190,6 +198,12 @@
       </if>
       <if test="unit != null">
         #{unit,jdbcType=VARCHAR},
+      </if>
+      <if test="auctionStartsAt != null">
+        #{auctionStartsAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="auctionEndsAt != null">
+        #{auctionEndsAt,jdbcType=TIMESTAMP},
       </if>
     </trim>
   </insert>
@@ -220,6 +234,12 @@
       <if test="record.unit != null">
         unit = #{record.unit,jdbcType=VARCHAR},
       </if>
+      <if test="record.auctionStartsAt != null">
+        auction_starts_at = #{record.auctionStartsAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="record.auctionEndsAt != null">
+        auction_ends_at = #{record.auctionEndsAt,jdbcType=TIMESTAMP},
+      </if>
     </set>
     <if test="_parameter != null">
       <include refid="Update_By_Example_Where_Clause" />
@@ -232,7 +252,9 @@
       `condition` = #{record.condition,jdbcType=VARCHAR},
       sale_type = #{record.saleType,jdbcType=VARCHAR},
       brand_id = #{record.brandId,jdbcType=INTEGER},
-      unit = #{record.unit,jdbcType=VARCHAR}
+      unit = #{record.unit,jdbcType=VARCHAR},
+      auction_starts_at = #{record.auctionStartsAt,jdbcType=TIMESTAMP},
+      auction_ends_at = #{record.auctionEndsAt,jdbcType=TIMESTAMP}
     <if test="_parameter != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
@@ -255,6 +277,12 @@
       <if test="unit != null">
         unit = #{unit,jdbcType=VARCHAR},
       </if>
+      <if test="auctionStartsAt != null">
+        auction_starts_at = #{auctionStartsAt,jdbcType=TIMESTAMP},
+      </if>
+      <if test="auctionEndsAt != null">
+        auction_ends_at = #{auctionEndsAt,jdbcType=TIMESTAMP},
+      </if>
     </set>
     where announce_id = #{announceId,jdbcType=VARCHAR}
   </update>
@@ -264,7 +292,9 @@
       `condition` = #{condition,jdbcType=VARCHAR},
       sale_type = #{saleType,jdbcType=VARCHAR},
       brand_id = #{brandId,jdbcType=INTEGER},
-      unit = #{unit,jdbcType=VARCHAR}
+      unit = #{unit,jdbcType=VARCHAR},
+      auction_starts_at = #{auctionStartsAt,jdbcType=TIMESTAMP},
+      auction_ends_at = #{auctionEndsAt,jdbcType=TIMESTAMP}
     where announce_id = #{announceId,jdbcType=VARCHAR}
   </update>
   <select id="selectOneByExample" parameterType="org.linlinjava.announce.db.domain.AnnounceGoodsDetailExample" resultMap="BaseResultMap">
@@ -343,16 +373,19 @@
   <!-- hand-written: idempotent write for projections (insert, or overwrite every column when the row exists) -->
   <insert id="upsert" parameterType="org.linlinjava.announce.db.domain.AnnounceGoodsDetail">
     insert into announce_goods_detail (announce_id, price, `condition`, 
-      sale_type, brand_id, unit
+      sale_type, brand_id, unit, auction_starts_at, auction_ends_at
       )
     values (#{announceId,jdbcType=VARCHAR}, #{price,jdbcType=DECIMAL}, #{condition,jdbcType=VARCHAR}, 
-      #{saleType,jdbcType=VARCHAR}, #{brandId,jdbcType=INTEGER}, #{unit,jdbcType=VARCHAR}
+      #{saleType,jdbcType=VARCHAR}, #{brandId,jdbcType=INTEGER}, #{unit,jdbcType=VARCHAR},
+      #{auctionStartsAt,jdbcType=TIMESTAMP}, #{auctionEndsAt,jdbcType=TIMESTAMP}
       )
     on duplicate key update
       price = values(price),
       `condition` = values(`condition`),
       sale_type = values(sale_type),
       brand_id = values(brand_id),
-      unit = values(unit)
+      unit = values(unit),
+      auction_starts_at = values(auction_starts_at),
+      auction_ends_at = values(auction_ends_at)
   </insert>
 </mapper>

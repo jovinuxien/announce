@@ -9,13 +9,13 @@ export function validateAnnounce(req: AnnounceRequest, now: Date = new Date()): 
   if (!req.title || !req.title.trim()) errors.title = 'validation.titleRequired';
   else if (req.title.length > 255) errors.title = 'validation.titleTooLong';
   if (req.categoryId == null) errors.categoryId = 'validation.categoryRequired';
-  if (req.kind === 'GOODS') Object.assign(errors, validateGoods(req));
+  if (req.kind === 'GOODS') Object.assign(errors, validateGoods(req, now));
   if (req.kind === 'JOB') Object.assign(errors, validateJob(req, now));
   if (req.kind === 'EVENT') Object.assign(errors, validateEvent(req, now));
   return errors;
 }
 
-function validateGoods(req: AnnounceRequest): Errors {
+function validateGoods(req: AnnounceRequest, now: Date): Errors {
   const errors: Errors = {};
   const g = req.goods;
   if (!g) return { goods: 'validation.goodsRequired' };
@@ -25,6 +25,13 @@ function validateGoods(req: AnnounceRequest): Errors {
   if (g.price != null && g.price < 0) errors['goods.price'] = 'validation.priceNegative';
   if (saleType === 'AUCTION' && g.price != null && g.price <= 0) errors['goods.price'] = 'validation.startPricePositive';
   if (!g.condition) errors['goods.condition'] = 'validation.conditionRequired';
+  // the auction schedule: optional, but start < end and the end still ahead (the aggregate: auction-schedule-order, auction-already-over)
+  if (saleType === 'AUCTION') {
+    const start = g.auctionStartsAt ? new Date(g.auctionStartsAt).getTime() : null;
+    const end = g.auctionEndsAt ? new Date(g.auctionEndsAt).getTime() : null;
+    if (start != null && end != null && !(start < end)) errors['goods.auctionEndsAt'] = 'validation.auctionEndAfterStart';
+    else if (end != null && end <= now.getTime()) errors['goods.auctionEndsAt'] = 'validation.auctionEndFuture';
+  }
   return errors;
 }
 
@@ -84,7 +91,15 @@ export function toRequest(draft: AnnounceRequest): AnnounceRequest {
   };
   if (draft.kind === 'GOODS' && draft.goods) {
     const g = clean(draft.goods);
-    req.goods = { ...g, price: g.saleType === 'GIVEAWAY' ? null : g.price, attributes: (g.attributes ?? []).filter(a => a.name && a.value) };
+    const auction = g.saleType === 'AUCTION';
+    req.goods = {
+      ...g,
+      price: g.saleType === 'GIVEAWAY' ? null : g.price,
+      attributes: (g.attributes ?? []).filter(a => a.name && a.value),
+      // only an auction has a schedule (the aggregate refuses one on any other sale type)
+      auctionStartsAt: auction ? g.auctionStartsAt ?? null : null,
+      auctionEndsAt: auction ? g.auctionEndsAt ?? null : null,
+    };
   }
   if (draft.kind === 'JOB' && draft.job) req.job = clean(draft.job);
   if (draft.kind === 'EVENT' && draft.event) req.event = clean(draft.event);

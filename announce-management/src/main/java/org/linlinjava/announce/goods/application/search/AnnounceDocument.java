@@ -49,6 +49,9 @@ public record AnnounceDocument(String id, Map<String, Object> data) {
                 d.put("sale_type", g.saleType().name());
                 put(d, "condition", g.condition() == null ? null : g.condition().name());
                 put(d, "brand_id", g.brandId() == null ? null : String.valueOf(g.brandId().value()));
+                // a local auction's window, under the names crawled tradera auctions and events already use (sort by auction end)
+                put(d, "starts_epoch", epoch(g.auctionStartsAt()));
+                put(d, "ends_epoch", epoch(g.auctionEndsAt()));
                 g.attributes().forEach(x -> d.put(x.name(), x.value()));
             }
             case JobDetails j -> {

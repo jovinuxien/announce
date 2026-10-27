@@ -156,7 +156,7 @@ tables carry `varchar(36)`; migrated seed rows keep their numeric ids as strings
 
 | kind | details record | specific fields | biddable | ends as |
 |---|---|---|---|---|
-| GOODS | `GoodsDetails` | price (`Money`), condition, `SaleType` (FIXED_PRICE, AUCTION, GIVEAWAY), brand, unit, variants, attributes, specifications | yes (AUCTION) | SOLD, WITHDRAWN, EXPIRED |
+| GOODS | `GoodsDetails` | price (`Money`), condition, `SaleType` (FIXED_PRICE, AUCTION, GIVEAWAY), brand, unit, variants, attributes, specifications, `auctionStartsAt` / `auctionEndsAt` (AUCTION only, see below) | yes (AUCTION) | SOLD, WITHDRAWN, EXPIRED |
 | JOB | `JobDetails` | employer, contract type, optional `SalaryRange`, application deadline, how to apply | never | WITHDRAWN, EXPIRED |
 | EVENT | `EventDetails` | start and end, venue (free text; the location gives region and city), organizer, free or ticketed, capacity | never | WITHDRAWN, EXPIRED |
 
@@ -172,6 +172,25 @@ The invariants live in `AnnounceRules` and answer with RFC 7807 problems carryin
 | a job whose deadline has passed is not published | `deadline-passed` | publish |
 | SOLD applies to goods only | `sold-not-applicable` | mark sold |
 | only the owner writes | `not-owner` (403) | every member command |
+| an auction schedule exists only on AUCTION goods | `auction-schedule-not-allowed` | post, edit |
+| the auction starts before it ends | `auction-schedule-order` | post, edit, publish |
+| the auction ends no later than the announce expires | `auction-ends-after-expiry` | publish, edit of a published auction |
+| the (resolved) auction end is still ahead | `auction-already-over` | publish, edit of a published auction |
+
+**Auction schedule (2026-10-25, worktree `auction-schedule`).** The seller schedules the auction on
+the announce: `GoodsDetails.auctionStartsAt` / `auctionEndsAt`, both optional on a draft and stored as
+posted. `PublishAnnounce` resolves them (`AnnounceRules.resolveSchedule`: a missing start is the
+publish time, a missing end is start + `announce.auction.default-duration`, 7 days, capped by the
+expiry), checks them (`checkSchedule`) and writes the resolved pair into `AnnouncePublished.details`,
+which `Announce.apply` takes over as the published details. An edit of a published auction never
+unsets the schedule (a date left null is carried over from the current one) and is revalidated;
+`RelistAnnounce` keeps a window still ahead and replaces one that is over with now + the default
+duration. `AnnouncePublishedV1` and `AnnounceEditedV1` carry `auctionStartsAt` / `auctionEndsAt`
+(nullable, additive); the order module opens and reschedules the auction from them
+(`doc/order-context.md` §4). The read model keeps them in `announce_goods_detail.auction_starts_at` /
+`auction_ends_at` (the publish projection upserts the goods row next to the status), the summary
+query exposes `auction_ends_at` for result cards, and the search document sets `starts_epoch` /
+`ends_epoch` for local auctions under the names crawled tradera auctions and events already use.
 
 Commands (`AnnounceCommands`): `PostAnnounce`, `EditAnnounce`, `PublishAnnounce`, `WithdrawAnnounce`, `MarkSold`,
 `ExpireAnnounce` (system, idempotent). Events, one top-level record each in `domain.announce.events`:

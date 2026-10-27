@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
  *   <li>to publish: a location; a goods announce needs a price unless it is a giveaway or an auction;
  *       an event needs start before end and an end in the future</li>
  *   <li>SOLD applies to goods only; jobs and events end as EXPIRED or WITHDRAWN</li>
+ *   <li>an auction schedule exists only on AUCTION goods, starts before it ends, ends no later than the expiry,
+ *       and is not already over when published; missing dates are resolved at publish ({@link #resolveSchedule})</li>
  * </ul>
  */
 public final class AnnounceRules {
@@ -28,6 +30,52 @@ public final class AnnounceRules {
         if (details.saleType() == SaleType.AUCTION && details.kind() != Kind.GOODS) {
             throw reject("not-biddable", "A " + details.kind().name().toLowerCase() + " announce cannot be auctioned; only goods are biddable");
         }
+        if (details instanceof GoodsDetails goods && goods.hasSchedule()) {
+            if (goods.saleType() != SaleType.AUCTION) {
+                throw reject("auction-schedule-not-allowed", "Only an auction has a start and an end; this announce is " + goods.saleType());
+            }
+            checkScheduleOrder(goods.auctionStartsAt(), goods.auctionEndsAt());
+        }
+    }
+
+    private static void checkScheduleOrder(LocalDateTime startsAt, LocalDateTime endsAt) {
+        if (startsAt != null && endsAt != null && !startsAt.isBefore(endsAt)) {
+            throw reject("auction-schedule-order", "An auction must start before it ends");
+        }
+    }
+
+    /**
+     * The schedule a published auction runs on: a missing start is the publish time, a missing end is start + the
+     * default duration capped by the expiry. Explicit dates are kept. Returns the details unchanged for anything
+     * that is not an auction.
+     */
+    public static AnnounceKind resolveSchedule(AnnounceKind details, LocalDateTime publishedAt, LocalDateTime expiresAt, Duration defaultDuration) {
+        if (!(details instanceof GoodsDetails goods) || goods.saleType() != SaleType.AUCTION) {
+            return details;
+        }
+        LocalDateTime start = goods.auctionStartsAt() != null ? goods.auctionStartsAt() : publishedAt;
+        LocalDateTime end = goods.auctionEndsAt();
+        if (end == null) {
+            end = start.plus(defaultDuration);
+            if (expiresAt != null && expiresAt.isBefore(end)) {
+                end = expiresAt;
+            }
+        }
+        return goods.withSchedule(start, end);
+    }
+
+    /** The resolved schedule must be a window that is still ahead and inside the announce's lifetime. */
+    public static void checkSchedule(AnnounceKind details, LocalDateTime expiresAt, LocalDateTime now) {
+        if (!(details instanceof GoodsDetails goods) || goods.saleType() != SaleType.AUCTION) {
+            return;
+        }
+        checkScheduleOrder(goods.auctionStartsAt(), goods.auctionEndsAt());
+        if (expiresAt != null && goods.auctionEndsAt().isAfter(expiresAt)) {
+            throw reject("auction-ends-after-expiry", "The auction cannot end after the announce expires (" + expiresAt + ")");
+        }
+        if (!goods.auctionEndsAt().isAfter(now)) {
+            throw reject("auction-already-over", "The auction end " + goods.auctionEndsAt() + " has already passed");
+        }
     }
 
     public static void checkEdit(Announce state, AnnounceKind newDetails) {
@@ -38,6 +86,26 @@ public final class AnnounceRules {
         if (newDetails.kind() != state.kind()) {
             throw reject("kind-immutable", "An announce posted as " + state.kind() + " cannot become " + newDetails.kind());
         }
+    }
+
+    /**
+     * The details an edit stores. On a published auction the schedule is never unset: a date the edit leaves null is
+     * carried over from the current state, and the result must still be a window ahead of {@code now} and inside the
+     * expiry. On a draft the dates are stored as given and resolved at publish.
+     */
+    public static AnnounceKind editedDetails(Announce state, AnnounceKind newDetails, LocalDateTime now) {
+        if (!state.status().isPublished()
+                || !(newDetails instanceof GoodsDetails goods) || goods.saleType() != SaleType.AUCTION
+                || !(state.details() instanceof GoodsDetails current) || current.saleType() != SaleType.AUCTION) {
+            return newDetails;
+        }
+        GoodsDetails merged = goods.withSchedule(
+                goods.auctionStartsAt() != null ? goods.auctionStartsAt() : current.auctionStartsAt(),
+                goods.auctionEndsAt() != null ? goods.auctionEndsAt() : current.auctionEndsAt());
+        if (merged.auctionEndsAt() != null) {
+            checkSchedule(merged, state.expiresAt(), now);
+        }
+        return merged;
     }
 
     public static void checkPublish(Announce state, Duration validity, LocalDateTime now) {

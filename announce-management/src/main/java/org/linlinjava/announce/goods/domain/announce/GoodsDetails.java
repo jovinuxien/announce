@@ -3,11 +3,14 @@ package org.linlinjava.announce.goods.domain.announce;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.linlinjava.announce.goods.domain.brand.BrandId;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
  * An item for sale, auction or giveaway: the only biddable kind. Variants, attributes and specifications are kept
- * from the mall model; a plain classified has none of them.
+ * from the mall model; a plain classified has none of them. {@code auctionStartsAt} / {@code auctionEndsAt} are the
+ * seller's schedule for an AUCTION sale (both optional on a draft; {@link AnnounceRules#resolveSchedule} fills them
+ * at publish, so a published auction always carries both). The schedule rules live in {@link AnnounceRules}.
  */
 public record GoodsDetails(Money price,
                            Condition condition,
@@ -16,7 +19,9 @@ public record GoodsDetails(Money price,
                            String unit,
                            List<Variant> variants,
                            List<Attribute> attributes,
-                           List<Specification> specifications) implements AnnounceKind {
+                           List<Specification> specifications,
+                           LocalDateTime auctionStartsAt,
+                           LocalDateTime auctionEndsAt) implements AnnounceKind {
 
     public static final int MAX_VARIANTS = 20;
 
@@ -36,7 +41,18 @@ public record GoodsDetails(Money price,
     }
 
     public static GoodsDetails fixedPrice(Money price, Condition condition) {
-        return new GoodsDetails(price, condition, SaleType.FIXED_PRICE, null, null, null, null, null);
+        return new GoodsDetails(price, condition, SaleType.FIXED_PRICE, null, null, null, null, null, null, null);
+    }
+
+    /** The same goods with another auction schedule (what publish writes once the defaults are resolved). */
+    public GoodsDetails withSchedule(LocalDateTime startsAt, LocalDateTime endsAt) {
+        return new GoodsDetails(price, condition, saleType, brandId, unit, variants, attributes, specifications, startsAt, endsAt);
+    }
+
+    /** True when the seller set at least one of the two auction dates. */
+    @JsonIgnore
+    public boolean hasSchedule() {
+        return auctionStartsAt != null || auctionEndsAt != null;
     }
 
     @Override

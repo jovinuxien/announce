@@ -9,6 +9,7 @@ import org.linlinjava.announce.auction.domain.AuctionCommands.CancelBid;
 import org.linlinjava.announce.auction.domain.AuctionCommands.CloseAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.OpenAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.PlaceBid;
+import org.linlinjava.announce.auction.domain.AuctionCommands.RescheduleAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.RetractBid;
 import org.linlinjava.announce.auction.domain.AuctionCommands.SnagIt;
 import org.linlinjava.announce.auction.domain.events.AuctionCancelled;
@@ -16,6 +17,7 @@ import org.linlinjava.announce.auction.domain.events.AuctionClosedUnsold;
 import org.linlinjava.announce.auction.domain.events.AuctionClosedWon;
 import org.linlinjava.announce.auction.domain.events.AuctionExtended;
 import org.linlinjava.announce.auction.domain.events.AuctionOpened;
+import org.linlinjava.announce.auction.domain.events.AuctionRescheduled;
 import org.linlinjava.announce.auction.domain.events.AuctionSnagged;
 import org.linlinjava.announce.auction.domain.events.BidCancelled;
 import org.linlinjava.announce.auction.domain.events.BidPlaced;
@@ -44,6 +46,7 @@ public class AuctionHandlers {
     public static final StateRebuildingHandlerDefinition<Auction, BidPlaced> ON_BID = def(BidPlaced.class, Auction::apply);
     public static final StateRebuildingHandlerDefinition<Auction, BidderOutbid> ON_OUTBID = def(BidderOutbid.class, Auction::apply);
     public static final StateRebuildingHandlerDefinition<Auction, AuctionExtended> ON_EXTENDED = def(AuctionExtended.class, Auction::apply);
+    public static final StateRebuildingHandlerDefinition<Auction, AuctionRescheduled> ON_RESCHEDULED = def(AuctionRescheduled.class, Auction::apply);
     public static final StateRebuildingHandlerDefinition<Auction, AuctionSnagged> ON_SNAGGED = def(AuctionSnagged.class, Auction::apply);
     public static final StateRebuildingHandlerDefinition<Auction, AuctionClosedWon> ON_WON = def(AuctionClosedWon.class, Auction::apply);
     public static final StateRebuildingHandlerDefinition<Auction, AuctionClosedUnsold> ON_UNSOLD = def(AuctionClosedUnsold.class, Auction::apply);
@@ -109,6 +112,20 @@ public class AuctionHandlers {
                 });
     }
 
+    /** Moves the window before the first bid; the same window again is a no-op. */
+    public static CommandHandlerDefinition<Auction, RescheduleAuction, Auction> reschedule(Clock clock) {
+        return new CommandHandlerDefinition<>(Auction.class, RescheduleAuction.class,
+                (CommandHandler.ForInstanceAndCommand<Auction, RescheduleAuction, Auction>) (state, c, publisher) -> {
+                    AuctionRules.checkReschedule(state, c);
+                    if (c.startsAt().equals(state.startsAt()) && c.endsAt().equals(state.endsAt())) {
+                        return state;
+                    }
+                    AuctionRescheduled e = new AuctionRescheduled(state.startsAt(), state.endsAt(), c.startsAt(), c.endsAt(), now(clock));
+                    publisher.publish(e);
+                    return state.apply(e);
+                });
+    }
+
     /** Idempotent: an auction that is not due stays as it is and no event is written. */
     public static CommandHandlerDefinition<Auction, CloseAuction, Auction> close(Clock clock) {
         return new CommandHandlerDefinition<>(Auction.class, CloseAuction.class,
@@ -169,8 +186,8 @@ public class AuctionHandlers {
 
     /** All definitions, for {@code CommandFixture.handlers(...)}. */
     public static List<Object> definitions(Clock clock) {
-        return List.of(ON_OPENED, ON_BID, ON_OUTBID, ON_EXTENDED, ON_SNAGGED, ON_WON, ON_UNSOLD, ON_CANCELLED, ON_RETRACTED, ON_BID_CANCELLED,
-                open(clock), placeBid(clock), snagIt(clock), close(clock), cancel(clock), retractBid(clock), cancelBid(clock));
+        return List.of(ON_OPENED, ON_BID, ON_OUTBID, ON_EXTENDED, ON_RESCHEDULED, ON_SNAGGED, ON_WON, ON_UNSOLD, ON_CANCELLED, ON_RETRACTED, ON_BID_CANCELLED,
+                open(clock), placeBid(clock), snagIt(clock), close(clock), cancel(clock), retractBid(clock), cancelBid(clock), reschedule(clock));
     }
 
     private static LocalDateTime now(Clock clock) {
@@ -183,6 +200,7 @@ public class AuctionHandlers {
     @Bean StateRebuildingHandlerDefinition<Auction, BidPlaced> auctionOnBid() { return ON_BID; }
     @Bean StateRebuildingHandlerDefinition<Auction, BidderOutbid> auctionOnOutbid() { return ON_OUTBID; }
     @Bean StateRebuildingHandlerDefinition<Auction, AuctionExtended> auctionOnExtended() { return ON_EXTENDED; }
+    @Bean StateRebuildingHandlerDefinition<Auction, AuctionRescheduled> auctionOnRescheduled() { return ON_RESCHEDULED; }
     @Bean StateRebuildingHandlerDefinition<Auction, AuctionSnagged> auctionOnSnagged() { return ON_SNAGGED; }
     @Bean StateRebuildingHandlerDefinition<Auction, AuctionClosedWon> auctionOnWon() { return ON_WON; }
     @Bean StateRebuildingHandlerDefinition<Auction, AuctionClosedUnsold> auctionOnUnsold() { return ON_UNSOLD; }
@@ -196,4 +214,5 @@ public class AuctionHandlers {
     @Bean CommandHandlerDefinition<Auction, CancelAuction, Auction> auctionCancel(Clock clock) { return cancel(clock); }
     @Bean CommandHandlerDefinition<Auction, RetractBid, Auction> auctionRetractBid(Clock clock) { return retractBid(clock); }
     @Bean CommandHandlerDefinition<Auction, CancelBid, Auction> auctionCancelBid(Clock clock) { return cancelBid(clock); }
+    @Bean CommandHandlerDefinition<Auction, RescheduleAuction, Auction> auctionReschedule(Clock clock) { return reschedule(clock); }
 }

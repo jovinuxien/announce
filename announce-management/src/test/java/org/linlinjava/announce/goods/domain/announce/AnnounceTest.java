@@ -145,16 +145,105 @@ class AnnounceTest {
 
     @Test
     void goodsNeedAPriceUnlessGiveawayOrAuction() {
-        GoodsDetails unpriced = new GoodsDetails(Money.zero(), null, SaleType.FIXED_PRICE, null, null, null, null, null);
+        GoodsDetails unpriced = new GoodsDetails(Money.zero(), null, SaleType.FIXED_PRICE, null, null, null, null, null, null, null);
         assertEquals("price-required", rejected(fixture().given(posted(unpriced)).when(new PublishAnnounce(ID, OWNER, null))).getCode());
-        GoodsDetails giveaway = new GoodsDetails(Money.zero(), null, SaleType.GIVEAWAY, null, null, null, null, null);
+        GoodsDetails giveaway = new GoodsDetails(Money.zero(), null, SaleType.GIVEAWAY, null, null, null, null, null, null, null);
         fixture().given(posted(giveaway)).when(new PublishAnnounce(ID, OWNER, null)).thenExpectNoError();
-        GoodsDetails auction = new GoodsDetails(Money.zero(), null, SaleType.AUCTION, null, null, null, null, null);
+        GoodsDetails auction = new GoodsDetails(Money.zero(), null, SaleType.AUCTION, null, null, null, null, null, null, null);
         fixture().given(posted(auction)).when(new PublishAnnounce(ID, OWNER, null)).thenExpectNoError();
         GoodsDetails withVariant = new GoodsDetails(Money.zero(), null, SaleType.FIXED_PRICE, null, null,
-                List.of(new Variant(List.of("M"), Money.of("10"), 1, null)), null, null);
+                List.of(new Variant(List.of("M"), Money.of("10"), 1, null)), null, null, null, null);
         fixture().given(posted(withVariant)).when(new PublishAnnounce(ID, OWNER, null)).thenExpectNoError();
-        assertThrows(IllegalArgumentException.class, () -> new GoodsDetails(Money.of("5"), null, SaleType.GIVEAWAY, null, null, null, null, null));
+        assertThrows(IllegalArgumentException.class, () -> new GoodsDetails(Money.of("5"), null, SaleType.GIVEAWAY, null, null, null, null, null, null, null));
+    }
+
+    // ------------------------------------------------------------------ auction schedule
+
+    static GoodsDetails auction(LocalDateTime startsAt, LocalDateTime endsAt) {
+        return new GoodsDetails(Money.of("100"), Condition.GOOD, SaleType.AUCTION, null, null, null, null, null, startsAt, endsAt);
+    }
+
+    @Test
+    void anAuctionPublishedWithAScheduleKeepsItAndTheStateCarriesIt() {
+        GoodsDetails scheduled = auction(NOW.plusDays(1), NOW.plusDays(5));
+        Announce live = fixture().given(posted(scheduled)).when(new PublishAnnounce(ID, OWNER, null))
+                .thenExpectEvents(published(scheduled, NOW, NOW.plus(Announce.DEFAULT_VALIDITY))).state();
+        GoodsDetails goods = (GoodsDetails) live.details();
+        assertEquals(NOW.plusDays(1), goods.auctionStartsAt());
+        assertEquals(NOW.plusDays(5), goods.auctionEndsAt());
+    }
+
+    @Test
+    void anAuctionPublishedWithoutAScheduleGetsPublishTimePlusTheDefaultDurationCappedByTheExpiry() {
+        // no dates: start = publish time, end = start + 7 d
+        fixture().given(posted(auction(null, null))).when(new PublishAnnounce(ID, OWNER, null))
+                .thenExpectEvents(published(auction(NOW, NOW.plus(AnnounceHandlers.DEFAULT_AUCTION_DURATION)), NOW, NOW.plus(Announce.DEFAULT_VALIDITY)));
+        // only a start: end = start + 7 d
+        fixture().given(posted(auction(NOW.plusDays(2), null))).when(new PublishAnnounce(ID, OWNER, null))
+                .thenExpectEvents(published(auction(NOW.plusDays(2), NOW.plusDays(9)), NOW, NOW.plus(Announce.DEFAULT_VALIDITY)));
+        // a short validity caps the end
+        fixture().given(posted(auction(null, null))).when(new PublishAnnounce(ID, OWNER, Duration.ofDays(3)))
+                .thenExpectEvents(published(auction(NOW, NOW.plusDays(3)), NOW, NOW.plusDays(3)));
+        // a configured duration is honoured
+        CommandFixture.forAggregate(Announce.class).handlers(AnnounceHandlers.definitions(CLOCK, Duration.ofDays(2))).subject(AnnounceCommands.subjectOf(ID))
+                .given(posted(auction(null, null))).when(new PublishAnnounce(ID, OWNER, null))
+                .thenExpectEvents(published(auction(NOW, NOW.plusDays(2)), NOW, NOW.plus(Announce.DEFAULT_VALIDITY)));
+    }
+
+    @Test
+    void anAuctionScheduleIsRefusedWhenBackwardsOnANonAuctionOrAlreadyOver() {
+        // end before start, at post, at edit and at publish
+        CommandRejectedException e = rejected(fixture().when(new PostAnnounce(ID, OWNER, content("Bike", STOCKHOLM), auction(NOW.plusDays(5), NOW.plusDays(1)))));
+        assertEquals("auction-schedule-order", e.getCode());
+        assertEquals(HttpStatus.CONFLICT, e.getStatus());
+        assertEquals("auction-schedule-order", rejected(fixture().given(posted(auction(null, null)))
+                .when(new EditAnnounce(ID, OWNER, content("Bike", STOCKHOLM), auction(NOW.plusDays(5), NOW.plusDays(5))))).getCode());
+        // a schedule on a fixed-price or giveaway goods
+        GoodsDetails fixedWithDates = new GoodsDetails(Money.of("100"), Condition.GOOD, SaleType.FIXED_PRICE, null, null, null, null, null, NOW.plusDays(1), NOW.plusDays(2));
+        assertEquals("auction-schedule-not-allowed", rejected(fixture().when(new PostAnnounce(ID, OWNER, content("Bike", STOCKHOLM), fixedWithDates))).getCode());
+        GoodsDetails giveawayWithEnd = new GoodsDetails(Money.zero(), null, SaleType.GIVEAWAY, null, null, null, null, null, null, NOW.plusDays(2));
+        assertEquals("auction-schedule-not-allowed", rejected(fixture().given(posted(bike()))
+                .when(new EditAnnounce(ID, OWNER, content("Bike", STOCKHOLM), giveawayWithEnd))).getCode());
+        // an end in the past at publish, and an end after the expiry
+        assertEquals("auction-already-over", rejected(fixture().given(posted(auction(NOW.minusDays(3), NOW.minusDays(1))))
+                .when(new PublishAnnounce(ID, OWNER, null))).getCode());
+        assertEquals("auction-ends-after-expiry", rejected(fixture().given(posted(auction(null, NOW.plusDays(10))))
+                .when(new PublishAnnounce(ID, OWNER, Duration.ofDays(5)))).getCode());
+    }
+
+    @Test
+    void editingAPublishedAuctionNeverUnsetsItsScheduleAndRevalidatesIt() {
+        GoodsDetails live = auction(NOW.minusHours(1), NOW.plusDays(6));
+        AnnouncePublished publishedLive = published(live, NOW.minusHours(1), NOW.minusHours(1).plus(Announce.DEFAULT_VALIDITY));
+        // dates left null by the edit are carried over from the published schedule
+        fixture().given(posted(auction(null, null)), publishedLive)
+                .when(new EditAnnounce(ID, OWNER, content("Bike!", STOCKHOLM), auction(null, null)))
+                .thenExpectEvents(new AnnounceEdited(content("Bike!", STOCKHOLM), live, NOW));
+        // a new end still ahead is accepted
+        fixture().given(posted(auction(null, null)), publishedLive)
+                .when(new EditAnnounce(ID, OWNER, content("Bike", STOCKHOLM), auction(null, NOW.plusDays(2))))
+                .thenExpectEvents(new AnnounceEdited(content("Bike", STOCKHOLM), auction(NOW.minusHours(1), NOW.plusDays(2)), NOW));
+        // an end in the past or after the expiry is refused
+        assertEquals("auction-already-over", rejected(fixture().given(posted(auction(null, null)), publishedLive)
+                .when(new EditAnnounce(ID, OWNER, content("Bike", STOCKHOLM), auction(null, NOW.minusMinutes(1))))).getCode());
+        assertEquals("auction-ends-after-expiry", rejected(fixture().given(posted(auction(null, null)), publishedLive)
+                .when(new EditAnnounce(ID, OWNER, content("Bike", STOCKHOLM), auction(null, NOW.plusDays(90))))).getCode());
+        // on a draft the dates are stored as given (resolved at publish)
+        fixture().given(posted(auction(null, null)))
+                .when(new EditAnnounce(ID, OWNER, content("Bike", STOCKHOLM), auction(NOW.plusDays(1), null)))
+                .thenExpectEvents(new AnnounceEdited(content("Bike", STOCKHOLM), auction(NOW.plusDays(1), null), NOW));
+    }
+
+    @Test
+    void relistingASoldAuctionReusesAScheduleStillAheadAndReplacesOneThatIsOver() {
+        GoodsDetails ahead = auction(NOW.minusDays(1), NOW.plusDays(3));
+        fixture().given(posted(auction(null, null)), published(ahead, NOW.minusDays(1), NOW.plusDays(59)), new AnnounceSold(NOW.minusHours(2)))
+                .when(new RelistAnnounce(ID))
+                .thenExpectEvents(published(ahead, NOW, NOW.plusDays(59)));
+        GoodsDetails over = auction(NOW.minusDays(8), NOW.minusDays(1));
+        fixture().given(posted(auction(null, null)), published(over, NOW.minusDays(8), NOW.plusDays(52)), new AnnounceSold(NOW.minusHours(2)))
+                .when(new RelistAnnounce(ID))
+                .thenExpectEvents(published(auction(NOW, NOW.plusDays(7)), NOW, NOW.plusDays(52)));
     }
 
     @Test

@@ -36,6 +36,8 @@ public class AnnounceSummaryRow {
     private String employer;
     private String contractType;
     private LocalDateTime applicationDeadline;
+    private LocalDateTime auctionStartsAt;
+    private LocalDateTime auctionEndsAt;
     // event
     private LocalDateTime startsAt;
     private LocalDateTime endsAt;
@@ -92,6 +94,10 @@ public class AnnounceSummaryRow {
     public void setContractType(String contractType) { this.contractType = contractType; }
     public LocalDateTime getApplicationDeadline() { return applicationDeadline; }
     public void setApplicationDeadline(LocalDateTime applicationDeadline) { this.applicationDeadline = applicationDeadline; }
+    public LocalDateTime getAuctionStartsAt() { return auctionStartsAt; }
+    public void setAuctionStartsAt(LocalDateTime auctionStartsAt) { this.auctionStartsAt = auctionStartsAt; }
+    public LocalDateTime getAuctionEndsAt() { return auctionEndsAt; }
+    public void setAuctionEndsAt(LocalDateTime auctionEndsAt) { this.auctionEndsAt = auctionEndsAt; }
     public LocalDateTime getStartsAt() { return startsAt; }
     public void setStartsAt(LocalDateTime startsAt) { this.startsAt = startsAt; }
     public LocalDateTime getEndsAt() { return endsAt; }

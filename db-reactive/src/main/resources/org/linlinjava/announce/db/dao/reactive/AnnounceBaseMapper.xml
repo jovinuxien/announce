@@ -868,6 +868,8 @@
     <result column="sale_type" jdbcType="VARCHAR" property="saleType" />
     <result column="condition" jdbcType="VARCHAR" property="condition" />
     <result column="brand_id" jdbcType="INTEGER" property="brandId" />
+    <result column="auction_starts_at" jdbcType="TIMESTAMP" property="auctionStartsAt" />
+    <result column="auction_ends_at" jdbcType="TIMESTAMP" property="auctionEndsAt" />
     <result column="employer" jdbcType="VARCHAR" property="employer" />
     <result column="contract_type" jdbcType="VARCHAR" property="contractType" />
     <result column="application_deadline" jdbcType="TIMESTAMP" property="applicationDeadline" />
@@ -897,7 +899,7 @@
   <select id="selectSummaries" parameterType="map" resultMap="SummaryResultMap">
     select a.id, a.kind, a.seller_id, a.category_id, a.title, a.brief, a.gallery, a.region_id, a.city, a.postal_code,
       a.latitude, a.longitude, a.`status`, a.published_at, a.expires_at, a.add_time, a.moderated_by, a.moderation_reason,
-      g.price, g.sale_type, g.`condition`, g.brand_id,
+      g.price, g.sale_type, g.`condition`, g.brand_id, g.auction_starts_at, g.auction_ends_at,
       j.employer, j.contract_type, j.application_deadline,
       e.starts_at, e.ends_at, e.ticketed, e.ticket_price
     <include refid="Summary_From_Where" />

@@ -7,7 +7,8 @@ import java.time.LocalDateTime;
 /**
  * What a listing page shows per announce, read from the {@code announce} table joined with the detail table of its
  * kind: the shared columns plus the few kind-specific ones a list needs. {@code kindFacts} holds those:
- * price, sale type, condition for goods; employer, contract type, deadline for jobs; start, end, ticketed for events.
+ * price, sale type, condition and the auction end for goods; employer, contract type, deadline for jobs; start, end,
+ * ticketed for events.
  */
 public record AnnounceSummary(String id,
                               Kind kind,
@@ -31,6 +32,7 @@ public record AnnounceSummary(String id,
     /** The kind-specific columns of a summary; fields of the other kinds are null. */
     public record KindFacts(Money price, SaleType saleType, Condition condition,
                             String employer, ContractType contractType, LocalDateTime applicationDeadline,
-                            LocalDateTime startsAt, LocalDateTime endsAt, Boolean ticketed, Money ticketPrice) {
+                            LocalDateTime startsAt, LocalDateTime endsAt, Boolean ticketed, Money ticketPrice,
+                            LocalDateTime auctionStartsAt, LocalDateTime auctionEndsAt) {
     }
 }

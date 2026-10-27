@@ -1,6 +1,7 @@
 package org.linlinjava.announce.db.domain;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -851,6 +852,186 @@ public class AnnounceGoodsDetailExample {
 
         public Criteria andUnitNotBetween(String value1, String value2) {
             addCriterion("unit not between", value1, value2, "unit");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtIsNull() {
+            addCriterion("auction_starts_at is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtIsNotNull() {
+            addCriterion("auction_starts_at is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtEqualTo(LocalDateTime value) {
+            addCriterion("auction_starts_at =", value, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtEqualToColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_starts_at = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtNotEqualTo(LocalDateTime value) {
+            addCriterion("auction_starts_at <>", value, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtNotEqualToColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_starts_at <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtGreaterThan(LocalDateTime value) {
+            addCriterion("auction_starts_at >", value, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtGreaterThanColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_starts_at > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtGreaterThanOrEqualTo(LocalDateTime value) {
+            addCriterion("auction_starts_at >=", value, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtGreaterThanOrEqualToColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_starts_at >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtLessThan(LocalDateTime value) {
+            addCriterion("auction_starts_at <", value, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtLessThanColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_starts_at < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtLessThanOrEqualTo(LocalDateTime value) {
+            addCriterion("auction_starts_at <=", value, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtLessThanOrEqualToColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_starts_at <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtIn(List<LocalDateTime> values) {
+            addCriterion("auction_starts_at in", values, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtNotIn(List<LocalDateTime> values) {
+            addCriterion("auction_starts_at not in", values, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtBetween(LocalDateTime value1, LocalDateTime value2) {
+            addCriterion("auction_starts_at between", value1, value2, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionStartsAtNotBetween(LocalDateTime value1, LocalDateTime value2) {
+            addCriterion("auction_starts_at not between", value1, value2, "auctionStartsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtIsNull() {
+            addCriterion("auction_ends_at is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtIsNotNull() {
+            addCriterion("auction_ends_at is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtEqualTo(LocalDateTime value) {
+            addCriterion("auction_ends_at =", value, "auctionEndsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtEqualToColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_ends_at = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtNotEqualTo(LocalDateTime value) {
+            addCriterion("auction_ends_at <>", value, "auctionEndsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtNotEqualToColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_ends_at <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtGreaterThan(LocalDateTime value) {
+            addCriterion("auction_ends_at >", value, "auctionEndsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtGreaterThanColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_ends_at > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtGreaterThanOrEqualTo(LocalDateTime value) {
+            addCriterion("auction_ends_at >=", value, "auctionEndsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtGreaterThanOrEqualToColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_ends_at >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtLessThan(LocalDateTime value) {
+            addCriterion("auction_ends_at <", value, "auctionEndsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtLessThanColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_ends_at < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtLessThanOrEqualTo(LocalDateTime value) {
+            addCriterion("auction_ends_at <=", value, "auctionEndsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtLessThanOrEqualToColumn(AnnounceGoodsDetail.Column column) {
+            addCriterion(new StringBuilder("auction_ends_at <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtIn(List<LocalDateTime> values) {
+            addCriterion("auction_ends_at in", values, "auctionEndsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtNotIn(List<LocalDateTime> values) {
+            addCriterion("auction_ends_at not in", values, "auctionEndsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtBetween(LocalDateTime value1, LocalDateTime value2) {
+            addCriterion("auction_ends_at between", value1, value2, "auctionEndsAt");
+            return (Criteria) this;
+        }
+
+        public Criteria andAuctionEndsAtNotBetween(LocalDateTime value1, LocalDateTime value2) {
+            addCriterion("auction_ends_at not between", value1, value2, "auctionEndsAt");
             return (Criteria) this;
         }
     }

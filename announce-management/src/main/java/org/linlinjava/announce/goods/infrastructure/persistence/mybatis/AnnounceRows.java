@@ -84,6 +84,8 @@ public final class AnnounceRows {
         row.setSaleType(g.saleType().name());
         row.setBrandId(g.brandId() == null ? null : g.brandId().value());
         row.setUnit(g.unit());
+        row.setAuctionStartsAt(g.auctionStartsAt());
+        row.setAuctionEndsAt(g.auctionEndsAt());
         return row;
     }
 
@@ -177,7 +179,9 @@ public final class AnnounceRows {
                 products.stream().map(p -> new Variant(p.getSpecifications() == null ? List.of() : Arrays.asList(p.getSpecifications()),
                         money(p.getPrice()), p.getNumber() == null ? 0 : p.getNumber(), p.getUrl())).toList(),
                 attributes.stream().map(a -> new Attribute(a.getAttribute(), a.getValue())).toList(),
-                specifications.stream().map(s -> new Specification(s.getSpecification(), s.getValue(), s.getPicUrl())).toList());
+                specifications.stream().map(s -> new Specification(s.getSpecification(), s.getValue(), s.getPicUrl())).toList(),
+                d == null ? null : d.getAuctionStartsAt(),
+                d == null ? null : d.getAuctionEndsAt());
     }
 
     public static JobDetails toJob(AnnounceJobDetail j) {
@@ -198,12 +202,13 @@ public final class AnnounceRows {
         AnnounceSummary.KindFacts facts = switch (kind) {
             case GOODS -> new AnnounceSummary.KindFacts(money(r.getPrice()),
                     r.getSaleType() == null ? SaleType.FIXED_PRICE : SaleType.valueOf(r.getSaleType()),
-                    r.getCondition() == null ? null : Condition.valueOf(r.getCondition()), null, null, null, null, null, null, null);
+                    r.getCondition() == null ? null : Condition.valueOf(r.getCondition()), null, null, null, null, null, null, null,
+                    r.getAuctionStartsAt(), r.getAuctionEndsAt());
             case JOB -> new AnnounceSummary.KindFacts(null, null, null, r.getEmployer(),
                     r.getContractType() == null ? null : ContractType.valueOf(r.getContractType()), r.getApplicationDeadline(),
-                    null, null, null, null);
+                    null, null, null, null, null, null);
             case EVENT -> new AnnounceSummary.KindFacts(null, null, null, null, null, null, r.getStartsAt(), r.getEndsAt(),
-                    Boolean.TRUE.equals(r.getTicketed()), r.getTicketPrice() == null ? null : Money.of(r.getTicketPrice()));
+                    Boolean.TRUE.equals(r.getTicketed()), r.getTicketPrice() == null ? null : Money.of(r.getTicketPrice()), null, null);
         };
         return new AnnounceSummary(r.getId(), kind, new SellerId(r.getSellerId()), r.getTitle(), r.getBrief(),
                 r.getGallery() == null || r.getGallery().length == 0 ? "" : r.getGallery()[0],

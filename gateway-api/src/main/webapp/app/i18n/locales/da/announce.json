@@ -11,6 +11,9 @@
     "venue": "Sted"
   },
   "goods": {
+    "auctionEnds": "Auktionen slutter {{date}}",
+    "auctionSchedule": "Auktion: starter {{start}}, slutter {{end}}",
+    "auctionStarts": "Auktionen starter {{date}}",
     "condition": "Stand",
     "price": "Pris",
     "saleType": "Salgstype",

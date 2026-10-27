@@ -8,7 +8,8 @@ import java.time.LocalDateTime;
 /**
  * Commands of the Auction aggregate, dispatched through {@code ReactiveCommandRouter} to {@code /auction/{announceId}}.
  * Amounts are minor units. {@link CloseAuction} comes from the closing job, {@link OpenAuction} and the system
- * {@link CancelAuction} from the announce.v1 subscriber; the rest from members and staff over REST.
+ * {@link CancelAuction} from the announce.v1 subscriber, as is {@link RescheduleAuction} (the seller edited the schedule on the
+ * announce); the rest from members and staff over REST.
  */
 public final class AuctionCommands {
 
@@ -34,6 +35,12 @@ public final class AuctionCommands {
     }
 
     public record SnagIt(String announceId, Integer buyerId) implements Command {
+        @Override public String getSubject() { return subjectOf(announceId); }
+        @Override public SubjectCondition getSubjectCondition() { return SubjectCondition.EXISTS; }
+    }
+
+    /** System command (announce.v1 subscriber): moves the window of an OPEN auction that has no standing bid yet. */
+    public record RescheduleAuction(String announceId, LocalDateTime startsAt, LocalDateTime endsAt) implements Command {
         @Override public String getSubject() { return subjectOf(announceId); }
         @Override public SubjectCondition getSubjectCondition() { return SubjectCondition.EXISTS; }
     }

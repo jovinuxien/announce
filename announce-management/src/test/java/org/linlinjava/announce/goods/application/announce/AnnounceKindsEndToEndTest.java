@@ -283,6 +283,64 @@ class AnnounceKindsEndToEndTest {
     }
 
     @Test
+    @Order(4)
+    void anAuctionCarriesItsScheduleThroughTheResponseTheReadModelTheIndexAndThePublicEvent() {
+        // explicit schedule: kept as given
+        LocalDateTime start = NOW.plusDays(1);
+        LocalDateTime end = NOW.plusDays(5);
+        String scheduledId = idOf(post("{" + shared("GOODS", "E2E auction scheduled", GOODS_CATEGORY)
+                + ",\"goods\":{\"price\":100,\"condition\":\"GOOD\",\"saleType\":\"AUCTION\","
+                + "\"auctionStartsAt\":\"" + start + "\",\"auctionEndsAt\":\"" + end + "\"}}"));
+        action(scheduledId, "publish", SELLER).expectStatus().isOk().expectBody()
+                .jsonPath("$.goods.auctionStartsAt").isEqualTo(start.toString()).jsonPath("$.goods.auctionEndsAt").isEqualTo(end.toString());
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/announces/" + scheduledId).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.status").isEqualTo("PUBLISHED")
+                .jsonPath("$.goods.auctionStartsAt").isEqualTo(start.toString()).jsonPath("$.goods.auctionEndsAt").isEqualTo(end.toString()));
+        client.get().uri("/api/announces?kind=GOODS&saleType=AUCTION&q=scheduled").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.total").isEqualTo(1).jsonPath("$.items[0].id").isEqualTo(scheduledId)
+                .jsonPath("$.items[0].auctionEndsAt").isEqualTo(end.toString());
+        await().atMost(WAIT).untilAsserted(() -> assertThat(indexer.indexCount(scheduledId)).isGreaterThanOrEqualTo(1));
+        Map<String, Object> doc = indexer.indexed().stream().filter(d -> d.id().equals(scheduledId)).reduce((a, b) -> b).orElseThrow().data();
+        long epoch = end.toEpochSecond(java.time.ZoneOffset.UTC);   // AnnounceDocument counts epochs in UTC
+        assertThat(doc).containsEntry("sale_type", "AUCTION").containsEntry("ends_epoch", epoch).containsKey("starts_epoch");
+        await().atMost(WAIT).untilAsserted(() -> assertThat(published(scheduledId)).hasSize(1));
+        assertThat(published(scheduledId).get(0).auctionStartsAt()).isEqualTo(start);
+        assertThat(published(scheduledId).get(0).auctionEndsAt()).isEqualTo(end);
+
+        // no schedule: publish time + 7 days (the 60-day validity does not cap it)
+        String defaultedId = idOf(post("{" + shared("GOODS", "E2E auction defaulted", GOODS_CATEGORY)
+                + ",\"goods\":{\"price\":100,\"condition\":\"GOOD\",\"saleType\":\"AUCTION\"}}"));
+        Map<String, Object> live = action(defaultedId, "publish", SELLER).expectStatus().isOk()
+                .expectBody(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}).returnResult().getResponseBody();
+        assertThat(live).isNotNull();
+        LocalDateTime publishedAt = LocalDateTime.parse((String) live.get("publishedAt"));
+        @SuppressWarnings("unchecked") Map<String, Object> goods = (Map<String, Object>) live.get("goods");
+        assertThat(LocalDateTime.parse((String) goods.get("auctionStartsAt"))).isEqualTo(publishedAt);
+        assertThat(LocalDateTime.parse((String) goods.get("auctionEndsAt"))).isEqualTo(publishedAt.plusDays(7));
+        await().atMost(WAIT).untilAsserted(() -> assertThat(published(defaultedId)).hasSize(1));
+        assertThat(published(defaultedId).get(0).auctionEndsAt()).isEqualTo(publishedAt.plusDays(7));
+
+        // the schedule rules over HTTP: backwards, on a fixed price, already over
+        post("{" + shared("GOODS", "E2E auction backwards", GOODS_CATEGORY)
+                + ",\"goods\":{\"price\":100,\"condition\":\"GOOD\",\"saleType\":\"AUCTION\","
+                + "\"auctionStartsAt\":\"" + end + "\",\"auctionEndsAt\":\"" + start + "\"}}")
+                .expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("auction-schedule-order");
+        post("{" + shared("GOODS", "E2E fixed with dates", GOODS_CATEGORY)
+                + ",\"goods\":{\"price\":100,\"condition\":\"GOOD\",\"saleType\":\"FIXED_PRICE\",\"auctionEndsAt\":\"" + end + "\"}}")
+                .expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("auction-schedule-not-allowed");
+        String overId = idOf(post("{" + shared("GOODS", "E2E auction over", GOODS_CATEGORY)
+                + ",\"goods\":{\"price\":100,\"condition\":\"GOOD\",\"saleType\":\"AUCTION\","
+                + "\"auctionStartsAt\":\"" + NOW.minusDays(3) + "\",\"auctionEndsAt\":\"" + NOW.minusDays(1) + "\"}}"));
+        action(overId, "publish", SELLER).expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("auction-already-over");
+
+        // the auctions leave the listing again so the later tests' E2E counts hold
+        action(scheduledId, "withdraw", SELLER).expectStatus().isOk();
+        action(defaultedId, "withdraw", SELLER).expectStatus().isOk();
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/announces?saleType=AUCTION&q=E2E").exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.total").isEqualTo(0));
+    }
+
+    @Test
     @Order(5)
     void withdrawnAndSoldAnnouncesLeaveTheListingAndTheIndex() {
         action(goodsId, "sold", SELLER).expectStatus().isOk().expectBody().jsonPath("$.status").isEqualTo("SOLD");

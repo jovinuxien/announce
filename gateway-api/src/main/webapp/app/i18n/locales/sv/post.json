@@ -41,6 +41,9 @@
     "attributes": "Egenskaper",
     "attrName": "Namn (t.ex. km)",
     "attrValue": "Värde",
+    "auctionEndsAt": "Auktionen avslutas",
+    "auctionScheduleHelp": "Lämna tomt för att starta när annonsen publiceras och avslutas 7 dagar senare (aldrig efter att annonsen går ut).",
+    "auctionStartsAt": "Auktionen startar",
     "chooseCondition": "Välj…",
     "condition": "Skick",
     "price": "Pris",
@@ -82,6 +85,8 @@
   },
   "title": "Lägg in annons",
   "validation": {
+    "auctionEndAfterStart": "Auktionen måste avslutas efter att den startat.",
+    "auctionEndFuture": "Auktionens slut måste ligga i framtiden.",
     "capacityPositive": "Kapaciteten måste vara positiv.",
     "categoryRequired": "Välj en kategori.",
     "conditionRequired": "Välj skicket.",

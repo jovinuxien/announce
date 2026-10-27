@@ -193,6 +193,41 @@ puts every phase-2 screen on the fixtures.
   open a crawled listing and land on the source page; admin: log in, create a category of
   each kind, withdraw an announce, trigger a listings import.
 
+### 7c. Auction schedule checklist (worktree `auction-schedule`, 2026-10-25)
+
+Stack up with `scripts/start-stack.sh`. Steps and what was seen are recorded below once executed.
+
+1. As a member, post a GOODS announce with sale type AUCTION; the wizard shows the two date
+   pickers; set a start tomorrow and an end a week later; publish.
+2. Open the announce detail: the goods section shows "Auction: starts {date}, ends {date}" and
+   the auction panel shows the planned schedule (404 state while the seller has no payout account,
+   otherwise the "not started" state with a disabled bid form).
+3. Log in as another member and open the same announce: the bid form is disabled and says when
+   bidding opens.
+4. The result card of the announce (home, search, my announces) shows "Ends {date}".
+5. Admin: Trade > Auctions lists the auction with a start and an end column.
+
+Executed 2026-10-27 (03:00) on a stack started from this worktree's jars (`scripts/start-stack.sh
+--no-build`) after the live database had been restored from the binary log (see the session report). The
+steps were driven headlessly through the two edges with `curl`; the SPA rendering of the panel states is
+covered by `AuctionPanel.spec.tsx`, and the bundle served at `/app/main.*.js` carries the new keys.
+
+| Step | Result |
+|---|---|
+| Rules behind the wizard | `POST /api/announces` with end before start: 409 `auction-schedule-order`; a schedule on `FIXED_PRICE`: 409 `auction-schedule-not-allowed`. |
+| 1. Post + publish | "Auction schedule check 7c" (`9608b514…`), AUCTION, start 2026-10-28 10:00, end 2026-11-04 10:00; publish 200. |
+| 2. Detail | `GET /api/announces/{id}`: PUBLISHED, `goods.auctionStartsAt` / `auctionEndsAt` as posted, `expiresAt` 2026-12-26. While user123 had no payout account (first run, `ed0c20a0…`) the order log said "Seller 1 has no enabled payout account" and `GET /api/auctions/{id}` answered 404: the panel's 404 state with the planned schedule. After `POST /api/sellers/me/account` (fake provider: VERIFIED, payouts enabled) the next publish opened the auction: status OPEN, `startTime` / `endTime` equal to the announce's dates. |
+| 3. Other member | As `exp21792849879`, `POST /api/auctions/{id}/bids` 20000: 409 `auction-not-started` "The auction starts at 2026-10-28T10:00" (the state in which the SPA disables the form). Extra: `PUT /api/announces/{id}` with the start one day later: 200, and `GET /api/auctions/{id}` shows `startTime` 2026-10-29 10:00 (RescheduleAuction driven by `AnnounceEditedV1`). |
+| 4. Cards | `GET /api/announces?saleType=AUCTION&q=schedule check`: the row carries `auctionEndsAt` 2026-11-04T10:00. `GET /api/search?q=schedule check&limit=2`: one hit with `source=local`, `sale_type=AUCTION`, `starts_epoch` 1793268000, `ends_epoch` 1793786400; `sale_type=AUCTION&source=local&sort=starts_epoch` lists the local auctions in start order. |
+| 5. Admin | `GET /api/admin/auctions`: `9608b514…` OPEN, start 2026-10-29T10:00, end 2026-11-04T10:00 (the data of the Starts and Ends columns). |
+| Clean-up | The announces of the first two runs were withdrawn (their auctions CANCELLED); `9608b514…` stays published. |
+
+Observed on the way, not part of this task: an announce published within about a second of the seller's
+onboarding is still refused (the auction context's copy of `announce_seller_account` lags the onboarding
+response); an unknown query parameter such as `size` is a field filter for the OCS searcher and yields zero
+hits (the SPA sends `limit`); `AnnounceExpiryJob` fails every 15 minutes with
+`CommandSubjectDoesNotExistException` for announce `2000018` (a seed row with no events) and `d3e5fad6…`.
+
 ### 7a. Admin edge checklist, executed 2026-09-26
 
 Setup: live MySQL `announce_reactive_db`, `docker/cqrs` (EventSourcingDB, OCS indexer), announce-management

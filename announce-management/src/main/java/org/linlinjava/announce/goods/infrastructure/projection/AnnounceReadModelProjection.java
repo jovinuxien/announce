@@ -100,7 +100,14 @@ public class AnnounceReadModelProjection implements ReactiveProjection {
             AnnounceRows.fillContent(row, event.content());
             return tx.transactional(announces.updateContent(row).then(writeDetails(id, event.details(), event.at()))).then();
         });
-        handlers.on(AnnouncePublished.class, (event, envelope) -> status(envelope, AnnounceStatus.PUBLISHED, event.at(), event.at(), event.expiresAt(), null, null));
+        // publish also writes the details as published: an auction's resolved start and end live on the goods row
+        handlers.on(AnnouncePublished.class, (event, envelope) -> {
+            Mono<Void> status = status(envelope, AnnounceStatus.PUBLISHED, event.at(), event.at(), event.expiresAt(), null, null);
+            if (event.details() instanceof GoodsDetails g) {
+                return tx.transactional(status.then(goods.upsert(AnnounceRows.toGoodsRow(idOf(envelope), g)))).then();
+            }
+            return status;
+        });
         handlers.on(AnnounceWithdrawn.class, (event, envelope) -> status(envelope, AnnounceStatus.WITHDRAWN, event.at(), null, null, event.moderatedBy(), event.reason()));
         handlers.on(AnnounceSold.class, (event, envelope) -> status(envelope, AnnounceStatus.SOLD, event.at(), null, null, null, null));
         handlers.on(AnnounceExpired.class, (event, envelope) -> status(envelope, AnnounceStatus.EXPIRED, event.at(), null, null, event.moderatedBy(), event.reason()));

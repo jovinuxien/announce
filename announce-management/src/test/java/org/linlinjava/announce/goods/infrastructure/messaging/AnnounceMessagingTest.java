@@ -32,7 +32,7 @@ class AnnounceMessagingTest {
         AnnounceContent content = new AnnounceContent("Bike", "brief", "desc", List.of(), List.of("pic.jpg"),
                 new CategoryId(1036000), new Location(null, "Kolding", "6000", null, null));
         GoodsDetails details = new GoodsDetails(Money.of(new BigDecimal("12.50")), Condition.GOOD, SaleType.FIXED_PRICE,
-                null, "pcs", null, null, null);
+                null, "pcs", null, null, null, null, null);
         LocalDateTime at = LocalDateTime.of(2026, 9, 26, 12, 0);
         AnnouncePublished event = new AnnouncePublished(at, at.plusDays(30), new SellerId(5), content, details);
 

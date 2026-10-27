@@ -6,6 +6,7 @@ import org.linlinjava.announce.auction.domain.events.AuctionClosedUnsold;
 import org.linlinjava.announce.auction.domain.events.AuctionClosedWon;
 import org.linlinjava.announce.auction.domain.events.AuctionExtended;
 import org.linlinjava.announce.auction.domain.events.AuctionOpened;
+import org.linlinjava.announce.auction.domain.events.AuctionRescheduled;
 import org.linlinjava.announce.auction.domain.events.AuctionSnagged;
 import org.linlinjava.announce.auction.domain.events.BidCancelled;
 import org.linlinjava.announce.auction.domain.events.BidPlaced;
@@ -99,6 +100,11 @@ public record Auction(String id,
 
     public Auction apply(AuctionExtended e) {
         return withEnd(e.endsAt(), e.at());
+    }
+
+    public Auction apply(AuctionRescheduled e) {
+        return new Auction(id, sellerId, title, mainPicture, currency, initialPriceCents, reservePriceCents, snagItPriceCents, incrementCents,
+                e.startsAt(), e.endsAt(), autoExtendSec, status, bids, winnerId, winningBidId, finalPriceCents, closedAt, e.at());
     }
 
     public Auction apply(AuctionSnagged e) {

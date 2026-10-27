@@ -85,6 +85,20 @@ Opened from `AnnouncePublishedV1` when `saleType == AUCTION`. Rules from
 `doc/auction-chat-schema.md` §3 live here: bidder is not the seller, `amount >=
 currentPrice + increment`, window open, snag-it only while no bid, anti-sniping extension.
 
+**Opening and rescheduling rule (2026-10-25, worktree `auction-schedule`).** The announce is
+the single source of the auction schedule: the seller sets `auctionStartsAt` / `auctionEndsAt`
+on the goods details (both optional), announce-management resolves them at publish (missing
+start = publish time, missing end = start + `announce.auction.default-duration` 7 d capped by the
+expiry; an end in the past or after the expiry is refused) and `AnnouncePublishedV1` carries the
+resolved pair. `auctionAnnounceEvents` opens the auction on exactly those dates. When the event
+carries no dates (an older producer) the previous rule stays as the fallback: start =
+`publishedAt`, end = start + `auction.default-duration` capped by `expiresAt`. An
+`AnnounceEditedV1` with dates reschedules an OPEN auction that has no standing bid
+(`RescheduleAuction` -> `AuctionRescheduled`, relayed as `AuctionRescheduledV1`); once a bid
+stands, or the auction is closed, the edit is consumed and logged but refused (`bids-exist`,
+`auction-not-open`), so the window bidders saw never moves under them. `AuctionClosingJob` is
+unaffected: it reads `end_time` from the row the projection patches.
+
 | Command | Event(s) |
 |---|---|
 | OpenAuction(initialPrice, reservePrice?, snagItPrice?, increment, start, end, autoExtend) | AuctionOpened |
@@ -92,10 +106,11 @@ currentPrice + increment`, window open, snag-it only while no bid, anti-sniping 
 | SnagIt(buyerId) | AuctionSnagged |
 | CloseAuction (job, `end_time <= now`) | AuctionClosedWon(winner, price) or AuctionClosedUnsold |
 | CancelAuction(reason) (seller before first bid, or staff) | AuctionCancelled |
+| RescheduleAuction(start, end) (system, from `AnnounceEditedV1`; OPEN, no standing bid) | AuctionRescheduled |
 | RetractBid / CancelBid (staff) | BidRetracted / BidCancelled |
 
 Public: `AuctionOpenedV1`, `BidPlacedV1`, `AuctionClosedWonV1`, `AuctionClosedUnsoldV1`,
-`AuctionSnaggedV1` (topic `auction.v1`). `order` consumes the last three.
+`AuctionSnaggedV1`, `AuctionRescheduledV1` (topic `auction.v1`). `order` consumes the closing three.
 
 ### `order` — `/order/{orderId}`
 

@@ -15,9 +15,12 @@ import org.linlinjava.announce.cqrs.test.containers.CqrsContainers;
 import org.linlinjava.announce.cqrs.test.containers.EventSourcingDbContainer;
 import org.linlinjava.announce.db.dao.reactive.AnnounceAuctionSellerMapper;
 import org.linlinjava.announce.db.dao.reactive.AnnounceOrderSellerMapper;
+import org.linlinjava.announce.goods.api.AnnounceEditedV1;
 import org.linlinjava.announce.goods.api.AnnouncePublishedV1;
 import org.linlinjava.announce.goods.api.AnnounceTopics;
 import org.linlinjava.announce.messaging.api.OfferAcceptedV1;
+import org.linlinjava.announce.order.api.AuctionRescheduledV1;
+import org.linlinjava.announce.order.api.BidPlacedV1;
 import org.linlinjava.announce.order.api.OrderAgreedV1;
 import org.linlinjava.announce.order.api.OrderPaidV1;
 import org.linlinjava.announce.order.api.OrderRefundedV1;
@@ -113,6 +116,7 @@ class OrderModuleEndToEndTest {
     @TestConfiguration
     static class Probes {
         static final List<Object> orderEvents = new CopyOnWriteArrayList<>();
+        static final List<Object> auctionEvents = new CopyOnWriteArrayList<>();
 
         @Bean
         @Primary
@@ -127,6 +131,14 @@ class OrderModuleEndToEndTest {
                     .on(OrderPaidV1.class, (e, h) -> Mono.fromRunnable(() -> orderEvents.add(e)))
                     .on(OrderSettledV1.class, (e, h) -> Mono.fromRunnable(() -> orderEvents.add(e)))
                     .on(OrderRefundedV1.class, (e, h) -> Mono.fromRunnable(() -> orderEvents.add(e)))
+                    .build();
+        }
+
+        @Bean
+        Consumer<Message<byte[]>> auctionProbe(PublicEventSubscribers subscribers) {
+            return subscribers.forTopic("auction-probe")
+                    .on(BidPlacedV1.class, (e, h) -> Mono.fromRunnable(() -> auctionEvents.add(e)))
+                    .on(AuctionRescheduledV1.class, (e, h) -> Mono.fromRunnable(() -> auctionEvents.add(e)))
                     .build();
         }
 
@@ -150,6 +162,7 @@ class OrderModuleEndToEndTest {
     @Autowired AnnounceOrderSellerMapper orderSellers;
 
     static String auctionAnnounce = UUID.randomUUID().toString();
+    static String scheduledAnnounce = UUID.randomUUID().toString();
     static String fixedAnnounce = UUID.randomUUID().toString();
     static String offerAnnounce = UUID.randomUUID().toString();
     static String lateAnnounce = UUID.randomUUID().toString();
@@ -162,9 +175,24 @@ class OrderModuleEndToEndTest {
         return LocalDateTime.now(CLOCK);
     }
 
+    /** As Jackson writes a LocalDateTime (seconds always present, unlike {@code toString()}). */
+    static String iso(LocalDateTime t) {
+        return java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(t);
+    }
+
     private void publish(String announceId, String saleType, long priceCents) {
+        publish(announceId, saleType, priceCents, null, null);
+    }
+
+    /** With dates: what announce-management relays once the seller scheduled the auction; without: an older producer. */
+    private void publish(String announceId, String saleType, long priceCents, LocalDateTime auctionStartsAt, LocalDateTime auctionEndsAt) {
         others.send(AnnounceTopics.ANNOUNCE_V1, "/announce/" + announceId, new AnnouncePublishedV1(announceId, "GOODS", SELLER, "Bike " + announceId,
-                "http://x/1.jpg", priceCents, "DKK", saleType, 1005007, now(), now().plusDays(60)));
+                "http://x/1.jpg", priceCents, "DKK", saleType, 1005007, now(), now().plusDays(60), auctionStartsAt, auctionEndsAt));
+    }
+
+    private void editSchedule(String announceId, LocalDateTime auctionStartsAt, LocalDateTime auctionEndsAt) {
+        others.send(AnnounceTopics.ANNOUNCE_V1, "/announce/" + announceId, new AnnounceEditedV1(announceId, "GOODS", "Bike " + announceId,
+                "http://x/1.jpg", 10000, "DKK", "AUCTION", 1005007, auctionStartsAt, auctionEndsAt));
     }
 
     /** What the customer edge forwards for a signed-in member. */
@@ -267,9 +295,25 @@ class OrderModuleEndToEndTest {
     @Test
     @Order(2)
     void auctionToSettlement() {
+        // a publication without a schedule (older producer) opens at publish time for the default 7 days
         publish(auctionAnnounce, "AUCTION", 10000);
         await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/auctions/" + auctionAnnounce).exchange().expectStatus().isOk()
-                .expectBody().jsonPath("$.auction.status").isEqualTo("OPEN").jsonPath("$.auction.sellerId").isEqualTo(SELLER));
+                .expectBody().jsonPath("$.auction.status").isEqualTo("OPEN").jsonPath("$.auction.sellerId").isEqualTo(SELLER)
+                .jsonPath("$.auction.startTime").isEqualTo(iso(now())).jsonPath("$.auction.endTime").isEqualTo(iso(now().plusDays(7))));
+        // one with a schedule opens exactly on it
+        publish(scheduledAnnounce, "AUCTION", 5000, now().plusDays(1), now().plusDays(3));
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/auctions/" + scheduledAnnounce).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.auction.startTime").isEqualTo(iso(now().plusDays(1)))
+                .jsonPath("$.auction.endTime").isEqualTo(iso(now().plusDays(3))));
+        // the seller moves the window before the first bid: rescheduled, and relayed on auction.v1
+        editSchedule(auctionAnnounce, now(), now().plusDays(5));
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/auctions/" + auctionAnnounce).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.auction.endTime").isEqualTo(iso(now().plusDays(5))));
+        await().atMost(WAIT).untilAsserted(() -> assertThat(Probes.auctionEvents)
+                .filteredOn(e -> e instanceof AuctionRescheduledV1 r && r.announceId().equals(auctionAnnounce)).hasSize(1));
+        // an edit without a schedule, or on an announce that never opened an auction, changes nothing
+        editSchedule(auctionAnnounce, null, null);
+        editSchedule("no-such-auction", now(), now().plusDays(2));
 
         // a bid from the seller and a bid below the increment are rejected; two valid bids
         as(SELLER, "POST", "/api/auctions/" + auctionAnnounce + "/bids", "{\"amountCents\":10000}").expectStatus().isEqualTo(409)
@@ -282,10 +326,20 @@ class OrderModuleEndToEndTest {
         await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/auctions/" + auctionAnnounce).exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.auction.bidCount").isEqualTo(2).jsonPath("$.auction.currentPrice").isEqualTo(120.0)
                 .jsonPath("$.bids[0].status").isEqualTo("ACTIVE").jsonPath("$.bids[1].status").isEqualTo("OUTBID"));
+        // once a bid stands the window is fixed: the edit is consumed but refused (bids-exist), the row keeps its end
+        editSchedule(auctionAnnounce, now(), now().plusDays(6));
+        await().atMost(WAIT).untilAsserted(() -> assertThat(Probes.auctionEvents)
+                .filteredOn(e -> e instanceof BidPlacedV1 b && b.announceId().equals(auctionAnnounce)).hasSize(2));
+        client.get().uri("/api/auctions/" + auctionAnnounce).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.auction.endTime").isEqualTo(iso(now().plusDays(5)));
+        assertThat(Probes.auctionEvents).filteredOn(e -> e instanceof AuctionRescheduledV1 r && r.announceId().equals(auctionAnnounce)).hasSize(1);
 
         // the end passes: the closing job closes it won, the order context opens the deal with the winner
         CLOCK.advance(Duration.ofDays(8));
-        staff("POST", "/api/admin/auctions/close-due", null).expectStatus().isOk().expectBody().jsonPath("$.closed").isEqualTo(1);
+        // both open auctions are due: the one with bids closes won, the scheduled one (no bids) unsold
+        staff("POST", "/api/admin/auctions/close-due", null).expectStatus().isOk().expectBody().jsonPath("$.closed").isEqualTo(2);
+        await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/auctions/" + scheduledAnnounce).exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.auction.status").isEqualTo("CLOSED_UNSOLD"));
         await().atMost(WAIT).untilAsserted(() -> client.get().uri("/api/auctions/" + auctionAnnounce).exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.auction.status").isEqualTo("CLOSED_WON").jsonPath("$.auction.winnerId").isEqualTo(BOB));
         await().atMost(WAIT).untilAsserted(() -> assertThat(Probes.orderEvents).filteredOn(e -> e instanceof OrderAgreedV1 a && a.announceId().equals(auctionAnnounce)).hasSize(1));

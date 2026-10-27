@@ -20,6 +20,29 @@ describe('post wizard validation mirrors the aggregate invariants', () => {
     expect(validateAnnounce(goods, NOW)['goods.condition']).toBe('validation.conditionRequired');
   });
 
+  it('an auction schedule is optional, ends after it starts and ends in the future; other sale types send none', () => {
+    const goods = emptyRequest('GOODS');
+    goods.title = 'Camera';
+    goods.categoryId = 1;
+    goods.goods = { saleType: 'AUCTION', price: 100, condition: 'GOOD' };
+    expect(validateAnnounce(goods, NOW)).toEqual({});
+
+    goods.goods = { saleType: 'AUCTION', price: 100, condition: 'GOOD', auctionStartsAt: '2026-10-05T12:00:00', auctionEndsAt: '2026-10-01T12:00:00' };
+    expect(validateAnnounce(goods, NOW)['goods.auctionEndsAt']).toBe('validation.auctionEndAfterStart');
+
+    goods.goods = { saleType: 'AUCTION', price: 100, condition: 'GOOD', auctionEndsAt: '2026-09-01T12:00:00' };
+    expect(validateAnnounce(goods, NOW)['goods.auctionEndsAt']).toBe('validation.auctionEndFuture');
+
+    goods.goods = { saleType: 'AUCTION', price: 100, condition: 'GOOD', auctionStartsAt: '2026-10-01T12:00:00', auctionEndsAt: '2026-10-05T12:00:00' };
+    expect(validateAnnounce(goods, NOW)).toEqual({});
+    expect(toRequest(goods).goods).toMatchObject({ auctionStartsAt: '2026-10-01T12:00:00', auctionEndsAt: '2026-10-05T12:00:00' });
+
+    // switching back to a fixed price drops the dates the seller typed while AUCTION was selected
+    goods.goods = { saleType: 'FIXED_PRICE', price: 100, condition: 'GOOD', auctionStartsAt: '2026-10-01T12:00:00', auctionEndsAt: '2026-10-05T12:00:00' };
+    expect(validateAnnounce(goods, NOW)).toEqual({});
+    expect(toRequest(goods).goods).toMatchObject({ auctionStartsAt: null, auctionEndsAt: null });
+  });
+
   it('an event cannot publish unless start < end and end is in the future', () => {
     const ev = emptyRequest('EVENT');
     ev.title = 'Concert';

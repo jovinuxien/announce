@@ -114,7 +114,7 @@ class AnnounceApiRoundTripTest {
     static AnnounceSummary summary(String id) {
         return new AnnounceSummary(id, Kind.GOODS, new SellerId(7), "Bike", "b", "http://x/1.jpg", AnnounceStatus.PUBLISHED, new CategoryId(3),
                 Location.inRegion(1, "Stockholm", "11122"), NOW, NOW, NOW.plusDays(30),
-                new AnnounceSummary.KindFacts(Money.of("10"), SaleType.FIXED_PRICE, Condition.NEW, null, null, null, null, null, null, null), null);
+                new AnnounceSummary.KindFacts(Money.of("10"), SaleType.FIXED_PRICE, Condition.NEW, null, null, null, null, null, null, null, null, null), null);
     }
 
     @Test

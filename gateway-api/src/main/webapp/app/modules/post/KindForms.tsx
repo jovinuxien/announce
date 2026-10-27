@@ -49,6 +49,27 @@ export function GoodsForm({ draft, onChange, err }: FormProps) {
           </Form.Group>
         </Col>
       </Row>
+      {g.saleType === 'AUCTION' && (
+        <Row className="g-3 mb-3" data-testid="auction-schedule">
+          <Col md={4}>
+            <Form.Group controlId="goods-auctionStartsAt">
+              <Form.Label>{t('goods.auctionStartsAt')}</Form.Label>
+              <Form.Control type="datetime-local" value={toInputDateTime(g.auctionStartsAt)} onChange={e => set({ auctionStartsAt: fromInputDateTime(e.target.value) })} isInvalid={!!err('goods.auctionStartsAt')} />
+              <Form.Control.Feedback type="invalid">{err('goods.auctionStartsAt')}</Form.Control.Feedback>
+            </Form.Group>
+          </Col>
+          <Col md={4}>
+            <Form.Group controlId="goods-auctionEndsAt">
+              <Form.Label>{t('goods.auctionEndsAt')}</Form.Label>
+              <Form.Control type="datetime-local" value={toInputDateTime(g.auctionEndsAt)} onChange={e => set({ auctionEndsAt: fromInputDateTime(e.target.value) })} isInvalid={!!err('goods.auctionEndsAt')} />
+              <Form.Control.Feedback type="invalid">{err('goods.auctionEndsAt')}</Form.Control.Feedback>
+            </Form.Group>
+          </Col>
+          <Col md={4} className="d-flex align-items-end">
+            <Form.Text>{t('goods.auctionScheduleHelp')}</Form.Text>
+          </Col>
+        </Row>
+      )}
       <Form.Label>{t('goods.attributes')}</Form.Label>
       {attributes.map((a, i) => (
         <Row className="g-2 mb-2" key={i}>

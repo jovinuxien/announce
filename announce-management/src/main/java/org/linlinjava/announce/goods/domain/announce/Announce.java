@@ -56,8 +56,10 @@ public record Announce(String id,
         return new Announce(id, sellerId, event.content(), event.details(), status, publishedAt, expiresAt, createdAt, event.at());
     }
 
+    /** The event carries the details as published (an auction's resolved schedule), so they replace the draft's. */
     public Announce apply(AnnouncePublished event) {
-        return new Announce(id, sellerId, content, details, AnnounceStatus.PUBLISHED, event.at(), event.expiresAt(), createdAt, event.at());
+        AnnounceKind published = event.details() == null ? details : event.details();
+        return new Announce(id, sellerId, content, published, AnnounceStatus.PUBLISHED, event.at(), event.expiresAt(), createdAt, event.at());
     }
 
     public Announce apply(AnnounceWithdrawn event) {

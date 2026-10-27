@@ -8,6 +8,7 @@ import org.linlinjava.announce.auction.domain.events.AuctionCancelled;
 import org.linlinjava.announce.auction.domain.events.AuctionClosedUnsold;
 import org.linlinjava.announce.auction.domain.events.AuctionClosedWon;
 import org.linlinjava.announce.auction.domain.events.AuctionOpened;
+import org.linlinjava.announce.auction.domain.events.AuctionRescheduled;
 import org.linlinjava.announce.auction.domain.events.AuctionSnagged;
 import org.linlinjava.announce.auction.domain.events.BidPlaced;
 import org.linlinjava.announce.auction.infrastructure.config.AuctionProperties;
@@ -20,6 +21,7 @@ import org.linlinjava.announce.cqrs.messaging.PublicEventSubscribers;
 import org.linlinjava.announce.db.dao.reactive.AnnounceAuctionMapper;
 import org.linlinjava.announce.db.dao.reactive.AnnounceAuctionSellerMapper;
 import org.linlinjava.announce.db.domain.AnnounceAuctionSeller;
+import org.linlinjava.announce.goods.api.AnnounceEditedV1;
 import org.linlinjava.announce.goods.api.AnnounceExpiredV1;
 import org.linlinjava.announce.goods.api.AnnouncePublishedV1;
 import org.linlinjava.announce.goods.api.AnnounceWithdrawnV1;
@@ -27,6 +29,7 @@ import org.linlinjava.announce.order.api.AuctionCancelledV1;
 import org.linlinjava.announce.order.api.AuctionClosedUnsoldV1;
 import org.linlinjava.announce.order.api.AuctionClosedWonV1;
 import org.linlinjava.announce.order.api.AuctionOpenedV1;
+import org.linlinjava.announce.order.api.AuctionRescheduledV1;
 import org.linlinjava.announce.order.api.AuctionSnaggedV1;
 import org.linlinjava.announce.order.api.BidPlacedV1;
 import org.linlinjava.announce.order.api.SellerAccountUpdatedV1;
@@ -44,8 +47,10 @@ import java.util.function.Consumer;
  * The auction context over Kafka. <b>Out:</b> relay {@code auction-public} on {@code auction-out-0} (topic
  * {@code auction.v1}); the relay needs the seller on every record, so the closing and cancel mappings read it from
  * the read model. <b>In:</b> {@code auctionAnnounceEvents} opens an auction for every published AUCTION announce
- * (defaults from {@code auction.*} when the announce carries no auction settings) and cancels it when the announce
- * is withdrawn or expires; {@code auctionPaymentEvents} keeps the context's copy of who can be paid.
+ * on the schedule the announce carries ({@code auctionStartsAt} / {@code auctionEndsAt}; events without them get
+ * publish time + {@code auction.default-duration} capped by the expiry), reschedules it when the seller edits the
+ * dates before the first bid, and cancels it when the announce is withdrawn or expires; {@code auctionPaymentEvents}
+ * keeps the context's copy of who can be paid.
  */
 @Configuration(proxyBeanMethods = false)
 public class AuctionMessaging {
@@ -74,6 +79,8 @@ public class AuctionMessaging {
                 })
                 .map(AuctionCancelled.class, AuctionCancelledV1.class, (e, env) ->
                         new AuctionCancelledV1(id(env), seller(auctions, env).sellerId(), e.reason(), e.at()))
+                .map(AuctionRescheduled.class, AuctionRescheduledV1.class, (e, env) -> new AuctionRescheduledV1(id(env), seller(auctions, env).sellerId(),
+                        e.previousStartsAt(), e.previousEndsAt(), e.startsAt(), e.endsAt(), e.at()))
                 .build();
     }
 
@@ -84,10 +91,17 @@ public class AuctionMessaging {
                     if (!"AUCTION".equals(e.saleType())) {
                         return Mono.empty();
                     }
-                    LocalDateTime start = e.publishedAt();
-                    LocalDateTime end = start.plus(props.getDefaultDuration());
-                    if (e.expiresAt() != null && e.expiresAt().isBefore(end)) {
-                        end = e.expiresAt();
+                    LocalDateTime start;
+                    LocalDateTime end;
+                    if (e.auctionStartsAt() != null && e.auctionEndsAt() != null) {
+                        start = e.auctionStartsAt();   // the announce is the source of the schedule
+                        end = e.auctionEndsAt();
+                    } else {
+                        start = e.publishedAt();        // older producers: publish time + the default duration, capped by the expiry
+                        end = start.plus(props.getDefaultDuration());
+                        if (e.expiresAt() != null && e.expiresAt().isBefore(end)) {
+                            end = e.expiresAt();
+                        }
                     }
                     OpenAuction open = new OpenAuction(e.announceId(), e.sellerId(), e.title(), e.mainPicture(), e.currency(), e.priceCents(),
                             null, null, props.getDefaultIncrementCents(), start, end, props.getDefaultAutoExtendSec());
@@ -98,6 +112,17 @@ public class AuctionMessaging {
                             })
                             .onErrorResume(CommandRejectedException.class, x -> {
                                 log.warn("announce {} published as AUCTION but no auction opened: {}", e.announceId(), x.getMessage());
+                                return Mono.empty();
+                            });
+                })
+                .on(AnnounceEditedV1.class, (e, headers) -> {
+                    if (!"AUCTION".equals(e.saleType()) || e.auctionStartsAt() == null || e.auctionEndsAt() == null) {
+                        return Mono.empty();   // drafts and non-auctions carry no schedule; a partial one is resolved by the announce at publish
+                    }
+                    return auctions.reschedule(e.announceId(), e.auctionStartsAt(), e.auctionEndsAt(), commandId("reschedule", headers)).then()
+                            .onErrorResume(CommandSubjectDoesNotExistException.class, x -> Mono.empty())   // edited before publish: no auction yet
+                            .onErrorResume(CommandRejectedException.class, x -> {
+                                log.info("announce {} schedule edited but the auction keeps its window: {}", e.announceId(), x.getMessage());
                                 return Mono.empty();
                             });
                 })

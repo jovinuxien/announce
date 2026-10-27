@@ -71,7 +71,7 @@ class AnnounceAdminControllerTest {
     static AnnounceSummary summary(AnnounceSummary.Moderation moderation) {
         return new AnnounceSummary("a1", Kind.GOODS, new SellerId(7), "Bike", "brief", "http://x/1.jpg", AnnounceStatus.WITHDRAWN,
                 new CategoryId(3), Location.inRegion(1, "Stockholm", "11122"), NOW, NOW, NOW.plusDays(60),
-                new AnnounceSummary.KindFacts(Money.of("1500"), SaleType.FIXED_PRICE, Condition.GOOD, null, null, null, null, null, null, null),
+                new AnnounceSummary.KindFacts(Money.of("1500"), SaleType.FIXED_PRICE, Condition.GOOD, null, null, null, null, null, null, null, null, null),
                 moderation);
     }
 

@@ -159,6 +159,28 @@ export function seedTrade() {
       cancelledBy: null,
     },
   ]);
+  // an auction scheduled by the seller that has not started yet (OPEN row, window ahead, no bids)
+  tradeDb.auctions.set('ann-auction-9', {
+    id: 'auc-9',
+    announceId: 'ann-auction-9',
+    sellerId: 2,
+    title: 'Hasselblad 500C/M',
+    mainPicture: null,
+    currency: 'DKK',
+    initialPrice: 800,
+    reservePrice: null,
+    snagItPrice: null,
+    bidIncrement: 50,
+    currentPrice: 800,
+    bidCount: 0,
+    startTime: iso(24 * 60),
+    endTime: iso(4 * 24 * 60),
+    autoExtendSec: 120,
+    status: 'OPEN',
+    winningBidId: null,
+    winnerId: null,
+    closedTime: null,
+  });
   // a closed auction won by me
   tradeDb.auctions.set('ann-auction-8', {
     id: 'auc-8',

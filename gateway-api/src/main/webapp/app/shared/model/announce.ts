@@ -29,6 +29,9 @@ export interface GoodsDto {
   variants?: VariantDto[] | null;
   attributes?: AttributeDto[] | null;
   specifications?: SpecificationDto[] | null;
+  /** AUCTION only: the seller's schedule; both set once published (defaults = publish time, +7 days capped by the expiry). */
+  auctionStartsAt?: string | null;
+  auctionEndsAt?: string | null;
 }
 export interface JobDto {
   employer: string;
@@ -109,6 +112,7 @@ export interface AnnounceSummaryResponse {
   endsAt?: string | null;
   ticketed?: boolean | null;
   ticketPrice?: number | null;
+  auctionEndsAt?: string | null;
 }
 
 export interface PageResponse<T> { items: T[]; page: number; size: number; total: number }

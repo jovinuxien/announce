@@ -6,6 +6,7 @@ import org.linlinjava.announce.auction.domain.events.AuctionClosedUnsold;
 import org.linlinjava.announce.auction.domain.events.AuctionClosedWon;
 import org.linlinjava.announce.auction.domain.events.AuctionExtended;
 import org.linlinjava.announce.auction.domain.events.AuctionOpened;
+import org.linlinjava.announce.auction.domain.events.AuctionRescheduled;
 import org.linlinjava.announce.auction.domain.events.AuctionSnagged;
 import org.linlinjava.announce.auction.domain.events.BidCancelled;
 import org.linlinjava.announce.auction.domain.events.BidPlaced;
@@ -114,6 +115,13 @@ public class AuctionReadModelProjection implements ReactiveProjection {
             patch.setId(idOf(env));
             patch.setEndTime(e.endsAt());
             return patchAuction(patch, env, e.at()).then(logEvent(env, "EXTENDED", null, null, "SYSTEM", e, e.at()));
+        });
+        handlers.on(AuctionRescheduled.class, (e, env) -> {
+            AnnounceAuction patch = new AnnounceAuction();
+            patch.setId(idOf(env));
+            patch.setStartTime(e.startsAt());
+            patch.setEndTime(e.endsAt());
+            return patchAuction(patch, env, e.at()).then(logEvent(env, "RESCHEDULED", null, null, "SYSTEM", e, e.at()));
         });
         handlers.on(AuctionSnagged.class, (e, env) -> {
             AnnounceAuction patch = new AnnounceAuction();

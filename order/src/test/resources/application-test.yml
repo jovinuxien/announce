@@ -4,12 +4,15 @@ spring:
     discovery:
       enabled: false
     function:
-      definition: auctionAnnounceEvents;auctionPaymentEvents;orderAnnounceEvents;orderAuctionEvents;orderMessagingEvents;orderPaymentEvents;orderShippingEvents;paymentOrderEvents;shippingOrderEvents;orderProbe
+      definition: auctionAnnounceEvents;auctionPaymentEvents;orderAnnounceEvents;orderAuctionEvents;orderMessagingEvents;orderPaymentEvents;orderShippingEvents;paymentOrderEvents;shippingOrderEvents;orderProbe;auctionProbe
     stream:
       bindings:
         orderProbe-in-0:
           destination: order.v1
           group: order-test-probe
+        auctionProbe-in-0:
+          destination: auction.v1
+          group: auction-test-probe
 eureka:
   client:
     enabled: false

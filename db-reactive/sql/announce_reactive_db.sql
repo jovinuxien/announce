@@ -314,8 +314,11 @@ CREATE TABLE `announce_goods_detail` (
   `sale_type` varchar(20) NOT NULL DEFAULT 'FIXED_PRICE' COMMENT 'FIXED_PRICE, AUCTION, GIVEAWAY',
   `brand_id` int(11) DEFAULT NULL COMMENT 'announce_brand.id, optional',
   `unit` varchar(31) DEFAULT 'pcs',
+  `auction_starts_at` datetime DEFAULT NULL COMMENT 'AUCTION only: when bidding opens (resolved at publish, default = published_at)',
+  `auction_ends_at` datetime DEFAULT NULL COMMENT 'AUCTION only: when bidding closes (resolved at publish, default = start + 7 d capped by expires_at)',
   PRIMARY KEY (`announce_id`),
   KEY `idx_goods_detail_price` (`price`),
+  KEY `idx_goods_detail_auction_ends` (`auction_ends_at`),
   KEY `idx_goods_detail_brand` (`brand_id`),
   KEY `idx_goods_detail_sale_type` (`sale_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Goods-specific columns of an announce';

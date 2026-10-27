@@ -9,6 +9,8 @@
     "from": "fra {{price}}",
     "bids": "Bud",
     "ends": "Slutter",
+    "starts": "Starter",
+    "window": "Løber {{start}} – {{end}}",
     "bidsOf": "Bud på “{{title}}”",
     "bidder": "Budgiver",
     "amount": "Beløb",

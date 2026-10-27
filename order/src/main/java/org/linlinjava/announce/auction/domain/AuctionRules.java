@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
  *   <li>snag-it only while no bid exists and a snag-it price is set</li>
  *   <li>the seller cancels only before the first bid; staff any time</li>
  *   <li>closing needs the end to have passed; the reserve decides won or unsold</li>
+ *   <li>the window moves only while the auction is open and no bid stands</li>
  * </ul>
  */
 public final class AuctionRules {
@@ -31,6 +32,14 @@ public final class AuctionRules {
         }
         if (c.snagItPriceCents() != null && c.snagItPriceCents() <= c.initialPriceCents()) {
             throw reject("snag-it-below-start", "The snag-it price must be above the start price");
+        }
+    }
+
+    public static void checkReschedule(Auction a, AuctionCommands.RescheduleAuction c) {
+        if (!a.status().isOpen()) throw reject("auction-not-open", "The auction is " + a.status());
+        if (a.hasBids()) throw reject("bids-exist", "An auction with bids keeps its window");
+        if (c.startsAt() == null || c.endsAt() == null || !c.startsAt().isBefore(c.endsAt())) {
+            throw reject("auction-window", "An auction must start before it ends");
         }
     }
 

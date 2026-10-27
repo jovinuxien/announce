@@ -111,7 +111,8 @@ public class AnnounceMessaging {
         return new AnnouncePublishedV1(
                 Subjects.idOf(envelope.subject()), event.details().kind().name(), event.sellerId().value(),
                 event.content().title(), event.content().mainPicture(), priceCents(event.details()), currency,
-                saleType(event.details()), event.content().categoryId().value(), event.at(), event.expiresAt());
+                saleType(event.details()), event.content().categoryId().value(), event.at(), event.expiresAt(),
+                auctionStartsAt(event.details()), auctionEndsAt(event.details()));
     }
 
     /** Same rule for an edit: an event without details is a legacy one and is skipped. */
@@ -122,7 +123,8 @@ public class AnnounceMessaging {
         return new AnnounceEditedV1(
                 Subjects.idOf(envelope.subject()), event.details().kind().name(),
                 event.content().title(), event.content().mainPicture(), priceCents(event.details()), currency,
-                saleType(event.details()), event.content().categoryId().value());
+                saleType(event.details()), event.content().categoryId().value(),
+                auctionStartsAt(event.details()), auctionEndsAt(event.details()));
     }
 
     private static <T> T skipLegacy(EventEnvelope envelope) {
@@ -140,5 +142,13 @@ public class AnnounceMessaging {
 
     static String saleType(AnnounceKind details) {
         return details instanceof GoodsDetails goods ? goods.saleType().name() : null;
+    }
+
+    static java.time.LocalDateTime auctionStartsAt(AnnounceKind details) {
+        return details instanceof GoodsDetails goods ? goods.auctionStartsAt() : null;
+    }
+
+    static java.time.LocalDateTime auctionEndsAt(AnnounceKind details) {
+        return details instanceof GoodsDetails goods ? goods.auctionEndsAt() : null;
     }
 }

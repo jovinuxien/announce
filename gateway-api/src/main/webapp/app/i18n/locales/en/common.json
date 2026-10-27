@@ -1,5 +1,6 @@
 {
   "card": {
+    "auctionEnds": "Ends {{date}}",
     "deadline": "Apply by {{date}}"
   },
   "condition": {

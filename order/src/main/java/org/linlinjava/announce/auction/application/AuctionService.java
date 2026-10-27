@@ -6,6 +6,7 @@ import org.linlinjava.announce.auction.domain.AuctionCommands.CancelBid;
 import org.linlinjava.announce.auction.domain.AuctionCommands.CloseAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.OpenAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.PlaceBid;
+import org.linlinjava.announce.auction.domain.AuctionCommands.RescheduleAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.RetractBid;
 import org.linlinjava.announce.auction.domain.AuctionCommands.SnagIt;
 import org.linlinjava.announce.auction.infrastructure.config.AuctionProperties;
@@ -78,6 +79,11 @@ public class AuctionService {
     /** System: the announce is gone (withdrawn, expired); a no-op when the auction is not open. */
     public Mono<Auction> cancelBySystem(String announceId, String reason, String commandId) {
         return send(new CancelAuction(announceId, null, "SYSTEM", reason), commandId);
+    }
+
+    /** System: the seller moved the schedule on the announce; refused once a bid stands or the auction is closed. */
+    public Mono<Auction> reschedule(String announceId, LocalDateTime startsAt, LocalDateTime endsAt, String commandId) {
+        return send(new RescheduleAuction(announceId, startsAt, endsAt), commandId);
     }
 
     public Mono<Auction> retractBid(String announceId, String bidId, Integer bidderId, String commandId) {

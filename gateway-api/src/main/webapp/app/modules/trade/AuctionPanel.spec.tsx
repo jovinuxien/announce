@@ -48,13 +48,40 @@ describe('AuctionPanel', () => {
   it('says the auction is not open yet when the order module has no row (seller not payable)', async () => {
     renderPage(<AuctionPanel announce={announce('ann-no-auction')} mine={false} />, '/announce/ann-no-auction');
     expect(await screen.findByText('The auction is not open yet.')).toBeInTheDocument();
+    expect(screen.getByText("Bidding opens once the seller's payout account is enabled.")).toBeInTheDocument();
+    expect(screen.queryByTestId('auction-planned')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows the schedule the announce carries while no auction row exists', async () => {
+    const scheduled = { ...announce('ann-no-auction'), goods: { saleType: 'AUCTION', auctionStartsAt: '2026-11-01T10:00:00', auctionEndsAt: '2026-11-08T10:00:00' } } as unknown as AnnounceResponse;
+    renderPage(<AuctionPanel announce={scheduled} mine={false} />, '/announce/ann-no-auction');
+    expect(await screen.findByTestId('auction-planned')).toHaveTextContent(/Planned: starts .*2026.*, ends .*2026/);
+    expect(screen.queryByLabelText('Bid amount')).not.toBeInTheDocument();
+  });
+
+  it('before the start: shows when bidding opens, the status "not started" and a disabled bid form', async () => {
+    renderPage(<AuctionPanel announce={announce('ann-auction-9')} mine={false} />, '/announce/ann-auction-9');
+    await screen.findByTestId('auction-price');
+    expect(screen.getByTestId('auction-status')).toHaveTextContent('not started');
+    expect(screen.getByTestId('auction-timeline')).toHaveTextContent(/0 bids · starts /);
+    expect(screen.getByTestId('bid-form-disabled')).toHaveTextContent(/Bidding opens /);
+    expect(screen.getByLabelText('Bid amount')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Bid' })).toBeDisabled();
+  });
+
+  it('while open: the timeline says when it started and how long is left', async () => {
+    renderPage(<AuctionPanel announce={announce('ann-auction-7')} mine={false} />, '/announce/ann-auction-7');
+    await screen.findByTestId('auction-price');
+    expect(screen.getByTestId('auction-timeline')).toHaveTextContent(/1 bid · started .* · ends in \d+d/);
+    expect(screen.getByLabelText('Bid amount')).toBeEnabled();
   });
 
   it('shows a closed auction with the outcome and no form', async () => {
     renderPage(<AuctionPanel announce={announce('ann-auction-8')} mine={false} />, '/announce/ann-auction-8');
     await screen.findByTestId('auction-price');
     expect(screen.getByTestId('auction-status')).toHaveTextContent('sold');
+    expect(screen.getByTestId('auction-timeline')).toHaveTextContent(/ended /);
     expect(within(panel()).getByText('You won this auction.')).toBeInTheDocument();
     expect(screen.getByTestId('my-bid')).toHaveTextContent(/3.200.*won/);
     expect(screen.queryByLabelText('Bid amount')).not.toBeInTheDocument();

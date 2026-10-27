@@ -22,8 +22,10 @@ public final class AnnounceApiDtos {
 
     public record VariantDto(List<String> specifications, BigDecimal price, Integer stock, String pictureUrl) {}
 
+    /** {@code auctionStartsAt} / {@code auctionEndsAt}: the auction schedule (AUCTION only; both set once published, optional on a draft). */
     public record GoodsDto(BigDecimal price, ConditionV1 condition, SaleTypeV1 saleType, Integer brandId, String unit,
-                           List<VariantDto> variants, List<AttributeDto> attributes, List<SpecificationDto> specifications) {}
+                           List<VariantDto> variants, List<AttributeDto> attributes, List<SpecificationDto> specifications,
+                           LocalDateTime auctionStartsAt, LocalDateTime auctionEndsAt) {}
 
     public record JobDto(String employer, ContractTypeV1 contractType, BigDecimal salaryMin, BigDecimal salaryMax, String currency,
                          LocalDateTime applicationDeadline, String howToApply, SaleTypeV1 saleType) {}
@@ -44,7 +46,8 @@ public final class AnnounceApiDtos {
                                           BigDecimal price, SaleTypeV1 saleType, ConditionV1 condition,
                                           String employer, ContractTypeV1 contractType, LocalDateTime applicationDeadline,
                                           LocalDateTime startsAt, LocalDateTime endsAt, Boolean ticketed, BigDecimal ticketPrice,
-                                          Integer moderatedBy, String moderationReason) {}
+                                          Integer moderatedBy, String moderationReason,
+                                          LocalDateTime auctionEndsAt) {}
 
     public record PageResponse<T>(List<T> items, int page, int size, long total) {}
 }

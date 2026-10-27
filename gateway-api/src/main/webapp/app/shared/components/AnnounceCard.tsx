@@ -20,6 +20,7 @@ export interface CardModel {
   employer?: string;
   contractType?: string;
   when?: string; // preformatted date line (event start, job deadline)
+  ends?: string; // preformatted auction end (local AUCTION goods and crawled tradera auctions)
   externalUrl?: string;
   status?: string;
 }
@@ -38,6 +39,7 @@ export function fromSummary(s: AnnounceSummaryResponse, lang: string): CardModel
     employer: s.employer ?? undefined,
     contractType: s.contractType ?? undefined,
     when: s.kind === 'EVENT' ? formatDate(s.startsAt, lang) : s.kind === 'JOB' ? formatDate(s.applicationDeadline, lang) : undefined,
+    ends: s.kind === 'GOODS' && s.saleType === 'AUCTION' && s.auctionEndsAt ? formatDate(s.auctionEndsAt, lang) : undefined,
     status: s.status,
   };
 }
@@ -56,7 +58,8 @@ export function fromHit(h: SearchHit, lang: string): CardModel {
     city: h.city,
     employer: h.employer,
     contractType: h.contractType,
-    when: h.kind === 'EVENT' ? formatEpoch(h.startsEpoch, lang) : h.endsEpoch ? formatEpoch(h.endsEpoch, lang) : undefined,
+    when: h.kind === 'EVENT' ? formatEpoch(h.startsEpoch, lang) : h.kind === 'JOB' && h.endsEpoch ? formatEpoch(h.endsEpoch, lang) : undefined,
+    ends: h.kind === 'GOODS' && h.saleType === 'AUCTION' && h.endsEpoch ? formatEpoch(h.endsEpoch, lang) : undefined,
     externalUrl: h.externalUrl,
   };
 }
@@ -99,6 +102,7 @@ export default function AnnounceCard({ item }: { item: CardModel }) {
               : item.saleType === 'AUCTION'
                 ? `${t('saleType.AUCTION')} ${item.price != null ? formatMoney(item.price, item.currency, lang) : ''}`
                 : formatMoney(item.price, item.currency, lang)}
+            {item.ends && <div className="small text-muted fw-normal">{t('card.auctionEnds', { date: item.ends })}</div>}
           </div>
         )}
         {item.kind === 'JOB' && (

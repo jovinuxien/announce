@@ -11,6 +11,9 @@
     "venue": "Plats"
   },
   "goods": {
+    "auctionEnds": "Auktionen avslutas {{date}}",
+    "auctionSchedule": "Auktion: startar {{start}}, avslutas {{end}}",
+    "auctionStarts": "Auktionen startar {{date}}",
     "condition": "Skick",
     "price": "Pris",
     "saleType": "Försäljningstyp",

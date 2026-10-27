@@ -46,6 +46,16 @@ function GoodsSection({ a, lang }: { a: AnnounceResponse; lang: string }) {
       <div className="an-price fs-3">
         {g.saleType === 'GIVEAWAY' ? t('common:saleType.GIVEAWAY') : g.saleType === 'AUCTION' ? t('goods.startingAt', { price: formatMoney(g.price, undefined, lang) }) : formatMoney(g.price, undefined, lang)}
       </div>
+      {g.saleType === 'AUCTION' && (g.auctionStartsAt || g.auctionEndsAt) && (
+        <div className="small mb-2" data-testid="auction-schedule">
+          <i className="bi bi-clock" />{' '}
+          {g.auctionStartsAt && g.auctionEndsAt
+            ? t('goods.auctionSchedule', { start: formatDateTime(g.auctionStartsAt, lang), end: formatDateTime(g.auctionEndsAt, lang) })
+            : g.auctionStartsAt
+              ? t('goods.auctionStarts', { date: formatDateTime(g.auctionStartsAt, lang) })
+              : t('goods.auctionEnds', { date: formatDateTime(g.auctionEndsAt, lang) })}
+        </div>
+      )}
       <Table size="sm" borderless className="mb-2">
         <tbody>
           {g.condition && <tr><th>{t('goods.condition')}</th><td>{t(`common:condition.${g.condition}`)}</td></tr>}

@@ -35,6 +35,8 @@ function BidsPanel({ auction, onClose }: { auction: AuctionRow; onClose: () => v
         {isLoading && <LoadingBlock />}
         {data && (
           <div className="small text-muted px-3 py-2 border-bottom">
+            {t('trade.auctions.window', { start: formatDateTime(data.auction.startTime, i18n.language), end: formatDateTime(data.auction.endTime, i18n.language) })}
+            {' · '}
             {t('trade.auctions.increment', { amount: formatMoney(data.auction.bidIncrement, currency, i18n.language) })}
             {data.auction.reservePrice != null && <> · {t('trade.auctions.reserve', { amount: formatMoney(data.auction.reservePrice, currency, i18n.language) })}</>}
             {data.auction.snagItPrice != null && <> · {t('trade.auctions.snagIt', { amount: formatMoney(data.auction.snagItPrice, currency, i18n.language) })}</>}
@@ -160,6 +162,7 @@ export default function AuctionsPage() {
                     <th>{t('trade.auctions.seller')}</th>
                     <th className="text-end">{t('trade.auctions.currentPrice')}</th>
                     <th className="text-end">{t('trade.auctions.bids')}</th>
+                    <th>{t('trade.auctions.starts')}</th>
                     <th>{t('trade.auctions.ends')}</th>
                     <th>{t('common.statusLabel')}</th>
                   </tr>
@@ -181,6 +184,7 @@ export default function AuctionsPage() {
                         <div className="small text-muted">{t('trade.auctions.from', { price: formatMoney(a.initialPrice, a.currency, i18n.language) })}</div>
                       </td>
                       <td className="text-end">{a.bidCount}</td>
+                      <td className="small text-muted">{formatDateTime(a.startTime, i18n.language)}</td>
                       <td className="small text-muted">{formatDateTime(a.endTime, i18n.language)}</td>
                       <td>
                         <StatusBadge status={a.status} prefix="trade.auctionStatus" />

@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
  * @param kind      GOODS, JOB or EVENT
  * @param priceCents the goods price in minor units (0 for a giveaway, an auction's start price, or a non-goods kind)
  * @param saleType  FIXED_PRICE, AUCTION or GIVEAWAY for goods; null for jobs and events
+ * @param auctionStartsAt when bidding opens (AUCTION goods; resolved by the announce at publish, null otherwise)
+ * @param auctionEndsAt   when bidding closes (AUCTION goods; never after {@code expiresAt}, null otherwise)
  */
 @PublicEvent(type = "announce.published", version = 1)
 public record AnnouncePublishedV1(String announceId,
@@ -24,5 +26,7 @@ public record AnnouncePublishedV1(String announceId,
                                   String saleType,
                                   Integer categoryId,
                                   LocalDateTime publishedAt,
-                                  LocalDateTime expiresAt) {
+                                  LocalDateTime expiresAt,
+                                  LocalDateTime auctionStartsAt,
+                                  LocalDateTime auctionEndsAt) {
 }

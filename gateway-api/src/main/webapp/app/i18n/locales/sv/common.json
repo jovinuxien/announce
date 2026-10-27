@@ -1,5 +1,6 @@
 {
   "card": {
+    "auctionEnds": "Avslutas {{date}}",
     "deadline": "Ansök senast {{date}}"
   },
   "condition": {

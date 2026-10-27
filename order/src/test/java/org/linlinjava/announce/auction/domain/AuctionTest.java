@@ -5,6 +5,7 @@ import org.linlinjava.announce.auction.domain.AuctionCommands.CancelAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.CloseAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.OpenAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.PlaceBid;
+import org.linlinjava.announce.auction.domain.AuctionCommands.RescheduleAuction;
 import org.linlinjava.announce.auction.domain.AuctionCommands.RetractBid;
 import org.linlinjava.announce.auction.domain.AuctionCommands.SnagIt;
 import org.linlinjava.announce.auction.domain.events.AuctionCancelled;
@@ -12,6 +13,7 @@ import org.linlinjava.announce.auction.domain.events.AuctionClosedUnsold;
 import org.linlinjava.announce.auction.domain.events.AuctionClosedWon;
 import org.linlinjava.announce.auction.domain.events.AuctionExtended;
 import org.linlinjava.announce.auction.domain.events.AuctionOpened;
+import org.linlinjava.announce.auction.domain.events.AuctionRescheduled;
 import org.linlinjava.announce.auction.domain.events.AuctionSnagged;
 import org.linlinjava.announce.auction.domain.events.BidPlaced;
 import org.linlinjava.announce.auction.domain.events.BidRetracted;
@@ -92,6 +94,23 @@ class AuctionTest {
         LocalDateTime end = NOW.plusSeconds(30);
         fixture().given(opened(null, null, 120, end)).when(new PlaceBid(ID, "b1", ALICE, 10000, null))
                 .thenExpectEvents(new BidPlaced("b1", ALICE, 10000, null, NOW, NOW.plusSeconds(120)), new AuctionExtended(end, NOW.plusSeconds(120), NOW));
+    }
+
+    @Test
+    void theWindowMovesOnlyBeforeTheFirstBidWhileOpen() {
+        Auction moved = fixture().given(opened()).when(new RescheduleAuction(ID, NOW.plusDays(1), NOW.plusDays(4)))
+                .thenExpectEvents(new AuctionRescheduled(NOW.minusDays(1), NOW.plusDays(6), NOW.plusDays(1), NOW.plusDays(4), NOW)).state();
+        assertEquals(NOW.plusDays(1), moved.startsAt());
+        assertEquals(NOW.plusDays(4), moved.endsAt());
+        // the same window again is a no-op
+        fixture().given(opened()).when(new RescheduleAuction(ID, NOW.minusDays(1), NOW.plusDays(6))).thenExpectNoEvents();
+        // after a bid, when closed, or backwards: refused
+        assertEquals("bids-exist", rejected(fixture().given(opened(), bid("b1", ALICE, 10000)).when(new RescheduleAuction(ID, NOW, NOW.plusDays(4)))).getCode());
+        assertEquals("auction-not-open", rejected(fixture().given(opened(), new AuctionCancelled("x", SELLER, "USER", NOW)).when(new RescheduleAuction(ID, NOW, NOW.plusDays(4)))).getCode());
+        assertEquals("auction-window", rejected(fixture().given(opened()).when(new RescheduleAuction(ID, NOW.plusDays(4), NOW.plusDays(1)))).getCode());
+        // a retracted bid frees the window again
+        fixture().given(opened(), bid("b1", ALICE, 10000), new BidRetracted("b1", ALICE, null, 10000, NOW)).when(new RescheduleAuction(ID, NOW, NOW.plusDays(4)))
+                .thenExpectEvents(new AuctionRescheduled(NOW.minusDays(1), NOW.plusDays(6), NOW, NOW.plusDays(4), NOW));
     }
 
     @Test

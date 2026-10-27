@@ -1,5 +1,6 @@
 {
   "card": {
+    "auctionEnds": "Slutter {{date}}",
     "deadline": "Ansøg senest {{date}}"
   },
   "condition": {

@@ -17,7 +17,10 @@ export const AUCTION_POLL_MS = 15000;
  * The auction of an AUCTION goods announce (`GET /api/auctions/{announceId}`: the `announce_auction` row and its
  * bids): current price, increment and minimum next bid, bid count, countdown to the end time, the member's own
  * standing bid, the outcome once closed. Bids and buy-now go in cents; the panel refetches the row afterwards and
- * every 15 s while open. A 404 means no auction is open for the announce (the seller has no payout account yet).
+ * every 15 s while open. Three time states: before {@code startTime} the window is announced and the form is disabled,
+ * between start and end bids are taken, after the end (or once closed) the outcome shows. A 404 means the order module
+ * has no auction row for the announce yet (the seller has no enabled payout account): the schedule the announce
+ * carries is shown instead so a visitor still sees when bidding is planned.
  */
 export default function AuctionPanel({ announce, mine }: { announce: AnnounceResponse; mine: boolean }) {
   const { t, i18n } = useTranslation('trade');
@@ -76,11 +79,18 @@ export default function AuctionPanel({ announce, mine }: { announce: AnnounceRes
     );
   }
   if (missing) {
+    const g = announce.goods;
     return (
       <Card className="mt-3 border-primary" data-testid="auction-panel">
         <Card.Body>
           <h2 className="h6">{t('auction.title')}</h2>
           <div className="small text-muted">{t('auction.notOpenYet')}</div>
+          {g?.auctionStartsAt && g?.auctionEndsAt && (
+            <div className="small" data-testid="auction-planned">
+              {t('auction.planned', { start: formatDateTime(g.auctionStartsAt, lang), end: formatDateTime(g.auctionEndsAt, lang) })}
+            </div>
+          )}
+          <div className="small text-muted">{t('auction.notOpenYetWhy')}</div>
         </Card.Body>
       </Card>
     );
@@ -90,6 +100,13 @@ export default function AuctionPanel({ announce, mine }: { announce: AnnounceRes
   const minimum = minimumNextBid(auction);
   const own = myStandingBid(bids, me);
   const won = auction.status === 'CLOSED_WON' || auction.status === 'CLOSED_SNAGGED';
+  // the third time state: OPEN but the window has not started yet
+  const notStarted = auction.status === 'OPEN' && new Date(auction.startTime).getTime() > now.getTime();
+  const timeline = notStarted
+    ? t('auction.startsAt', { date: formatDateTime(auction.startTime, lang) })
+    : open
+      ? `${t('auction.startedAt', { date: formatDateTime(auction.startTime, lang) })} · ${t('auction.endsIn', { time: countdown(auction.endTime, now) })}`
+      : t('auction.endedAt', { date: formatDateTime(auction.closedTime ?? auction.endTime, lang) });
 
   const run = async (fn: () => Promise<unknown>, fail: string) => {
     setBusy(true);
@@ -117,17 +134,27 @@ export default function AuctionPanel({ announce, mine }: { announce: AnnounceRes
       <Card.Body>
         <div className="d-flex justify-content-between align-items-start">
           <h2 className="h6">{t('auction.title')}</h2>
-          <Badge bg={open ? 'primary' : 'secondary'} data-testid="auction-status">
-            {t(`auctionStatus.${auction.status}`)}
+          <Badge bg={open ? 'primary' : notStarted ? 'info' : 'secondary'} data-testid="auction-status">
+            {notStarted ? t('auctionStatus.NOT_STARTED') : t(`auctionStatus.${auction.status}`)}
           </Badge>
         </div>
         <div className="an-price fs-4" data-testid="auction-price">
           {formatMoney(auction.currentPrice, auction.currency, lang)}
         </div>
-        <div className="small text-muted">
-          {t('auction.bids', { count: auction.bidCount })} ·{' '}
-          {open ? t('auction.endsIn', { time: countdown(auction.endTime, now) }) : t('auction.endedAt', { date: formatDateTime(auction.closedTime ?? auction.endTime, lang) })}
+        <div className="small text-muted" data-testid="auction-timeline">
+          {t('auction.bids', { count: auction.bidCount })} · {timeline}
         </div>
+        {notStarted && !mine && (
+          <Form className="mt-2" data-testid="bid-form-disabled">
+            <InputGroup>
+              <Form.Control type="number" disabled placeholder={String(minimum)} aria-label={t('auction.bidAmount')} />
+              <Button type="button" disabled>
+                {t('auction.bid')}
+              </Button>
+            </InputGroup>
+            <Form.Text>{t('auction.bidsOpenAt', { date: formatDateTime(auction.startTime, lang) })}</Form.Text>
+          </Form>
+        )}
         {own && (
           <div className="small" data-testid="my-bid">
             {t('auction.myBid', { amount: formatMoney(own.amount, auction.currency, lang) })} <span className="text-muted">({t(`bidStatus.${own.status}`)})</span>

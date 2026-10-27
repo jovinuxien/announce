@@ -9,6 +9,8 @@
     "from": "from {{price}}",
     "bids": "Bids",
     "ends": "Ends",
+    "starts": "Starts",
+    "window": "Runs {{start}} – {{end}}",
     "bidsOf": "Bids on “{{title}}”",
     "bidder": "Bidder",
     "amount": "Amount",

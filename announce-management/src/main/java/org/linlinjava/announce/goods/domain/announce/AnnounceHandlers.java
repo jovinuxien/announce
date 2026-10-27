@@ -20,6 +20,7 @@ import org.linlinjava.announce.goods.domain.announce.events.AnnouncePosted;
 import org.linlinjava.announce.goods.domain.announce.events.AnnouncePublished;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceSold;
 import org.linlinjava.announce.goods.domain.announce.events.AnnounceWithdrawn;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -32,10 +33,14 @@ import java.util.List;
  * Command handling and state rebuilding of the Announce aggregate as explicit OpenCQRS definitions (the style of
  * the cqrs-reactive sample). Every command handler checks {@link AnnounceRules}, publishes one event and returns
  * the resulting {@link Announce} state, so callers can answer without waiting for the read model.
- * {@link #definitions(Clock)} is what tests hand to {@code CommandFixture.handlers(...)}.
+ * {@link #definitions(Clock)} is what tests hand to {@code CommandFixture.handlers(...)}. {@code auctionDuration}
+ * ({@code announce.auction.default-duration}, 7 days) fills a missing auction end at publish.
  */
 @Configuration(proxyBeanMethods = false)
 public class AnnounceHandlers {
+
+    /** The auction runs this long when the seller gave no end (capped by the announce's expiry). */
+    public static final Duration DEFAULT_AUCTION_DURATION = Duration.ofDays(7);
 
     // ------------------------------------------------------------------ state rebuilding
 
@@ -85,27 +90,44 @@ public class AnnounceHandlers {
                         throw new IllegalArgumentException("The announce content is required");
                     }
                     AnnounceRules.checkEdit(state, command.details());
-                    AnnounceEdited event = new AnnounceEdited(command.content(), command.details(), now(clock));
+                    LocalDateTime now = now(clock);
+                    AnnounceKind details = AnnounceRules.editedDetails(state, command.details(), now);
+                    AnnounceEdited event = new AnnounceEdited(command.content(), details, now);
                     publisher.publish(event);
                     return state.apply(event);
                 });
     }
 
     public static CommandHandlerDefinition<Announce, PublishAnnounce, Announce> publish(Clock clock) {
+        return publish(clock, DEFAULT_AUCTION_DURATION);
+    }
+
+    /** An auction's missing dates are resolved here (start = now, end = start + {@code auctionDuration} capped by the expiry) and checked. */
+    public static CommandHandlerDefinition<Announce, PublishAnnounce, Announce> publish(Clock clock, Duration auctionDuration) {
         return new CommandHandlerDefinition<>(Announce.class, PublishAnnounce.class,
                 (CommandHandler.ForInstanceAndCommand<Announce, PublishAnnounce, Announce>) (state, command, publisher) -> {
                     AnnounceRules.checkOwner(state, command.sellerId());
                     Duration validity = command.validity() == null ? Announce.DEFAULT_VALIDITY : command.validity();
                     LocalDateTime now = now(clock);
                     AnnounceRules.checkPublish(state, validity, now);
-                    AnnouncePublished event = new AnnouncePublished(now, now.plus(validity), state.sellerId(), state.content(), state.details());
+                    LocalDateTime expiresAt = now.plus(validity);
+                    AnnounceKind details = AnnounceRules.resolveSchedule(state.details(), now, expiresAt, auctionDuration);
+                    AnnounceRules.checkSchedule(details, expiresAt, now);
+                    AnnouncePublished event = new AnnouncePublished(now, expiresAt, state.sellerId(), state.content(), details);
                     publisher.publish(event);
                     return state.apply(event);
                 });
     }
 
-    /** Idempotent: only a SOLD announce is relisted; the expiry is kept when still ahead, else the default validity applies. */
     public static CommandHandlerDefinition<Announce, RelistAnnounce, Announce> relist(Clock clock) {
+        return relist(clock, DEFAULT_AUCTION_DURATION);
+    }
+
+    /**
+     * Idempotent: only a SOLD announce is relisted; the expiry is kept when still ahead, else the default validity applies.
+     * An auction whose schedule is already over gets a fresh one (now + the default duration); a schedule still ahead is kept.
+     */
+    public static CommandHandlerDefinition<Announce, RelistAnnounce, Announce> relist(Clock clock, Duration auctionDuration) {
         return new CommandHandlerDefinition<>(Announce.class, RelistAnnounce.class,
                 (CommandHandler.ForInstanceAndCommand<Announce, RelistAnnounce, Announce>) (state, command, publisher) -> {
                     LocalDateTime now = now(clock);
@@ -113,7 +135,13 @@ public class AnnounceHandlers {
                         return state;
                     }
                     LocalDateTime expiresAt = state.expiresAt() != null && state.expiresAt().isAfter(now) ? state.expiresAt() : now.plus(Announce.DEFAULT_VALIDITY);
-                    AnnouncePublished event = new AnnouncePublished(now, expiresAt, state.sellerId(), state.content(), state.details());
+                    AnnounceKind details = state.details();
+                    if (details instanceof GoodsDetails goods && goods.saleType() == SaleType.AUCTION
+                            && (goods.auctionEndsAt() == null || !goods.auctionEndsAt().isAfter(now))) {
+                        details = goods.withSchedule(null, null);
+                    }
+                    details = AnnounceRules.resolveSchedule(details, now, expiresAt, auctionDuration);
+                    AnnouncePublished event = new AnnouncePublished(now, expiresAt, state.sellerId(), state.content(), details);
                     publisher.publish(event);
                     return state.apply(event);
                 });
@@ -179,8 +207,12 @@ public class AnnounceHandlers {
 
     /** All definitions, for {@code CommandFixture.handlers(...)}. */
     public static List<Object> definitions(Clock clock) {
+        return definitions(clock, DEFAULT_AUCTION_DURATION);
+    }
+
+    public static List<Object> definitions(Clock clock, Duration auctionDuration) {
         return List.of(ON_POSTED, ON_EDITED, ON_PUBLISHED, ON_WITHDRAWN, ON_SOLD, ON_EXPIRED,
-                post(clock), edit(clock), publish(clock), withdraw(clock), markSold(clock), expire(clock), relist(clock),
+                post(clock), edit(clock), publish(clock, auctionDuration), withdraw(clock), markSold(clock), expire(clock), relist(clock, auctionDuration),
                 moderateWithdraw(clock), moderateExpire(clock));
     }
 
@@ -198,11 +230,11 @@ public class AnnounceHandlers {
     @Bean StateRebuildingHandlerDefinition<Announce, AnnounceExpired> announceOnExpired() { return ON_EXPIRED; }
     @Bean CommandHandlerDefinition<Announce, PostAnnounce, Announce> announcePost(Clock clock) { return post(clock); }
     @Bean CommandHandlerDefinition<Announce, EditAnnounce, Announce> announceEdit(Clock clock) { return edit(clock); }
-    @Bean CommandHandlerDefinition<Announce, PublishAnnounce, Announce> announcePublish(Clock clock) { return publish(clock); }
+    @Bean CommandHandlerDefinition<Announce, PublishAnnounce, Announce> announcePublish(Clock clock, @Value("${announce.auction.default-duration:7d}") Duration auctionDuration) { return publish(clock, auctionDuration); }
     @Bean CommandHandlerDefinition<Announce, WithdrawAnnounce, Announce> announceWithdraw(Clock clock) { return withdraw(clock); }
     @Bean CommandHandlerDefinition<Announce, MarkSold, Announce> announceMarkSold(Clock clock) { return markSold(clock); }
     @Bean CommandHandlerDefinition<Announce, ExpireAnnounce, Announce> announceExpire(Clock clock) { return expire(clock); }
-    @Bean CommandHandlerDefinition<Announce, RelistAnnounce, Announce> announceRelist(Clock clock) { return relist(clock); }
+    @Bean CommandHandlerDefinition<Announce, RelistAnnounce, Announce> announceRelist(Clock clock, @Value("${announce.auction.default-duration:7d}") Duration auctionDuration) { return relist(clock, auctionDuration); }
     @Bean CommandHandlerDefinition<Announce, ModerateWithdraw, Announce> announceModerateWithdraw(Clock clock) { return moderateWithdraw(clock); }
     @Bean CommandHandlerDefinition<Announce, ModerateExpire, Announce> announceModerateExpire(Clock clock) { return moderateExpire(clock); }
 }

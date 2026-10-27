@@ -41,6 +41,9 @@
     "attributes": "Egenskaber",
     "attrName": "Navn (fx km)",
     "attrValue": "Værdi",
+    "auctionEndsAt": "Auktionen slutter",
+    "auctionScheduleHelp": "Lad felterne stå tomme for at starte, når annoncen udgives, og slutte 7 dage senere (aldrig efter annoncen udløber).",
+    "auctionStartsAt": "Auktionen starter",
     "chooseCondition": "Vælg…",
     "condition": "Stand",
     "price": "Pris",
@@ -82,6 +85,8 @@
   },
   "title": "Opret annonce",
   "validation": {
+    "auctionEndAfterStart": "Auktionen skal slutte efter den starter.",
+    "auctionEndFuture": "Auktionens slutning skal ligge i fremtiden.",
     "capacityPositive": "Kapaciteten skal være positiv.",
     "categoryRequired": "Vælg en kategori.",
     "conditionRequired": "Vælg standen.",

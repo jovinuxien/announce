@@ -11,6 +11,9 @@
     "venue": "Venue"
   },
   "goods": {
+    "auctionEnds": "Auction ends {{date}}",
+    "auctionSchedule": "Auction: starts {{start}}, ends {{end}}",
+    "auctionStarts": "Auction starts {{date}}",
     "condition": "Condition",
     "price": "Price",
     "saleType": "Sale type",
